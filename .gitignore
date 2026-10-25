@@ -1,0 +1,40 @@
+# Unity generated
+ColourCascade/[Ll]ibrary/
+ColourCascade/[Tt]emp/
+ColourCascade/[Oo]bj/
+ColourCascade/[Bb]uild/
+ColourCascade/[Bb]uilds/
+ColourCascade/[Ll]ogs/
+ColourCascade/[Uu]ser[Ss]ettings/
+ColourCascade/[Mm]emoryCaptures/
+ColourCascade/[Rr]ecordings/
+ColourCascade/*.csproj
+ColourCascade/*.sln
+ColourCascade/*.slnx
+ColourCascade/*.user
+ColourCascade/*.pidb
+ColourCascade/*.booproj
+ColourCascade/*.svd
+ColourCascade/*.pdb
+ColourCascade/*.mdb
+ColourCascade/*.opendb
+ColourCascade/*.VC.db
+ColourCascade/.vs/
+ColourCascade/.vscode/
+ColourCascade/.idea/
+ColourCascade/.gradle/
+ColourCascade/sysinfo.txt
+ColourCascade/crashlytics-build.properties
+ColourCascade/*.apk
+ColourCascade/*.aab
+ColourCascade/*.unitypackage
+
+# .NET verification harness
+tools/Harness/**/bin/
+tools/Harness/**/obj/
+tools/Harness/.unityrefs/
+tools/Harness/TestResults/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <UnityAssets>$(MSBuildThisFileDirectory)../../ColourCascade/Assets/ColourCascade</UnityAssets>
+    <UnityRefs>$(MSBuildThisFileDirectory).unityrefs</UnityRefs>
+    <!-- Mirrors the scripting defines Unity sets, so version-conditional code is exercised. -->
+    <UnityCommonDefines>UNITY_5_3_OR_NEWER;UNITY_2017_1_OR_NEWER;UNITY_2018_1_OR_NEWER;UNITY_2019_1_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2021_2_OR_NEWER;UNITY_2021_3_OR_NEWER;ENABLE_LEGACY_INPUT_MANAGER;CSHARP_7_3_OR_NEWER</UnityCommonDefines>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Procedural art and audio generators (engine-free). -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ColourCascade.Procedural</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(UnityAssets)/Scripts/Procedural/**/*.cs" />
+    <ProjectReference Include="../CoreLib/CoreLib.csproj" />
+  </ItemGroup>
+</Project>

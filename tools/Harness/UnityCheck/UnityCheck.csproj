@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compile-checks the Unity runtime scripts against Unity 2021.3 reference assemblies.
+       Run ../fetch-unity-refs.sh first. Build with -p:UnityPlatform=Android to check Android paths. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ColourCascade.Runtime</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>$(UnityCommonDefines)</DefineConstants>
+    <DefineConstants Condition="'$(UnityPlatform)'=='Android'">$(DefineConstants);UNITY_ANDROID</DefineConstants>
+    <DefineConstants Condition="'$(UnityPlatform)'=='Editor'">$(DefineConstants);UNITY_EDITOR</DefineConstants>
+    <DefineConstants Condition="'$(UnityPlatform)'=='InputSystem'">UNITY_5_3_OR_NEWER;UNITY_2017_1_OR_NEWER;UNITY_2018_1_OR_NEWER;UNITY_2019_1_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2021_2_OR_NEWER;UNITY_2021_3_OR_NEWER;ENABLE_INPUT_SYSTEM</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(UnityAssets)/Scripts/Runtime/**/*.cs" />
+    <Compile Include="Shims/AndroidOnlyApis.cs" Condition="'$(UnityPlatform)'=='Android'" />
+    <ProjectReference Include="../CoreLib/CoreLib.csproj" />
+    <ProjectReference Include="../ProceduralLib/ProceduralLib.csproj" />
+    <Reference Include="$(UnityRefs)/engine/lib/net45/*.dll" Private="false" />
+    <Reference Include="$(UnityRefs)/ugui/lib/UnityEngine.UI.dll" Private="false" />
+  </ItemGroup>
+</Project>
