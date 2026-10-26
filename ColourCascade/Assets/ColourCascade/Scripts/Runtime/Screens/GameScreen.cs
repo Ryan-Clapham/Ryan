@@ -67,6 +67,7 @@ namespace ColourCascade.App
         bool paused;
         bool countingDown;
         bool invalidHintShown;
+        bool runClosed = true;
         int lastMoves = -1;
 
         sealed class PowerUpSlot
@@ -160,7 +161,8 @@ namespace ColourCascade.App
             previewBubble.gameObject.SetActive(false);
 
             targetingBanner = UI.Rect("Targeting", Safe);
-            targetingBanner.TopStrip(150, 380, Theme.Margin, Theme.Margin);
+            // Sits over the score card (not needed while aiming) so it never hides a row of tiles.
+            targetingBanner.TopStrip(170, 179, Theme.Margin, Theme.Margin);
             var tb = UI.Card(targetingBanner, "Card", Theme.SurfaceHigh, 40);
             targetingText = UI.FitText(tb, "", Theme.FontBody - 2, Theme.Text, TextAnchor.MiddleLeft, true, "Hint");
             targetingText.rectTransform.Fill(36, 10, 190, 10);
@@ -221,6 +223,7 @@ namespace ColourCascade.App
 
         public override void OnHide()
         {
+            CloseRun();
             App.AppPaused -= OnAppPaused;
             Ctx.Settings.Changed -= OnSettingChanged;
             CoachMark.Hide();
@@ -256,8 +259,19 @@ namespace ColourCascade.App
 
         // ================================================================== Runs
 
+        /// <summary>Ends the current run's bookkeeping exactly once: an unfinished run is abandoned (counted as an
+        /// attempt) and the activity tracker is released so the shop reopens.</summary>
+        void CloseRun()
+        {
+            if (runClosed || session == null) return;
+            runClosed = true;
+            if (!session.IsOver) Ctx.AbandonRun(session);
+            else Ctx.Activity.EndRun();
+        }
+
         void StartRun()
         {
+            CloseRun();
             Tw.Kill(this);
             CoachMark.Hide();
             CancelTargeting();
@@ -283,6 +297,7 @@ namespace ColourCascade.App
             session = new PuzzleSession(setup);
             session.Start();
             Ctx.BeginRun(session);
+            runClosed = false;
 
             board.Bind(session, Ctx.Settings.Symbols);
             lastArea = Vector2.zero;
@@ -335,10 +350,11 @@ namespace ColourCascade.App
             switch (session.Mode)
             {
                 case GameMode.Campaign:
+                    // The level ends the moment the target is reached, so the bar fills to the target.
                     title.text = "Level " + level.Number;
                     subtitle.text = Ctx.Catalog.RegionForLevel(level.Number).Name.ToUpperInvariant();
                     badgeLabel.text = "MOVES";
-                    progress.SetMarkers(level.Target / (float)level.Star3, level.Star2 / (float)level.Star3, 1f);
+                    progress.SetMarkers(1f);
                     break;
                 case GameMode.Endless:
                     title.text = "Endless";
@@ -384,11 +400,9 @@ namespace ColourCascade.App
             {
                 case GameMode.Campaign:
                     targetText.text = "Target " + NumberFormat.Thousands(level.Target);
-                    progress.SetFraction(score / (float)Mathf.Max(1, level.Star3), animate);
+                    progress.SetFraction(score / (float)Mathf.Max(1, level.Target), animate);
                     progress.SetColour(score >= level.Target ? Theme.Success : Theme.Gold);
-                    progress.SetMarkerLit(0, session.FinalScore >= level.Target);
-                    progress.SetMarkerLit(1, session.FinalScore >= level.Star2);
-                    progress.SetMarkerLit(2, session.FinalScore >= level.Star3);
+                    progress.SetMarkerLit(0, score >= level.Target);
                     break;
                 case GameMode.Endless:
                     {
@@ -582,7 +596,7 @@ namespace ColourCascade.App
             }
             float duration = board.Animate(outcome);
             CoachMark.Hide();
-            AudioService.Instance?.PlayPop(outcome.GroupSize);
+            if (AudioService.Instance != null) AudioService.Instance.PlayPop(outcome.GroupSize);
             if (outcome.GroupSize >= 8) Haptics.Medium();
             else Haptics.Light();
             ShowMoveFeedback(outcome);
@@ -731,7 +745,7 @@ namespace ColourCascade.App
                 }
                 bool usable = session != null && (session.AcceptsMoves || s.Def.id == PowerUpId.ExtraMoves) && !endScheduled;
                 s.Root.GetComponent<RectTransform>().localScale = targeting != null && targeting.id == s.Def.id ? Vector3.one * 1.1f : Vector3.one;
-                var group = s.Root.GetComponent<CanvasGroup>() ?? s.Root.gameObject.AddComponent<CanvasGroup>();
+                var group = UI.GetOrAdd<CanvasGroup>(s.Root.gameObject);
                 group.alpha = usable ? 1f : 0.5f;
             }
         }
@@ -788,7 +802,7 @@ namespace ColourCascade.App
             targetingBanner.localScale = Vector3.one * 0.9f;
             Tw.Scale(targetingBanner, 1f, 0.2f, Ease.OutBack);
             board.SetGlowColour(Theme.Hex(def.accentHex).WithAlpha(0.95f));
-            board.ClearHighlight();
+            board.ClearMarks();
             colourPicker.gameObject.SetActive(false);
             powerBar.gameObject.SetActive(true);
             CoachMark.Hide();
@@ -805,7 +819,7 @@ namespace ColourCascade.App
             if (board != null)
             {
                 board.SetGlowColour(new Color(1, 1, 1, 0.85f));
-                board.ClearHighlight();
+                board.ClearMarks();
             }
             if (session != null) RefreshPowerBar();
         }
@@ -1155,7 +1169,6 @@ namespace ColourCascade.App
 
         public void RestartRun()
         {
-            if (session != null && !session.IsOver) Ctx.AbandonRun(session);
             StartRun();
         }
 
@@ -1174,7 +1187,7 @@ namespace ColourCascade.App
         /// <summary>Leaves the game for the map (campaign) or home (other modes), abandoning an unfinished run.</summary>
         public void QuitRun()
         {
-            if (session != null && !session.IsOver) Ctx.AbandonRun(session);
+            CloseRun();
             if (session != null && session.Mode == GameMode.Campaign) ExitTo(ScreenId.Map, new MapArgs { Focus = session.Level.Number });
             else ExitTo(ScreenId.Home, null);
         }
@@ -1187,7 +1200,8 @@ namespace ColourCascade.App
 
         public void OpenPause()
         {
-            if (session == null || paused || endScheduled || Nav.IsOpen<PausePopup>()) return;
+            // No pausing during the 3-2-1 countdown: the timer has not started yet anyway.
+            if (session == null || paused || endScheduled || countingDown || Nav.IsOpen<PausePopup>()) return;
             paused = true;
             session.SetPaused(true);
             board.CancelPress();
@@ -1203,6 +1217,19 @@ namespace ColourCascade.App
             if (session == null) return;
             session.SetPaused(false);
             board.SetBoardVisible(true);
+            // Safety net: a timed run that should be under way always resumes with its timer and input live.
+            if (session.IsTimed && session.State == SessionState.Playing && !countingDown && !session.TimerRunning)
+            {
+                session.StartTimer();
+                board.InputEnabled = true;
+            }
+        }
+
+        /// <summary>Android Back on the result screen: leave to the map (campaign) or home.</summary>
+        public void LeaveAfterResult()
+        {
+            if (session != null && session.Mode == GameMode.Campaign) ExitTo(ScreenId.Map, new MapArgs { Focus = session.Level.Number });
+            else ExitTo(ScreenId.Home, null);
         }
 
         public PuzzleSession Session => session;

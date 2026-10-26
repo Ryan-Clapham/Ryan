@@ -115,6 +115,9 @@ namespace ColourCascade.App
         readonly Stack<TileView> pool = new Stack<TileView>();
         readonly List<Image> slots = new List<Image>();
         readonly List<GridPos> highlight = new List<GridPos>();
+        readonly List<GridPos> marked = new List<GridPos>();
+        Color markGlow;
+        bool highlightShown;
         bool[] highlightMask = new bool[0];
         Color highlightGlow = new Color(1, 1, 1, 0.85f);
         int width, height;
@@ -172,6 +175,8 @@ namespace ColourCascade.App
             slots.Clear();
             Fx.Clear();
             highlight.Clear();
+            marked.Clear();
+            highlightShown = false;
             previewActive = false;
             activePointer = int.MinValue;
             busyUntil = 0;
@@ -346,6 +351,7 @@ namespace ColourCascade.App
 
         public void ShowHighlight(List<GridPos> cells, Color glow)
         {
+            highlightShown = true;
             for (int i = 0; i < highlightMask.Length; i++) highlightMask[i] = false;
             foreach (var c in cells) if (c.Col >= 0 && c.Row >= 0 && c.Col < width && c.Row < height) highlightMask[c.Row * width + c.Col] = true;
             foreach (var v in views.Values)
@@ -355,13 +361,29 @@ namespace ColourCascade.App
             }
         }
 
+        /// <summary>Removes the press preview. Persistent marks (e.g. a Swap's first tile) stay visible.</summary>
         public void ClearHighlight()
         {
             bool had = previewActive;
             previewActive = false;
-            for (int i = 0; i < highlightMask.Length; i++) highlightMask[i] = false;
-            foreach (var v in views.Values) v.SetHighlight(false, false, highlightGlow);
+            if (marked.Count > 0)
+            {
+                ShowHighlight(marked, markGlow);
+            }
+            else if (highlightShown)
+            {
+                highlightShown = false;
+                for (int i = 0; i < highlightMask.Length; i++) highlightMask[i] = false;
+                foreach (var v in views.Values) v.SetHighlight(false, false, highlightGlow);
+            }
             if (had) PreviewHidden?.Invoke();
+        }
+
+        /// <summary>Removes persistent marks and any highlight.</summary>
+        public void ClearMarks()
+        {
+            marked.Clear();
+            ClearHighlight();
         }
 
         /// <summary>Cancels any press in progress (e.g. when a popup opens).</summary>
@@ -373,10 +395,14 @@ namespace ColourCascade.App
 
         public void SetGlowColour(Color c) => highlightGlow = c;
 
-        /// <summary>Marks cells as selected without an active press (e.g. first tile of a Swap).</summary>
+        /// <summary>Marks cells as selected without an active press (e.g. first tile of a Swap). The mark
+        /// stays until ClearMarks, surviving later presses that preview nothing.</summary>
         public void Mark(List<GridPos> cells, Color glow)
         {
-            ShowHighlight(cells, glow);
+            marked.Clear();
+            marked.AddRange(cells);
+            markGlow = glow;
+            ShowHighlight(marked, glow);
         }
 
         public void Shake(GridPos p)
@@ -406,7 +432,7 @@ namespace ColourCascade.App
         /// <summary>Animates an outcome. Returns its duration; input is blocked until it finishes.</summary>
         public float Animate(MoveOutcome o)
         {
-            ClearHighlight();
+            ClearMarks();
             float end = 0f;
 
             // Swaps.

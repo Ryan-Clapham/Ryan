@@ -25,6 +25,12 @@ namespace ColourCascade.App
         {
         }
 
+        /// <summary>Android Back leaves the result screen the same way the "Map"/"Home" button does.</summary>
+        public override void OnBack()
+        {
+            if (game != null) game.LeaveAfterResult();
+        }
+
         public void Setup(RunResult r, PuzzleSession s, GameScreen screen)
         {
             result = r;

@@ -73,12 +73,23 @@ namespace ColourCascade.App
 
         public static LayoutElement Layout(this Component c, float preferredHeight = -1, float preferredWidth = -1, float flexibleHeight = -1, float flexibleWidth = -1)
         {
-            var le = c.gameObject.GetComponent<LayoutElement>() ?? c.gameObject.AddComponent<LayoutElement>();
+            var le = GetOrAdd<LayoutElement>(c.gameObject);
             if (preferredHeight >= 0) { le.preferredHeight = preferredHeight; le.minHeight = preferredHeight; }
             if (preferredWidth >= 0) { le.preferredWidth = preferredWidth; le.minWidth = preferredWidth; }
             if (flexibleHeight >= 0) le.flexibleHeight = flexibleHeight;
             if (flexibleWidth >= 0) le.flexibleWidth = flexibleWidth;
             return le;
+        }
+
+        /// <summary>
+        /// Returns the existing component or adds one. Never use "GetComponent() ?? AddComponent()": in the Editor
+        /// GetComponent returns a "fake null" object that C#'s ?? and ?. operators treat as a real object.
+        /// </summary>
+        public static T GetOrAdd<T>(GameObject go) where T : Component
+        {
+            var c = go.GetComponent<T>();
+            if (c == null) c = go.AddComponent<T>();
+            return c;
         }
 
         public static VerticalLayoutGroup VStack(RectTransform rt, float spacing, RectOffset padding = null, TextAnchor align = TextAnchor.UpperCenter)

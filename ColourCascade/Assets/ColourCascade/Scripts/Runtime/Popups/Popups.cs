@@ -55,8 +55,8 @@ namespace ColourCascade.App
             ToggleRow(list, Icon.Music, "Music", Ctx.Settings.MusicVolume > 0.01f, on => Ctx.Settings.MusicVolume = on ? 0.5f : 0f);
             ToggleRow(list, Icon.Eye, "Symbols on tiles", Ctx.Settings.Symbols, on => Ctx.Settings.Symbols = on);
             FooterButton("Resume", ButtonStyle.Primary, Close, Icon.Play, 400, 150);
-            FooterButton("Restart", ButtonStyle.Secondary, () => { Close(); game?.RestartRun(); }, Icon.Restart, 226, 140);
-            FooterButton("Quit", ButtonStyle.Ghost, () => { Close(); game?.QuitRun(); }, Icon.Home, 60, 140);
+            FooterButton("Restart", ButtonStyle.Secondary, () => { Close(); if (game != null) game.RestartRun(); }, Icon.Restart, 226, 140);
+            FooterButton("Quit", ButtonStyle.Ghost, () => { Close(); if (game != null) game.QuitRun(); }, Icon.Home, 60, 140);
         }
 
         public static void ToggleRow(Transform parent, Icon icon, string label, bool value, Action<bool> changed)

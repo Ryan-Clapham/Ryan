@@ -63,7 +63,10 @@ namespace ColourCascade.App
             Application.targetFrameRate = 60;
             QualitySettings.vSyncCount = 0;
             Screen.orientation = ScreenOrientation.Portrait;
+#if ENABLE_LEGACY_INPUT_MANAGER
+            // The legacy Input class throws when only the new Input System is active, so guard it.
             Input.multiTouchEnabled = false;
+#endif
             BuildCanvas();
             StartCoroutine(Startup());
         }
@@ -164,6 +167,8 @@ namespace ColourCascade.App
             if (artTask.IsFaulted || bgTask.IsFaulted)
             {
                 Debug.LogException(artTask.Exception ?? bgTask.Exception);
+                var message = UI.Text(splash, "Colour Cascade couldn't start. Please restart the app.", Theme.FontBody, Theme.Text, TextAnchor.MiddleCenter, true, "Error");
+                message.rectTransform.Centre(900, 200, 0, -320);
                 yield break;
             }
             progress.SetFraction(1f, false);
@@ -362,7 +367,9 @@ namespace ColourCascade.App
                 saveRequested = false;
                 Ctx.Save();
             }
-            AppPaused?.Invoke(!focused);
+            // On devices losing focus (notification shade, incoming call) pauses the game. In the Editor,
+            // clicking another window also removes focus, so only OnApplicationPause is used there.
+            if (!Application.isEditor) AppPaused?.Invoke(!focused);
         }
 
         void OnApplicationQuit()

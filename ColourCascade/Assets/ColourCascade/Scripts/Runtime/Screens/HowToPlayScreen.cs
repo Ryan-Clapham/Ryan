@@ -260,7 +260,7 @@ namespace ColourCascade.App
             {
                 if (practice == null || !practice.TryPlay(cell, outcome)) return;
                 practiceBoard.Animate(outcome);
-                AudioService.Instance?.PlayPop(outcome.GroupSize);
+                if (AudioService.Instance != null) AudioService.Instance.PlayPop(outcome.GroupSize);
                 Haptics.Light();
                 practiceBoard.Fx.FloatText(practiceBoard.CellInFx(outcome.Origin), "+" + NumberFormat.Thousands(outcome.ScoreGained), Theme.Gold, 64, 110f, 0.8f);
                 CoachMark.Hide();

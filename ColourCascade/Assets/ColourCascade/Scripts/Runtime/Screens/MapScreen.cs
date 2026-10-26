@@ -80,15 +80,14 @@ namespace ColourCascade.App
         {
             viewport = UI.Rect("Viewport", Root);
             viewport.Fill();
+            // Draw the map behind the header and buttons (which live in the Safe container).
+            viewport.SetAsFirstSibling();
             var hit = viewport.gameObject.AddComponent<Image>();
             hit.color = new Color(0, 0, 0, 0);
             content = UI.Rect("Content", viewport);
             content.anchorMin = new Vector2(0, 0);
             content.anchorMax = new Vector2(1, 0);
             content.pivot = new Vector2(0.5f, 0);
-            var nested = content.gameObject.AddComponent<Canvas>();
-            nested.overrideSorting = false;
-            content.gameObject.AddComponent<GraphicRaycaster>();
             backdrop = UI.Rect("Regions", content);
             backdrop.Fill();
             pathLayer = UI.Rect("Path", content);
@@ -210,7 +209,6 @@ namespace ColourCascade.App
         {
             UI.ClearChildren(backdrop);
             int regions = Ctx.Catalog.RegionForLevel(maxLevel).Index + 1;
-            int per = Ctx.Catalog.LevelsPerRegion;
             for (int i = 0; i < regions; i++)
             {
                 var info = Ctx.Catalog.Region(i);
