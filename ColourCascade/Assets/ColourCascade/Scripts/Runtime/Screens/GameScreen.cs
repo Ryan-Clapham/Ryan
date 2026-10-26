@@ -300,6 +300,7 @@ namespace ColourCascade.App
             runClosed = false;
 
             board.Bind(session, Ctx.Settings.Symbols);
+            board.Speed = session.IsTimed ? 1.35f : 1f;
             lastArea = Vector2.zero;
             board.InputEnabled = true;
             shownScore = 0;

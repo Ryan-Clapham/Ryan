@@ -131,6 +131,8 @@ namespace ColourCascade.App
         bool symbols;
 
         public bool InputEnabled = true;
+        /// <summary>Animation speed multiplier (Weekly Rush plays faster so the clock feels fair).</summary>
+        public float Speed = 1f;
         public float CellSize => cell;
         public bool Busy => Time.unscaledTime < busyUntil;
         public RectTransform Frame => frame;
@@ -427,7 +429,7 @@ namespace ColourCascade.App
 
         // ------------------------------------------------------------------ Animation
 
-        static float FallDuration(int rows) => Mathf.Min(0.42f, 0.12f + 0.045f * Mathf.Max(1, rows));
+        float FallDuration(int rows) => Mathf.Min(0.42f, 0.12f + 0.045f * Mathf.Max(1, rows)) / Mathf.Max(0.5f, Speed);
 
         /// <summary>Animates an outcome. Returns its duration; input is blocked until it finishes.</summary>
         public float Animate(MoveOutcome o)
@@ -466,6 +468,7 @@ namespace ColourCascade.App
             }
 
             // Clears, staggered outwards from the tapped tile.
+            float pace = 1f / Mathf.Max(0.5f, Speed);
             float maxStagger = 0f;
             int shardCount = Mathf.Clamp(48 / Mathf.Max(1, o.Cleared.Count), 2, 7);
             foreach (var cl in o.Cleared)
@@ -474,7 +477,7 @@ namespace ColourCascade.App
                 if (!views.TryGetValue(cl.TileId, out v)) continue;
                 views.Remove(cl.TileId);
                 float dist = Mathf.Abs(cl.Pos.Col - o.Origin.Col) + Mathf.Abs(cl.Pos.Row - o.Origin.Row);
-                float stagger = Mathf.Min(o.Kind == OutcomeKind.Group ? 0.13f : 0.2f, dist * (o.Kind == OutcomeKind.Group ? 0.016f : 0.025f));
+                float stagger = Mathf.Min(o.Kind == OutcomeKind.Group ? 0.13f : 0.2f, dist * (o.Kind == OutcomeKind.Group ? 0.016f : 0.025f)) * pace;
                 maxStagger = Mathf.Max(maxStagger, stagger);
                 var view = v;
                 var colour = cl.WasStone ? Theme.C(Palette.Stone) : Theme.Tile(cl.Colour);
@@ -548,7 +551,8 @@ namespace ColourCascade.App
                 end = start + 0.75f;
             }
 
-            busyUntil = Time.unscaledTime + Mathf.Max(0.05f, end);
+            // Input reopens as tiles land; the final landing squash is cosmetic and need not block play.
+            busyUntil = Time.unscaledTime + Mathf.Max(0.05f, end - 0.1f);
             Tw.Delay(end + 0.02f, Verify, this);
             return end;
         }
