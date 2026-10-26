@@ -62,7 +62,7 @@ namespace ColourCascade.Procedural
     public static class ArtBook
     {
         /// <summary>Bump whenever any recipe changes, so cached atlases on devices are regenerated.</summary>
-        public const int Version = 1;
+        public const int Version = 3;
 
         static readonly Rgba W = Rgba.White;
         static Rgba WA(float a) => new Rgba(1, 1, 1, a);
@@ -251,12 +251,12 @@ namespace ColourCascade.Procedural
                     return new Polygon(50, 25, 70, 45, 50, 65, 30, 45).Union(new Circle(40.2f, 55, 14.1f), new Circle(59.8f, 55, 14.1f)).Move(0, -1);
                 case 1: // star
                     return Polygon.Star(50, 50, 22, 9.5f, 5).Inflate(3f);
-                case 2: // circle
-                    return new Circle(50, 50, 19.5f);
+                case 2: // ring (a bold "O", clearly unlike the solid heart and diamond)
+                    return new Circle(50, 50, 21f).Minus(new Circle(50, 50, 9f));
                 case 3: // triangle
                     return Polygon.Regular(50, 45.5f, 20.5f, 3, 0).Inflate(3.5f);
-                case 4: // diamond
-                    return new Polygon(50, 71, 70, 50, 50, 29, 30, 50).Inflate(2.5f);
+                case 4: // crescent moon (chosen as the shape least like the others, measured by Jaccard distance)
+                    return new Circle(48, 50, 23f).Minus(new Circle(62, 57, 15f));
                 default: // cross
                     return new RoundBox(50, 50, 7.5f, 21, 3.5f).Union(new RoundBox(50, 50, 21, 7.5f, 3.5f));
             }

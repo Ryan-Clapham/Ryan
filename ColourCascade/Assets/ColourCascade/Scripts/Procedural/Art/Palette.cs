@@ -17,7 +17,7 @@ namespace ColourCascade.Procedural
             Rgba.Hex("#FF8A2B"),
         };
 
-        public static readonly string[] SymbolNames = { "Heart", "Star", "Circle", "Triangle", "Diamond", "Cross" };
+        public static readonly string[] SymbolNames = { "Heart", "Star", "Ring", "Triangle", "Moon", "Cross" };
 
         public static readonly Rgba BgDeep = Rgba.Hex("#120D33");
         public static readonly Rgba BgMid = Rgba.Hex("#22175A");
