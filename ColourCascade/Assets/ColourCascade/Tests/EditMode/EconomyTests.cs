@@ -173,9 +173,10 @@ namespace ColourCascade.Tests
         {
             var eco = new EconomyConfig();
             Assert.Less(eco.FirstClearReward(1), 30);
-            Assert.AreEqual(10, eco.FirstClearReward(1));
-            Assert.AreEqual(12, eco.FirstClearReward(6));
-            Assert.AreEqual(30, eco.FirstClearReward(200));
+            Assert.AreEqual(5, eco.FirstClearReward(1));
+            Assert.AreEqual(5, eco.FirstClearReward(10));
+            Assert.AreEqual(6, eco.FirstClearReward(11));
+            Assert.AreEqual(15, eco.FirstClearReward(200));
         }
 
         [Test]
@@ -184,7 +185,7 @@ namespace ColourCascade.Tests
             var ctx = TestUtil.Context();
             var first = WinCampaign(ctx, 1);
             Assert.IsTrue(first.FirstClear);
-            Assert.AreEqual(10 + 3 * 2, first.Rewards.TotalCoins, "first clear + three new stars");
+            Assert.AreEqual(5 + 3 * 1, first.Rewards.TotalCoins, "first clear + three new stars");
             int balance = ctx.Wallet.Balance;
             var replay = WinCampaign(ctx, 1);
             Assert.IsFalse(replay.FirstClear);
@@ -198,9 +199,9 @@ namespace ColourCascade.Tests
             var ctx = TestUtil.Context();
             var spec = ctx.Catalog.Get(1);
             var r1 = ctx.Rewards.ForCampaignWin(spec, 1);
-            Assert.AreEqual(10 + 2, r1.TotalCoins);
+            Assert.AreEqual(5 + 1, r1.TotalCoins);
             var r2 = ctx.Rewards.ForCampaignWin(spec, 3);
-            Assert.AreEqual(2 * 2, r2.TotalCoins);
+            Assert.AreEqual(2 * 1, r2.TotalCoins);
             var r3 = ctx.Rewards.ForCampaignWin(spec, 3);
             Assert.AreEqual(0, r3.TotalCoins);
         }
@@ -214,9 +215,9 @@ namespace ColourCascade.Tests
             Assert.IsTrue(ten.IsMilestone);
             Assert.IsTrue(twenty.IsRegionFinale);
             var a = ctx.Rewards.ForCampaignWin(ten, 1);
-            Assert.IsTrue(a.Lines.Any(l => l.Kind == RewardKind.Milestone && l.Coins == 50));
+            Assert.IsTrue(a.Lines.Any(l => l.Kind == RewardKind.Milestone && l.Coins == 20));
             var b = ctx.Rewards.ForCampaignWin(twenty, 1);
-            Assert.IsTrue(b.Lines.Any(l => l.Kind == RewardKind.RegionFinale && l.Coins == 100));
+            Assert.IsTrue(b.Lines.Any(l => l.Kind == RewardKind.RegionFinale && l.Coins == 40));
             Assert.AreEqual(0, ctx.Rewards.ForCampaignWin(ten, 1).TotalCoins);
         }
 
@@ -241,12 +242,12 @@ namespace ColourCascade.Tests
         {
             var ctx = TestUtil.Context();
             ctx.NoteDaySeen("2026-10-25");
-            Assert.AreEqual(30, ctx.Rewards.ForDaily("2026-10-25", true, 1).TotalCoins);
+            Assert.AreEqual(15, ctx.Rewards.ForDaily("2026-10-25", true, 1).TotalCoins);
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-25", true, 1).TotalCoins, "replaying the same daily pays nothing");
-            Assert.AreEqual(10, ctx.Rewards.ForDaily("2026-10-25", true, 3).TotalCoins, "three stars later pays the bonus once");
+            Assert.AreEqual(5, ctx.Rewards.ForDaily("2026-10-25", true, 3).TotalCoins, "three stars later pays the bonus once");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-25", true, 3).TotalCoins);
             ctx.NoteDaySeen("2026-10-26");
-            Assert.AreEqual(30, ctx.Rewards.ForDaily("2026-10-26", true, 1).TotalCoins, "a new day pays again");
+            Assert.AreEqual(15, ctx.Rewards.ForDaily("2026-10-26", true, 1).TotalCoins, "a new day pays again");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-24", true, 1).TotalCoins, "winding the clock back pays nothing");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-27", false, 0).TotalCoins, "incomplete runs pay nothing");
         }
@@ -256,19 +257,19 @@ namespace ColourCascade.Tests
         {
             var ctx = TestUtil.Context();
             var r = ctx.Rewards.ForWeekly("2026-W43", 6000);
-            Assert.AreEqual(20 + 30, r.TotalCoins);
+            Assert.AreEqual(10 + 15, r.TotalCoins);
             Assert.AreEqual(0, ctx.Rewards.ForWeekly("2026-W43", 6000).TotalCoins);
-            Assert.AreEqual(50, ctx.Rewards.ForWeekly("2026-W43", 9000).TotalCoins, "only the newly reached Gold tier pays");
-            Assert.AreEqual(100, ctx.Rewards.ForWeekly("2026-W44", 9000).TotalCoins, "next week starts fresh");
+            Assert.AreEqual(25, ctx.Rewards.ForWeekly("2026-W43", 9000).TotalCoins, "only the newly reached Gold tier pays");
+            Assert.AreEqual(50, ctx.Rewards.ForWeekly("2026-W44", 9000).TotalCoins, "next week starts fresh");
         }
 
         [Test]
         public void EndlessMilestonesAreOneTimeOnly()
         {
             var ctx = TestUtil.Context();
-            Assert.AreEqual(20 + 30, ctx.Rewards.ForEndless(7000).TotalCoins);
+            Assert.AreEqual(10 + 15, ctx.Rewards.ForEndless(7000).TotalCoins);
             Assert.AreEqual(0, ctx.Rewards.ForEndless(7000).TotalCoins);
-            Assert.AreEqual(50, ctx.Rewards.ForEndless(12000).TotalCoins);
+            Assert.AreEqual(25, ctx.Rewards.ForEndless(12000).TotalCoins);
         }
 
         [Test]
@@ -298,15 +299,58 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void EarlyEconomyAffordsTheFirstPowerUpByItsIntroduction()
+        public void EarlyCampaignCoinsKeepTheFirstPowerUpMeaningful()
         {
-            // Clearing levels 1-10 with average stars should comfortably afford at least one Blast.
+            // Playtest feedback: power-ups were too easy to buy. Levels 1-10 with two stars each now earn most of a
+            // Blast (its two free trial uses cover the introduction), so the first purchase comes a little later.
             var ctx = TestUtil.Context();
             int total = 0;
             for (int level = 1; level <= 10; level++) total += ctx.Rewards.ForCampaignWin(ctx.Catalog.Get(level), 2).TotalCoins;
-            Assert.GreaterOrEqual(total, ctx.PowerUps.Get(PowerUpId.Blast).price);
-            Assert.Less(total, 400, "not so generous that coins stop mattering");
+            int blast = ctx.PowerUps.Get(PowerUpId.Blast).price;
+            Assert.Less(total, blast, "the first Blast can't be bought from early campaign coins alone");
+            Assert.GreaterOrEqual(total, blast * 3 / 4, "but it is close");
         }
+
+        [Test]
+        public void OlderConfigsMoveToTheCurrentRewardTuning()
+        {
+            var defaults = GameConfigData.CreateDefault();
+            var old = GameConfigData.CreateDefault();
+            EconomyTuning.ApplyVersion1(old);
+            Assert.AreEqual(30, old.Daily.completionReward, "version 1 values");
+            old.Economy.milestoneReward = 75; // edited by hand: must be kept
+
+            var changed = EconomyTuning.Upgrade(old, 0);
+            Assert.AreEqual(defaults.Economy.firstClearBase, old.Economy.firstClearBase);
+            Assert.AreEqual(defaults.Economy.coinsPerNewStar, old.Economy.coinsPerNewStar);
+            Assert.AreEqual(defaults.Daily.completionReward, old.Daily.completionReward);
+            CollectionAssert.AreEqual(defaults.Rush.tierRewards, old.Rush.tierRewards);
+            CollectionAssert.AreEqual(defaults.Endless.milestoneRewards, old.Endless.milestoneRewards);
+            Assert.AreEqual(75, old.Economy.milestoneReward);
+            CollectionAssert.DoesNotContain(changed, "economy.milestoneReward");
+            Assert.AreEqual(10, changed.Count);
+
+            Assert.IsEmpty(EconomyTuning.Upgrade(old, EconomyTuning.Current), "an up-to-date config is left alone");
+        }
+
+        [Test]
+        public void CurrentTuningTableMatchesTheCodeDefaults()
+        {
+            // Upgrading version-1 values must land exactly on the defaults a new config gets.
+            var upgraded = GameConfigData.CreateDefault();
+            EconomyTuning.ApplyVersion1(upgraded);
+            EconomyTuning.Upgrade(upgraded, 1);
+            var fresh = GameConfigData.CreateDefault();
+            Assert.AreEqual(Json.Write(Snapshot(fresh)), Json.Write(Snapshot(upgraded)));
+        }
+
+        static Dictionary<string, object> Snapshot(GameConfigData c) => new Dictionary<string, object>
+        {
+            ["e"] = new List<object> { (long)c.Economy.firstClearBase, (long)c.Economy.firstClearStep, (long)c.Economy.firstClearStepEvery, (long)c.Economy.firstClearMax, (long)c.Economy.coinsPerNewStar, (long)c.Economy.milestoneReward, (long)c.Economy.regionFinaleReward },
+            ["d"] = new List<object> { (long)c.Daily.completionReward, (long)c.Daily.threeStarBonus },
+            ["w"] = c.Rush.tierRewards.Select(v => (object)(long)v).ToList(),
+            ["x"] = c.Endless.milestoneRewards.Select(v => (object)(long)v).ToList(),
+        };
     }
 
     public class ProgressionTests

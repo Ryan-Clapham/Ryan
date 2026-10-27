@@ -35,6 +35,11 @@ namespace ColourCascade.App
         [Header("Power-ups (prices, unlock levels, free trial uses)")]
         public PowerUpDefinition[] powerUps = PowerUpCatalog.CreateDefaults();
 
+        // Deliberately 0 when the field is missing from an older asset; the editor setup then moves the asset's
+        // rewards to the current tuning (see EconomyTuning) and records the version here.
+        [Tooltip("Reward tuning version of this asset. Older assets are updated automatically when the project opens; values edited by hand are kept.")]
+        public int rewardTuningVersion;
+
         public GameConfigData ToData()
         {
             var d = GameConfigData.CreateDefault();
@@ -57,6 +62,7 @@ namespace ColourCascade.App
             rush = new RushConfig();
             economy = new EconomyConfig();
             powerUps = PowerUpCatalog.CreateDefaults();
+            rewardTuningVersion = EconomyTuning.Current;
         }
 
         void OnValidate()

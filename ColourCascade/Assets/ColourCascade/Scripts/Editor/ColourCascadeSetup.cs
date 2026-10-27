@@ -1,5 +1,6 @@
 using System.IO;
 using ColourCascade.App;
+using ColourCascade.Core;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -33,6 +34,7 @@ namespace ColourCascade.EditorTools
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
             EnsureConfigAsset();
+            UpgradeConfigAsset();
             EnsureSceneInBuild();
             if (PlayerSettings.productName != ProductName || !EditorPrefs.GetBool(AppliedKey + "." + Application.dataPath, false))
             {
@@ -144,9 +146,23 @@ namespace ColourCascade.EditorTools
             if (AssetDatabase.LoadAssetAtPath<ColourCascadeConfig>(ConfigPath) != null) return;
             Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath));
             var asset = ScriptableObject.CreateInstance<ColourCascadeConfig>();
+            asset.rewardTuningVersion = EconomyTuning.Current;
             AssetDatabase.CreateAsset(asset, ConfigPath);
             AssetDatabase.SaveAssets();
             Debug.Log("[Colour Cascade] Created " + ConfigPath + " with default values. Edit it to tune the game.");
+        }
+
+        /// <summary>Moves a config asset saved with older reward tuning to the current defaults (hand-edited values are kept).</summary>
+        static void UpgradeConfigAsset()
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<ColourCascadeConfig>(ConfigPath);
+            if (asset == null || asset.rewardTuningVersion >= EconomyTuning.Current) return;
+            var changed = EconomyTuning.Upgrade(asset.ToData(), asset.rewardTuningVersion);
+            asset.rewardTuningVersion = EconomyTuning.Current;
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Colour Cascade] Updated the game config to reward tuning version " + EconomyTuning.Current +
+                      (changed.Count > 0 ? " (" + string.Join(", ", changed) + ")." : "; your edited reward values were kept."));
         }
 
         static void EnsureSceneInBuild()

@@ -274,8 +274,9 @@ namespace ColourCascade.App
                 iconImg = Icon(content, icon.Value, Color.white, fontSize * 1.25f);
                 iconImg.Layout(preferredWidth: fontSize * 1.25f);
             }
+            // An empty label still gets a Text so it can be set later (SetLabel); only icon buttons pass null.
             Text text = null;
-            if (!string.IsNullOrEmpty(label))
+            if (label != null)
             {
                 text = Text(content, label, fontSize, Color.white, TextAnchor.MiddleCenter, true, "Label");
                 text.horizontalOverflow = HorizontalWrapMode.Overflow;

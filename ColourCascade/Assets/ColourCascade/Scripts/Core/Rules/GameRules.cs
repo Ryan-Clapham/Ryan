@@ -147,7 +147,7 @@ namespace ColourCascade.Core
         public int[] stageColours = { 4, 4, 5, 5, 5, 6, 6 };
         /// <summary>One-time coin rewards for reaching these run scores for the first time ever.</summary>
         public int[] milestoneScores = { 2500, 5000, 10000, 20000, 40000 };
-        public int[] milestoneRewards = { 20, 30, 50, 75, 100 };
+        public int[] milestoneRewards = { 10, 15, 25, 40, 60 };
 
         public int BonusMovesFor(int groupSize)
         {
@@ -188,8 +188,8 @@ namespace ColourCascade.Core
         public int targetPermille = 800;
         public int star2Permille = 1050;
         public int star3Permille = 1250;
-        public int completionReward = 30;
-        public int threeStarBonus = 10;
+        public int completionReward = 15;
+        public int threeStarBonus = 5;
         public int calibrationRuns = 16;
     }
 
@@ -203,7 +203,7 @@ namespace ColourCascade.Core
         public int countdownSeconds = 3;
         public string[] tierNames = { "Bronze", "Silver", "Gold" };
         public int[] tierScores = { 2500, 5000, 8000 };
-        public int[] tierRewards = { 20, 30, 50 };
+        public int[] tierRewards = { 10, 15, 25 };
     }
 
     [Serializable]
@@ -211,13 +211,13 @@ namespace ColourCascade.Core
     {
         public int startingCoins = 0;
         /// <summary>First-clear coins = base + step × floor((level-1)/stepEvery), capped at max.</summary>
-        public int firstClearBase = 10;
-        public int firstClearStep = 2;
-        public int firstClearStepEvery = 5;
-        public int firstClearMax = 30;
-        public int coinsPerNewStar = 2;
-        public int milestoneReward = 50;
-        public int regionFinaleReward = 100;
+        public int firstClearBase = 5;
+        public int firstClearStep = 1;
+        public int firstClearStepEvery = 10;
+        public int firstClearMax = 15;
+        public int coinsPerNewStar = 1;
+        public int milestoneReward = 20;
+        public int regionFinaleReward = 40;
         public int ledgerCapacity = 200;
 
         public int FirstClearReward(int level)

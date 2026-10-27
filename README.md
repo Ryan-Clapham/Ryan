@@ -42,6 +42,8 @@ For a phone-shaped view, set the Game view to a portrait resolution such as **10
 4. For Google Play use **Colour Cascade → Build → Android App Bundle (Release)**. You will need your own
    upload keystore: **Player Settings → Publishing Settings → Keystore Manager**.
 
+For the whole path to Google Play (account, store listing, closed testing, launch), see **docs/RELEASE.md**.
+
 The project uses IL2CPP and ARM64 (required by Google Play) and portrait-only orientation. The application
 ID is `com.ryanclapham.colourcascade`; change it in `Assets/ColourCascade/Scripts/Editor/ColourCascadeSetup.cs`
 or Player Settings before publishing.
@@ -56,16 +58,17 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
 
 ## Run the tests
 
-* **In Unity:** Window → General → Test Runner → EditMode → Run All (143 tests).
+* **In Unity:** Window → General → Test Runner → EditMode → Run All (145 tests).
 * **Without Unity (CI or a terminal with .NET 8):**
   ```
   cd tools/Harness
-  dotnet test Tests/Tests.csproj            # the same 143 tests
+  dotnet test Tests/Tests.csproj            # the same 145 tests
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
   dotnet run --project UnityLint            # Unity message signatures, characters missing from the font
   dotnet run --project Sim -c Release -- balance x 60   # bots play levels 1-60, Endless, Rush and Daily
+  dotnet run --project Sim -c Release -- economy        # coins a simulated player earns over 30 days
   dotnet run --project Sim -c Release -- art ./preview  # exports every generated sprite as PNG
   ```
 
@@ -101,7 +104,7 @@ tools/unity_meta.py            Creates .meta files for new assets
 
 Read **docs/DESIGN.md** for the rules, modes, economy and design decisions, **docs/ARCHITECTURE.md** for how
 the code fits together and how to extend it, and **docs/TESTING.md** for what has been verified and the
-manual test checklist.
+manual test checklist, and **docs/RELEASE.md** for publishing on Google Play.
 
 ## Troubleshooting
 

@@ -5,7 +5,7 @@ using System.Linq;
 using ColourCascade.Core;
 
 // Balance simulation: automated players run the real game rules and report how hard each mode is.
-// Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>]
+// Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>|economy [days] [levelsPerDay]]
 static class Program
 {
     static int Main(string[] args)
@@ -13,6 +13,16 @@ static class Program
         string mode = args.Length > 0 ? args[0] : "balance";
         if (mode == "balance" || mode == "all") Balance(args.Length > 2 ? int.Parse(args[2]) : 60);
         if (mode == "art" || mode == "all") ArtPreview.Export(args.Length > 1 ? args[1] : "art-preview");
+        if (mode == "economy")
+        {
+            int days = args.Length > 1 ? int.Parse(args[1]) : 30, perDay = args.Length > 2 ? int.Parse(args[2]) : 5;
+            var before = GameConfigData.CreateDefault();
+            EconomyTuning.ApplyVersion1(before);
+            Console.WriteLine("=== Reward tuning version 1 (before the first playtest)");
+            EconomySim.Report(before, days, perDay);
+            Console.WriteLine("\n=== Current reward tuning (version " + EconomyTuning.Current + ")");
+            EconomySim.Report(GameConfigData.CreateDefault(), days, perDay);
+        }
         return 0;
     }
 

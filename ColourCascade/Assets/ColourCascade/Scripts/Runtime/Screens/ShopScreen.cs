@@ -140,6 +140,7 @@ namespace ColourCascade.App
                 row.Price = UI.Button(card, "", ButtonStyle.Gold, () => Buy(row), null, Theme.FontBody, 40, 10, "Price");
                 ((RectTransform)row.Price.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-26, 0), new Vector2(226, 130));
                 var coin = UI.Sprite(row.Price.FaceRect.Find("Content"), ArtNames.Coin, 48);
+                coin.Layout(preferredWidth: 48);
                 coin.transform.SetAsFirstSibling();
                 return row;
             }

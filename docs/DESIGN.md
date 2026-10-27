@@ -146,16 +146,28 @@ repeated taps, reloads and replays can never pay twice.
 
 | Source | Coins | Key |
 |---|---|---|
-| First clear of a campaign level | 10 (levels 1–5), +2 every 5 levels, max 30 | `c.first.N` |
-| Each star the first time it's earned | 2 | `c.star.N.S` |
-| Milestone (every 10th level) / region finale (every 20th) | 50 / 100 | `c.mile.N` |
-| Daily completion / three stars | 30 / +10, once per date | `d.DATE.done` / `d.DATE.3star` |
-| Weekly Rush tiers | 20 / 30 / 50, once per week | `w.WEEK.tN` |
-| Endless milestones | 20 / 30 / 50 / 75 / 100, once ever | `e.mile.SCORE` |
+| First clear of a campaign level | 5 (levels 1–10), +1 every 10 levels, max 15 | `c.first.N` |
+| Each star the first time it's earned | 1 | `c.star.N.S` |
+| Milestone (every 10th level) / region finale (every 20th) | 20 / 40 | `c.mile.N` |
+| Daily completion / three stars | 15 / +5, once per date | `d.DATE.done` / `d.DATE.3star` |
+| Weekly Rush tiers | 10 / 15 / 25, once per week | `w.WEEK.tN` |
+| Endless milestones | 10 / 15 / 25 / 40 / 60, once ever | `e.mile.SCORE` |
 
-The first level now pays **10 coins** (down from 30). A player clearing levels 1–10 with two stars each
-earns about **200 coins** by the time Blast unlocks, enough for two purchases on top of the two free uses,
-without coins becoming meaningless. Daily play adds about 30–40 a day.
+**Retuned after the first playtest (reward tuning version 2).** With the original values (first clear 10–30,
+2 per star, milestones 50/100, Daily 30/+10, Rush 20/30/50, Endless 20–100) the economy simulation
+(`dotnet run --project Sim -c Release -- economy`) showed an active player (5 new levels a day plus the Daily,
+a weekly Rush and some Endless) earning about **230 coins a day**, so every power-up cost less than a day of play
+and the playtester bought three straight away. The prices stayed as specified; income was cut instead:
+
+| Measured (30 simulated days, 5 levels a day) | Version 1 | Version 2 |
+|---|---|---|
+| Average income | 231 coins/day | 100 coins/day (60–70 a day after a first-day welcome of about 130) |
+| Campaign coins by level 10 / 30 / 60 | 218 / 786 / 1,942 | 97 / 329 / 756 |
+| Days of play per Blast (100) / Colour Burst (250) | 0.4 / 1.1 | 1.0 / 2.5 |
+
+Levels 1–10 with two stars each now earn just under one Blast; the two free trial uses cover its introduction.
+Existing config assets are moved to the new values automatically when the project opens (`EconomyTuning`);
+values someone edited by hand are kept. Everything stays tunable in the config asset.
 
 Every balance change goes through `Wallet`, the single source of truth, and is written to a 200-entry ledger
 (time, amount, resulting balance, reason) for diagnosing economy bugs. Developer builds can show it in Settings.
