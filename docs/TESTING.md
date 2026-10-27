@@ -13,7 +13,7 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **140 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **142 passed, 0 failed** |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below) |
 | Audio: every effect and the music loop synthesised and checked for NaN/clipping/silence | tests + `Sim -- art` | Pass |
@@ -21,7 +21,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (140 tests)
+### Automated test coverage (142 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -38,11 +38,16 @@ real Android builds provide it.
 | Navigation | 5 | Back stops at Home, no duplicates, no loops, leaving a game replaces it, Home clears history |
 | Procedural assets | 6 | Atlas has every referenced sprite with no overlaps, cache round trip, **symbols measurably distinct**, valid audio |
 | Regression checklist | 13 | One test per logic item in the brief's §21 list |
+| Project setup | 2 | `Packages/manifest.json` declares every package and module the assemblies need |
 
 ### Defects found and fixed during verification
 
 * Symbols: the original blue circle and purple diamond/square were too similar to the heart (measured).
   Blue became a ring and purple a crescent moon (now ≥ 0.46 Jaccard distance from every other shape).
+* **Found by the first real Unity run (6000.6.3f1): 148 compile errors and Safe Mode.** The project had no
+  package manifest, and the default one Unity 6.6 generated doesn't include Unity UI. Fixed by shipping
+  `Packages/manifest.json`, making the game assemblies wait for Unity UI instead of failing to compile, adding
+  a small editor script that installs missing packages, and a test that checks the manifest.
 * Bootstrap used `Input.multiTouchEnabled`, which throws in Input-System-only projects. Now guarded.
 * `GetComponent() ?? AddComponent()` would fail in the Editor (Unity's "fake null"). Replaced everywhere.
 * The coin counter read its label inside `OnEnable` before it was built. Initialisation reordered.
@@ -57,10 +62,12 @@ real Android builds provide it.
 
 * **Nothing has been seen running in Unity or on a device.** Layout, animation timing, readability on small
   screens, touch feel, audio mix and performance on real phones are untested.
-* Unity versions: code was compile-checked against 2021.3 reference assemblies (uGUI from 2020.3). Unity 6
-  should work (only stable APIs are used), but hasn't been opened.
-* Packages: the project relies on Unity creating its default package manifest (which includes Unity UI and
-  Test Framework).
+* Unity versions: code was compile-checked against 2021.3 reference assemblies (uGUI from 2020.3); no Unity 6
+  reference assemblies were available here. The project targets Unity 6000.6.3f1 and only uses APIs that are
+  unchanged in Unity 6, but it hasn't been opened in that editor by me.
+* Packages: `Packages/manifest.json` was written by hand. Unity's package registry couldn't be reached from
+  this environment, so the listed versions weren't resolved by a real Package Manager; Unity replaces
+  versions that are locked to the editor (such as Unity UI 2.0.0) with its own.
 * Android build, signing, IL2CPP stripping, haptics on hardware and safe areas on notched phones.
 
 ## Manual test checklist (please run in Unity, then on a phone)

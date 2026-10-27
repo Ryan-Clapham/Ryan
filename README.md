@@ -14,14 +14,17 @@ reduced motion, haptics and synthesised sound and music.
 
 ## Open and play it in Unity (5 minutes)
 
-1. Install **Unity 2021.3 LTS or newer** with Unity Hub (Unity 6 is fine). For phone builds, also tick
-   **Android Build Support** (with OpenJDK and Android SDK & NDK) when installing the editor.
+1. Install **Unity 6** with Unity Hub. The project is set up for **6000.6.3f1**; any Unity 6 version
+   (6000.0 or newer) works. For phone builds, also tick **Android Build Support** (with OpenJDK and
+   Android SDK & NDK) when installing the editor.
 2. In Unity Hub choose **Add → Add project from disk** and select the **`ColourCascade`** folder inside this
    repository (the folder that contains `Assets` and `ProjectSettings`).
 3. Open it. If Hub says the project was made with a different editor version, choose your installed version
    and accept the upgrade. The first import takes a few minutes.
 4. When it finishes, the console shows a few `[Colour Cascade]` setup messages. The project configured
    itself (config asset, build scene, portrait and Android settings), so there is nothing to wire up.
+   The packages it needs (Unity UI, Test Framework) are listed in `Packages/manifest.json`, and if one is
+   ever missing, the project installs it automatically instead of failing to compile.
 5. Open **Colour Cascade → Open Main Scene** (or `Assets/ColourCascade/Scenes/Main.unity`) and press **Play**.
 
 For a phone-shaped view, set the Game view to a portrait resolution such as **1080 × 1920** or
@@ -53,11 +56,11 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
 
 ## Run the tests
 
-* **In Unity:** Window → General → Test Runner → EditMode → Run All (140 tests).
+* **In Unity:** Window → General → Test Runner → EditMode → Run All (142 tests).
 * **Without Unity (CI or a terminal with .NET 8):**
   ```
   cd tools/Harness
-  dotnet test Tests/Tests.csproj            # the same 140 tests
+  dotnet test Tests/Tests.csproj            # the same 142 tests
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
@@ -101,8 +104,13 @@ manual test checklist.
 
 ## Troubleshooting
 
-* **"The type or namespace UnityEngine.UI could not be found"**: open **Window → Package Manager** and install
-  **Unity UI** (`com.unity.ugui`). Unity normally includes it automatically.
+* **"The type or namespace name 'UI' does not exist in the namespace 'UnityEngine'"** (and Unity offers Safe
+  Mode): the Unity UI package is missing. Make sure `ColourCascade/Packages/manifest.json` came with your copy
+  of the project (it lists `com.unity.ugui`). If you opened an older copy without it, either update it or open
+  **Window → Package Manager** (it works in Safe Mode), press **+ → Install package by name**, enter
+  `com.unity.ugui` and press Install; then choose **Exit Safe Mode**.
+* **Unity 2021.3 or 2022.3 instead of Unity 6**: change `"com.unity.ugui": "2.0.0"` to `"1.0.0"` in
+  `Packages/manifest.json` (Unity 6 renumbered the package).
 * **No reaction to taps, with an "input module" error**: set **Player Settings → Other Settings → Active Input
   Handling** to **Both** or **Input Manager (Old)**. The game also supports the new Input System on its own,
   provided the Input System package is installed.

@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(UnityAssets)/Scripts/Editor/**/*.cs" />
+    <Compile Include="$(UnityAssets)/Scripts/Setup/**/*.cs" />
     <ProjectReference Include="../CoreLib/CoreLib.csproj" />
     <ProjectReference Include="../ProceduralLib/ProceduralLib.csproj" />
     <ProjectReference Include="../UnityCheck/UnityCheck.csproj" />

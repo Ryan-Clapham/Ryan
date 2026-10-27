@@ -7,8 +7,13 @@ ColourCascade.Core        (no Unity references)   rules, data, services, saves
 ColourCascade.Procedural  (no Unity references)   sprite + sound generation      → Core
 ColourCascade.Runtime     (Unity + uGUI)          bootstrap, UI, screens, views  → Core, Procedural
 ColourCascade.Editor      (Editor only)           project setup, build menu      → Runtime
+ColourCascade.Setup       (Editor only)           installs missing packages       (no references)
 ColourCascade.Tests.EditMode                      NUnit tests                     → Core, Procedural
 ```
+
+`Runtime` and `Editor` have a define constraint that is only met when Unity UI (`com.unity.ugui`) is installed,
+so a project without the package has no compile errors (and no Safe Mode); `Setup`, which always compiles,
+then installs the package (and the Input System, if the project accepts only that input backend).
 
 `Core` and `Procedural` are marked `noEngineReferences`, which guarantees the game rules can't depend on
 Unity. That is what lets the same tests run in Unity's Test Runner and in plain .NET

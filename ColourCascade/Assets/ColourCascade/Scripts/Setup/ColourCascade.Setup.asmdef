@@ -1,0 +1,27 @@
+{
+    "name": "ColourCascade.Setup",
+    "rootNamespace": "ColourCascade.EditorTools",
+    "references": [],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "",
+            "define": "COLOURCASCADE_UGUI"
+        },
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "",
+            "define": "COLOURCASCADE_INPUTSYSTEM"
+        }
+    ],
+    "noEngineReferences": false
+}

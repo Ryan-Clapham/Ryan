@@ -109,7 +109,7 @@ namespace ColourCascade.App
 #else
                 var module = Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
                 if (module != null) es.AddComponent(module);
-                else Debug.LogError("[ColourCascade] No UI input module: enable 'Input Manager (Old)' or 'Both' in Player Settings > Active Input Handling.");
+                else Debug.LogError("[ColourCascade] No UI input module: install the Input System package, or enable 'Input Manager (Old)' or 'Both' in Player Settings > Active Input Handling.");
 #endif
             }
 #if !ENABLE_LEGACY_INPUT_MANAGER
