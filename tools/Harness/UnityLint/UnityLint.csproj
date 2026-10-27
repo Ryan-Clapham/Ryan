@@ -4,6 +4,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <!-- The Serializable/NotSerialized metadata flags are what Unity reads; .NET marks them obsolete for its own serializer. -->
+    <NoWarn>$(NoWarn);SYSLIB0050</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="*.cs" />

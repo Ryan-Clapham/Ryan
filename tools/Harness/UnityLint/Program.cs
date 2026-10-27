@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -21,6 +22,8 @@ namespace UnityLint
     /// 1. A MonoBehaviour/ScriptableObject method named like a Unity message (Start, Update...) with the wrong
     ///    parameters ("Script error: Start() can not take parameters").
     /// 2. Text in code using characters the bundled Fredoka font doesn't contain (shown as boxes or nothing).
+    /// 3. Fields Unity would serialize (public or [SerializeField] on components, ScriptableObjects and [Serializable]
+    ///    types) whose type is one of the game's own types without [Serializable] (Unity warning UAC1001).
     /// </summary>
     static class Program
     {
@@ -40,6 +43,7 @@ namespace UnityLint
             var paths = typeof(Program).Assembly.GetCustomAttribute<PathsAttribute>();
             var problems = new List<string>();
             CheckMessages(Path.GetFullPath(paths.RuntimeDll), problems);
+            CheckSerialization(Path.GetFullPath(paths.RuntimeDll), problems);
             CheckGlyphs(Path.GetFullPath(paths.Assets), problems);
             foreach (var p in problems) Console.WriteLine("error: " + p);
             Console.WriteLine(problems.Count == 0 ? "UnityLint: no problems found" : "UnityLint: " + problems.Count + " problem(s)");
@@ -92,6 +96,136 @@ namespace UnityLint
                 if (b.Kind != HandleKind.TypeReference) return false;
                 var r = md.GetTypeReference((TypeReferenceHandle)b);
                 return md.GetString(r.Namespace).StartsWith("UnityEngine", StringComparison.Ordinal);
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------ Serialized fields
+
+        sealed class TypeFacts
+        {
+            public bool Serializable, Enum, UnityObject, Interface;
+        }
+
+        /// <summary>Resolves field types to "Namespace.Name" keys; List&lt;T&gt; and T[] resolve to T.</summary>
+        sealed class TypeNames : ISignatureTypeProvider<string, object>
+        {
+            public string GetPrimitiveType(PrimitiveTypeCode typeCode) => "";
+            public string GetTypeFromDefinition(MetadataReader md, TypeDefinitionHandle handle, byte rawTypeKind) => FullName(md, handle);
+            public string GetTypeFromReference(MetadataReader md, TypeReferenceHandle handle, byte rawTypeKind) => FullName(md, handle);
+            public string GetTypeFromSpecification(MetadataReader md, object context, TypeSpecificationHandle handle, byte rawTypeKind) => "";
+            public string GetSZArrayType(string elementType) => elementType;
+            public string GetArrayType(string elementType, ArrayShape shape) => "";
+            public string GetGenericInstantiation(string genericType, ImmutableArray<string> typeArguments) =>
+                genericType == "System.Collections.Generic.List`1" ? typeArguments[0] : "";
+            public string GetByReferenceType(string elementType) => "";
+            public string GetPointerType(string elementType) => "";
+            public string GetPinnedType(string elementType) => "";
+            public string GetFunctionPointerType(MethodSignature<string> signature) => "";
+            public string GetGenericMethodParameter(object context, int index) => "";
+            public string GetGenericTypeParameter(object context, int index) => "";
+            public string GetModifiedType(string modifier, string unmodifiedType, bool isRequired) => unmodifiedType;
+        }
+
+        static string FullName(MetadataReader md, TypeDefinitionHandle handle)
+        {
+            var t = md.GetTypeDefinition(handle);
+            var outer = t.GetDeclaringType();
+            string name = md.GetString(t.Name);
+            return outer.IsNil ? Join(md.GetString(t.Namespace), name) : FullName(md, outer) + "+" + name;
+        }
+
+        static string FullName(MetadataReader md, TypeReferenceHandle handle)
+        {
+            var r = md.GetTypeReference(handle);
+            string name = md.GetString(r.Name);
+            return r.ResolutionScope.Kind == HandleKind.TypeReference
+                ? FullName(md, (TypeReferenceHandle)r.ResolutionScope) + "+" + name
+                : Join(md.GetString(r.Namespace), name);
+        }
+
+        static string Join(string ns, string name) => ns.Length == 0 ? name : ns + "." + name;
+
+        static string BaseName(MetadataReader md, EntityHandle b) =>
+            b.IsNil ? "" : b.Kind == HandleKind.TypeDefinition ? FullName(md, (TypeDefinitionHandle)b)
+            : b.Kind == HandleKind.TypeReference ? FullName(md, (TypeReferenceHandle)b) : "";
+
+        static void CheckSerialization(string runtimeDll, List<string> problems)
+        {
+            string dir = Path.GetDirectoryName(runtimeDll);
+            var readers = new List<(PEReader pe, MetadataReader md)>();
+            foreach (var name in new[] { "ColourCascade.Runtime.dll", "ColourCascade.Core.dll", "ColourCascade.Procedural.dll" })
+            {
+                var pe = new PEReader(File.OpenRead(Path.Combine(dir, name)));
+                readers.Add((pe, pe.GetMetadataReader()));
+            }
+
+            // Facts about every type the game defines, by full name.
+            var facts = new Dictionary<string, TypeFacts>();
+            var bases = new Dictionary<string, string>();
+            foreach (var (_, md) in readers)
+                foreach (var h in md.TypeDefinitions)
+                {
+                    var t = md.GetTypeDefinition(h);
+                    string full = FullName(md, h);
+                    string baseName = BaseName(md, t.BaseType);
+                    bases[full] = baseName;
+                    facts[full] = new TypeFacts
+                    {
+                        Serializable = (t.Attributes & TypeAttributes.Serializable) != 0,
+                        Enum = baseName == "System.Enum",
+                        Interface = (t.Attributes & TypeAttributes.Interface) != 0,
+                    };
+                }
+            foreach (var kv in facts)
+            {
+                string b = bases[kv.Key];
+                for (int depth = 0; depth < 32 && b.Length > 0; depth++)
+                {
+                    if (b.StartsWith("UnityEngine.", StringComparison.Ordinal)) { kv.Value.UnityObject = true; break; }
+                    if (!bases.TryGetValue(b, out b)) break;
+                }
+            }
+
+            var provider = new TypeNames();
+            int checkedFields = 0;
+            foreach (var (_, md) in readers)
+            {
+                foreach (var h in md.TypeDefinitions)
+                {
+                    var owner = md.GetTypeDefinition(h);
+                    string ownerName = FullName(md, h);
+                    var ownerFacts = facts[ownerName];
+                    if (!ownerFacts.UnityObject && !ownerFacts.Serializable) continue;
+                    foreach (var fh in owner.GetFields())
+                    {
+                        var f = md.GetFieldDefinition(fh);
+                        var a = f.Attributes;
+                        if ((a & (FieldAttributes.Static | FieldAttributes.Literal | FieldAttributes.InitOnly | FieldAttributes.NotSerialized)) != 0) continue;
+                        bool isPublic = (a & FieldAttributes.FieldAccessMask) == FieldAttributes.Public;
+                        if (!isPublic && !HasAttribute(md, f.GetCustomAttributes(), "SerializeField")) continue;
+                        checkedFields++;
+                        string fieldType = f.DecodeSignature(provider, null);
+                        if (!facts.TryGetValue(fieldType, out var tf) || tf.Serializable || tf.Enum || tf.UnityObject || tf.Interface) continue;
+                        problems.Add(ownerName + "." + md.GetString(f.Name) + " is saved by Unity, but its type " + fieldType +
+                            " isn't [Serializable] (Unity warning UAC1001). Mark the field [System.NonSerialized] or the type [System.Serializable].");
+                    }
+                }
+            }
+            foreach (var (pe, _) in readers) pe.Dispose();
+            Console.WriteLine("Checked " + checkedFields + " serialized fields for types Unity can't save");
+        }
+
+        static bool HasAttribute(MetadataReader md, CustomAttributeHandleCollection attributes, string name)
+        {
+            foreach (var h in attributes)
+            {
+                var ctor = md.GetCustomAttribute(h).Constructor;
+                EntityHandle type = default;
+                if (ctor.Kind == HandleKind.MemberReference) type = md.GetMemberReference((MemberReferenceHandle)ctor).Parent;
+                else if (ctor.Kind == HandleKind.MethodDefinition) type = md.GetMethodDefinition((MethodDefinitionHandle)ctor).GetDeclaringType();
+                string full = BaseName(md, type);
+                if (full.EndsWith("." + name, StringComparison.Ordinal) || full.EndsWith("." + name + "Attribute", StringComparison.Ordinal)) return true;
             }
             return false;
         }

@@ -16,7 +16,7 @@ namespace ColourCascade.App
         public Image Symbol;
         public Image Glow;
         public int Id;
-        public GridPos Cell;
+        [System.NonSerialized] public GridPos Cell; // runtime state only, never saved with the object
         public int Colour = -1;
         public bool IsStone;
 

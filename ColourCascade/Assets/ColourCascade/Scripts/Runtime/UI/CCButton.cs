@@ -41,6 +41,9 @@ namespace ColourCascade.App
         public ButtonStyle Style;
 
         float lastClick = -10f;
+        // Shared by every button: two fingers tapping two buttons together must not trigger both actions.
+        static float lastAnyClick = -10f;
+        const float SimultaneousTapWindow = 0.12f;
         bool pressed;
         bool interactable = true;
         float faceRestY;
@@ -132,8 +135,9 @@ namespace ColourCascade.App
         {
             if (eventData.button != PointerEventData.InputButton.Left) return;
             float now = Time.unscaledTime;
-            if (now - lastClick < DebounceSeconds) return;
+            if (now - lastClick < DebounceSeconds || now - lastAnyClick < SimultaneousTapWindow) return;
             lastClick = now;
+            lastAnyClick = now;
             if (!interactable)
             {
                 if (OnDisabledClick != null)

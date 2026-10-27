@@ -36,11 +36,27 @@ namespace ColourCascade.EditorTools
             EnsureConfigAsset();
             UpgradeConfigAsset();
             EnsureSceneInBuild();
+            OpenMainSceneInsteadOfUntitled();
             if (PlayerSettings.productName != ProductName || !EditorPrefs.GetBool(AppliedKey + "." + Application.dataPath, false))
             {
                 ApplyPlayerSettings();
                 EditorPrefs.SetBool(AppliedKey + "." + Application.dataPath, true);
             }
+        }
+
+        /// <summary>
+        /// Unity opens an empty "Untitled" scene when a project has no last-opened scene, which shows only a sky in the
+        /// Game view. Once per editor session, swap an unsaved, unchanged Untitled scene for the game's scene.
+        /// </summary>
+        static void OpenMainSceneInsteadOfUntitled()
+        {
+            const string key = "ColourCascade.MainSceneChecked";
+            if (UnityEditor.SessionState.GetBool(key, false)) return;
+            UnityEditor.SessionState.SetBool(key, true);
+            var active = EditorSceneManager.GetActiveScene();
+            if (EditorSceneManager.sceneCount != 1 || !string.IsNullOrEmpty(active.path) || active.isDirty) return;
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null) return;
+            EditorSceneManager.OpenScene(ScenePath);
         }
 
         [MenuItem("Colour Cascade/Open Main Scene", false, 0)]

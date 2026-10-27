@@ -66,7 +66,7 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
-  dotnet run --project UnityLint            # Unity message signatures, characters missing from the font
+  dotnet run --project UnityLint            # Unity message signatures, unsaveable fields, missing font characters
   dotnet run --project Sim -c Release -- balance x 60   # bots play levels 1-60, Endless, Rush and Daily
   dotnet run --project Sim -c Release -- economy        # coins a simulated player earns over 30 days
   dotnet run --project Sim -c Release -- art ./preview  # exports every generated sprite as PNG
@@ -115,9 +115,14 @@ manual test checklist, and **docs/RELEASE.md** for publishing on Google Play.
   `com.unity.ugui` and press Install; then choose **Exit Safe Mode**.
 * **Unity 2021.3 or 2022.3 instead of Unity 6**: change `"com.unity.ugui": "2.0.0"` to `"1.0.0"` in
   `Packages/manifest.json` (Unity 6 renumbered the package).
-* **No reaction to taps, with an "input module" error**: set **Player Settings → Other Settings → Active Input
-  Handling** to **Both** or **Input Manager (Old)**. The game also supports the new Input System on its own,
-  provided the Input System package is installed.
+* **"This project uses Input Manager, which is marked for deprecation"**: only a notice; the old Input Manager
+  still works in Unity 6. To move to the Input System (recommended before release), set **Edit → Project
+  Settings → Player → Other Settings → Active Input Handling** to **Input System Package (New)** and let Unity
+  restart. The project then installs the Input System package itself, and the game uses it automatically.
+  Check taps, dragging on the board and map, and Escape (Android Back). If anything misbehaves, switch the
+  setting back to **Input Manager (Old)**.
+* **No reaction to taps, with an "input module" error**: the project accepts only the new Input System but the
+  package is missing. It normally installs itself; otherwise install **Input System** from the Package Manager.
 * **The game looks stretched in the Game view**: choose a portrait resolution; the game is portrait only.
 * **Fonts look plain**: check that `Assets/ColourCascade/Resources/Fonts/Fredoka-Bold.ttf` imported (the game
   falls back to Unity's built-in font and logs a warning if it can't find them).

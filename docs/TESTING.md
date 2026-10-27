@@ -14,7 +14,7 @@ reference assemblies:
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
 | Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **145 passed, 0 failed** |
-| Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
+| Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Economy: a simulated player earns coins for 30 days through the real reward code | `Sim -- economy` | See DESIGN.md §8 |
 | Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below) |
@@ -46,6 +46,10 @@ real Android builds provide it.
 
 * Symbols: the original blue circle and purple diamond/square were too similar to the heart (measured).
   Blue became a ring and purple a crescent moon (now ≥ 0.46 Jaccard distance from every other shape).
+* **Found in later Unity sessions:** shop buttons showed no prices (an empty button label never got a Text);
+  warning UAC1001 for `TileView.Cell` (a runtime-only field Unity tried to serialize; now `[NonSerialized]`, and
+  `UnityLint` checks for the rest); Unity opened an empty "Untitled" scene (only a sky in the Game view) instead
+  of the game's scene, which now opens automatically.
 * **Found in the first real Unity sessions (6000.6.3f1, from the user's screenshots):**
   * `Script error (TweenRunner): Start() can not take parameters`. An internal method was called `Start`, which
     Unity reserves for its start-up message. Renamed; `UnityLint` now checks every message method.
@@ -88,6 +92,9 @@ real Android builds provide it.
   this environment, so the listed versions weren't resolved by a real Package Manager; Unity replaces
   versions that are locked to the editor (such as Unity UI 2.0.0) with its own.
 * Android build, signing, IL2CPP stripping, haptics on hardware and safe areas on notched phones.
+* The new Input System path (Active Input Handling set to "Input System Package (New)") has been compile-checked
+  and checked against the Input System's source (module, keyboard and Back key names), but not run. The old
+  Input Manager path is the one seen working in the editor.
 
 ## Manual test checklist (please run in Unity, then on a phone)
 
