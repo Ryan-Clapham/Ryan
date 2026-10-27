@@ -45,6 +45,50 @@ namespace ColourCascade.Core
         public static string WeeklyTier(string week, int tier) => "w." + week + ".t" + tier;
         public static string EndlessMilestone(int score) => "e.mile." + score;
         public static string PowerUpTrial(PowerUpId id) => "pu.trial." + (int)id;
+
+        /// <summary>Readable text for a coin ledger reason (a claim key above, a purchase or a grant).</summary>
+        public static string Describe(string reason)
+        {
+            if (string.IsNullOrEmpty(reason)) return "Unknown";
+            var p = reason.Split('.');
+            int n;
+            switch (p[0])
+            {
+                case "c":
+                    if (p.Length == 3 && p[1] == "first") return "Level " + p[2] + " cleared";
+                    if (p.Length == 4 && p[1] == "star") return "Level " + p[2] + ", star " + p[3];
+                    if (p.Length == 3 && p[1] == "mile") return "Level " + p[2] + " milestone";
+                    break;
+                case "d":
+                    if (p.Length == 3 && p[2] == "done") return "Daily " + p[1] + " complete";
+                    if (p.Length == 3 && p[2] == "3star") return "Daily " + p[1] + ", 3 stars";
+                    break;
+                case "w":
+                    if (p.Length == 3 && p[2].Length > 1 && p[2][0] == 't' && int.TryParse(p[2].Substring(1), out n)) return "Weekly Rush " + p[1] + ", tier " + (n + 1);
+                    break;
+                case "e":
+                    if (p.Length == 3 && p[1] == "mile" && int.TryParse(p[2], out n)) return "Endless, " + NumberFormat.Thousands(n) + " points";
+                    break;
+                case "shop":
+                    if (p.Length == 3 && p[2].Length > 1 && p[2][0] == 'x' && int.TryParse(p[2].Substring(1), out n))
+                        return "Bought " + SplitWords(p[1]) + (n == 1 ? "" : " ×" + n);
+                    break;
+                case "debug":
+                    return "Developer coins";
+            }
+            return reason;
+        }
+
+        static string SplitWords(string identifier)
+        {
+            var sb = new System.Text.StringBuilder(identifier.Length + 4);
+            for (int i = 0; i < identifier.Length; i++)
+            {
+                if (i > 0 && char.IsUpper(identifier[i])) sb.Append(' ');
+                sb.Append(identifier[i]);
+            }
+            return sb.ToString();
+        }
     }
 
     /// <summary>

@@ -13,7 +13,8 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **142 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **143 passed, 0 failed** |
+| Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below) |
 | Audio: every effect and the music loop synthesised and checked for NaN/clipping/silence | tests + `Sim -- art` | Pass |
@@ -21,7 +22,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (142 tests)
+### Automated test coverage (143 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -31,7 +32,7 @@ real Android builds provide it.
 | Dead-board recovery | 7 | Reshuffle keeps the same tiles, stones never move, constructive fallback, graceful failure, determinism |
 | Sessions and modes | 14 | Win/lose/revive, Daily plays all moves, Endless bonus moves, Rush timer start/stop/expiry/pause, **only Weekly Rush is timed**, long randomised play keeps board invariants |
 | Power-ups | 17 | All six effects and their invalid targets, stones vs Blast/Tile Breaker, trial-first consumption, nothing consumed on failure, **challenge modes blocked at engine and service level** |
-| Wallet, shop, rewards | 19 | Ledger, insufficient funds, locked items, **purchases blocked during challenge runs**, first-clear once, new stars only, milestones once, daily/weekly/endless claims once, clock rollback refused, early-economy sanity |
+| Wallet, shop, rewards | 20 | Ledger, insufficient funds, locked items, **purchases blocked during challenge runs**, first-clear once, new stars only, milestones once, daily/weekly/endless claims once, clock rollback refused, early-economy sanity |
 | Progression | 9 | **Board sizes 6×6 / 7×7 / 8×9**, 120 generated levels valid and deterministic, stones from level 8, early levels ≥80% winnable by a casual bot, replays never reduce stars |
 | Challenges | 15 | UTC day keys, ISO weeks (including year boundaries), Monday reset, same board and refills for the same date/week, different days differ, **Endless fresh board each run** |
 | Saves | 10 | Full round trip, missing/corrupt/backup/temp recovery on a real file system, write failure, repair of inconsistent data, reload through the context, reset rebinding |
@@ -44,6 +45,21 @@ real Android builds provide it.
 
 * Symbols: the original blue circle and purple diamond/square were too similar to the heart (measured).
   Blue became a ring and purple a crescent moon (now ≥ 0.46 Jaccard distance from every other shape).
+* **Found in the first real Unity sessions (6000.6.3f1, from the user's screenshots):**
+  * `Script error (TweenRunner): Start() can not take parameters`. An internal method was called `Start`, which
+    Unity reserves for its start-up message. Renamed; `UnityLint` now checks every message method.
+  * Popups dimmed the screen with a dark oval (a rounded sprite stretched full screen). Now a full-screen dim.
+  * Button icons overlapped their labels (Map, Replay, and the hidden play icon on "Next Level"): the label
+    resized itself after the row had positioned it. The row now sizes icon and label itself.
+  * Settings (and Shop) lists were 100 px wider than the screen, so rows touched the edges and section titles
+    were clipped.
+  * The Level Complete coin counter covered the title, and the card had a large empty gap; the counter now
+    sits above the card and result, mode and message popups size themselves to their content (the coin
+    ledger's text ran over its title and buttons, and the Weekly Rush card could run under Play).
+  * The map title had level nodes showing through it; the header is now solid, and path dots no longer run
+    through star rows or the PLAY label.
+  * ✓ and ★ used in some text aren't in the Fredoka font; replaced, and `UnityLint` checks font coverage.
+  * The coin ledger showed internal keys (`c.star.4.1`); it now reads "Level 4, star 1".
 * **Found by the first real Unity run (6000.6.3f1): 148 compile errors and Safe Mode.** The project had no
   package manifest, and the default one Unity 6.6 generated doesn't include Unity UI. Fixed by shipping
   `Packages/manifest.json`, making the game assemblies wait for Unity UI instead of failing to compile, adding
@@ -60,7 +76,9 @@ real Android builds provide it.
 
 ## What has NOT been verified
 
-* **Nothing has been seen running in Unity or on a device.** Layout, animation timing, readability on small
+* **Only screenshots from the user's Unity 6.6 editor have been seen** (home, a level 1 win, the map,
+  settings and the coin ledger), and the fixes made from them haven't been seen running yet. Nothing has been
+  tested on a phone. Layout, animation timing, readability on small
   screens, touch feel, audio mix and performance on real phones are untested.
 * Unity versions: code was compile-checked against 2021.3 reference assemblies (uGUI from 2020.3); no Unity 6
   reference assemblies were available here. The project targets Unity 6000.6.3f1 and only uses APIs that are

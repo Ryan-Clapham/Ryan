@@ -127,7 +127,7 @@ namespace ColourCascade.App
             var t = Runner.Create(Tween.Kind.Position, rt, duration, ease, delay);
             t.rect = rt;
             t.to = to;
-            return Runner.Start(t);
+            return Runner.Add(t);
         }
 
         public static Tween Scale(Transform tr, float to, float duration, Ease ease = Ease.OutCubic, float delay = 0f)
@@ -138,7 +138,7 @@ namespace ColourCascade.App
             var t = Runner.Create(Tween.Kind.Scale, tr, duration, ease, delay);
             t.transform = tr;
             t.to = to;
-            return Runner.Start(t);
+            return Runner.Add(t);
         }
 
         public static Tween Rotate(Transform tr, float z, float duration, Ease ease = Ease.OutCubic, float delay = 0f)
@@ -146,7 +146,7 @@ namespace ColourCascade.App
             var t = Runner.Create(Tween.Kind.Rotation, tr, duration, ease, delay);
             t.transform = tr;
             t.to = new Vector4(z, 0, 0, 0);
-            return Runner.Start(t);
+            return Runner.Add(t);
         }
 
         public static Tween Fade(CanvasGroup g, float to, float duration, Ease ease = Ease.OutQuad, float delay = 0f)
@@ -154,7 +154,7 @@ namespace ColourCascade.App
             var t = Runner.Create(Tween.Kind.GroupAlpha, g, duration, ease, delay);
             t.group = g;
             t.to = new Vector4(to, 0, 0, 0);
-            return Runner.Start(t);
+            return Runner.Add(t);
         }
 
         public static Tween Colour(Graphic g, Color to, float duration, Ease ease = Ease.OutQuad, float delay = 0f)
@@ -162,7 +162,7 @@ namespace ColourCascade.App
             var t = Runner.Create(Tween.Kind.Colour, g, duration, ease, delay);
             t.graphic = g;
             t.to = to;
-            return Runner.Start(t);
+            return Runner.Add(t);
         }
 
         public static Tween Fade(Graphic g, float alpha, float duration, Ease ease = Ease.OutQuad, float delay = 0f)
@@ -176,7 +176,7 @@ namespace ColourCascade.App
             var t = Runner.Create(Tween.Kind.Size, rt, duration, ease, delay);
             t.rect = rt;
             t.to = to;
-            return Runner.Start(t);
+            return Runner.Add(t);
         }
 
         /// <summary>Animates a number. owner (optional) stops the tween when destroyed.</summary>
@@ -187,14 +187,14 @@ namespace ColourCascade.App
             t.from = new Vector4(from, 0, 0, 0);
             t.to = new Vector4(to, 0, 0, 0);
             t.fromCurrent = false;
-            return Runner.Start(t, replace: false);
+            return Runner.Add(t, replace: false);
         }
 
         public static Tween Delay(float seconds, Action action, UnityEngine.Object owner = null)
         {
             var t = Runner.Create(Tween.Kind.Delay, owner, 0f, Ease.Linear, seconds);
             t.onComplete = action;
-            return Runner.Start(t, replace: false);
+            return Runner.Add(t, replace: false);
         }
 
         /// <summary>Stops every tween on this object without completing it.</summary>
@@ -269,7 +269,8 @@ namespace ColourCascade.App
             return t;
         }
 
-        internal Tween Start(Tween t, bool replace = true)
+        // Not called Start: Unity would treat it as the Start message (which can't take parameters).
+        internal Tween Add(Tween t, bool replace = true)
         {
             if (replace && t.target != null)
             {

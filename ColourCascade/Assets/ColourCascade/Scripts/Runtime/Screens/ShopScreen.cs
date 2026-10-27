@@ -81,10 +81,7 @@ namespace ColourCascade.App
             currentTab = index;
             if (list != null) Destroy(list.gameObject);
             list = UI.Rect("List", scroll.viewport);
-            list.anchorMin = new Vector2(0, 1);
-            list.anchorMax = new Vector2(1, 1);
-            list.pivot = new Vector2(0.5f, 1);
-            list.anchoredPosition = Vector2.zero;
+            list.TopStrip(0);
             var v = UI.VStack(list, 24, new RectOffset((int)Theme.Margin, (int)Theme.Margin, 20, 60));
             v.childForceExpandHeight = false;
             var fitter = list.gameObject.AddComponent<ContentSizeFitter>();
@@ -230,7 +227,7 @@ namespace ColourCascade.App
                     "Map", () => Nav().Show(ScreenId.Map, new MapArgs()));
                 bool dailyDone = Ctx.Rewards.IsClaimed(RewardKeys.DailyComplete(Ctx.TodayKey));
                 Earn(list, Icon.Calendar, Theme.Gold, "Daily Challenge",
-                    "+" + Ctx.Config.Daily.completionReward + " for completing today's puzzle, +" + Ctx.Config.Daily.threeStarBonus + " more for three stars." + (dailyDone ? "  Collected today ✓" : ""),
+                    "+" + Ctx.Config.Daily.completionReward + " for completing today's puzzle, +" + Ctx.Config.Daily.threeStarBonus + " more for three stars." + (dailyDone ? "  Collected today." : ""),
                     dailyDone ? null : "Play", () => Nav().Open<ModePopup>().Setup(GameMode.Daily));
                 int weeklyTotal = 0;
                 foreach (var r in Ctx.Config.Rush.tierRewards) weeklyTotal += r;

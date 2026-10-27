@@ -15,6 +15,9 @@ namespace ColourCascade.App
         public override bool Cancellable => false;
         protected override float PanelHeight => 1420f;
 
+        const float BodyTop = 150f;     // title
+        const float BodyBottom = 390f;  // main button + secondary row
+
         RunResult result;
         PuzzleSession session;
         GameScreen game;
@@ -37,7 +40,7 @@ namespace ColourCascade.App
             session = s;
             game = screen;
             body = UI.Rect("Body", Content);
-            body.Fill(60, 370, 60, 150);
+            body.Fill(60, BodyBottom, 60, BodyTop);
             UI.VStack(body, 16, null, TextAnchor.UpperCenter);
 
             switch (r.Mode)
@@ -57,6 +60,7 @@ namespace ColourCascade.App
                     if (r.State == SessionState.Stuck) Stuck(); else RushDone();
                     break;
             }
+            FitHeight(body, BodyTop, BodyBottom, 860f);
         }
 
         // ------------------------------------------------------------------ Variants
@@ -191,7 +195,8 @@ namespace ColourCascade.App
                 var cell = UI.Rect("Tier" + i, row);
                 var bg = UI.Rounded(cell, got ? Theme.Gold.WithAlpha(0.25f) : new Color(0, 0, 0, 0.25f), 30, "Bg");
                 bg.rectTransform.Fill();
-                var name = UI.Text(cell, (i < rush.tierNames.Length ? rush.tierNames[i] : "Tier " + (i + 1)) + (got ? "  ✓" : ""), Theme.FontSmall, got ? Theme.Gold : Theme.TextSecondary, TextAnchor.MiddleCenter, true, "Name");
+                var name = UI.Text(cell, i < rush.tierNames.Length ? rush.tierNames[i] : "Tier " + (i + 1), Theme.FontSmall, got ? Theme.Gold : Theme.TextSecondary, TextAnchor.MiddleCenter, true, "Name");
+                if (got) UI.Icon(cell, Icon.Check, Theme.Gold, 40).rectTransform.Place(new Vector2(1, 1), new Vector2(1, 1), new Vector2(-12, -12), new Vector2(40, 40));
                 name.rectTransform.Fill(0, 70, 0, 14);
                 var score = UI.Text(cell, NumberFormat.Thousands(rush.tierScores[i]), Theme.FontSmall, Theme.Text, TextAnchor.MiddleCenter, true, "Score");
                 score.rectTransform.Fill(0, 14, 0, 70);
@@ -261,7 +266,7 @@ namespace ColourCascade.App
             var rewards = result.Rewards;
             if (rewards == null || !rewards.Any) return;
             coins = CoinCounter.Create(Content, null, 80);
-            ((RectTransform)coins.transform).Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(34, -34), new Vector2(250, 80));
+            ((RectTransform)coins.transform).Place(new Vector2(0.5f, 1), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(250, 80));
             int finalBalance = Ctx.Wallet.Balance;
             coins.Show(finalBalance - rewards.TotalCoins);
             var list = UI.Rect("Rewards", body);

@@ -218,7 +218,7 @@ namespace ColourCascade.App
 
             var today = Ctx.TodayRecord;
             bool done = today != null && today.Completed;
-            dailyStatus.text = done ? "Done ✓  ·  " + NumberFormat.Duration(Ctx.TimeToDailyReset) : today != null && today.Plays > 0 ? "Best " + NumberFormat.Thousands(today.BestScore) : "New puzzle!";
+            dailyStatus.text = done ? "Done  ·  " + NumberFormat.Duration(Ctx.TimeToDailyReset) : today != null && today.Plays > 0 ? "Best " + NumberFormat.Thousands(today.BestScore) : "New puzzle!";
             dailyStatus.color = done ? Theme.Success : today == null ? Theme.Gold : Theme.TextSecondary;
             dailyDot.gameObject.SetActive(today == null || today.Plays == 0);
 

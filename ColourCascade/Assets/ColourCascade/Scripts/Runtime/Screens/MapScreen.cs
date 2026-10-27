@@ -107,11 +107,16 @@ namespace ColourCascade.App
             scroll.scrollSensitivity = 40f;
             scroll.onValueChanged.AddListener(_ => UpdateVisible());
 
-            // Header drawn above the map.
+            // Header drawn above the map: a solid band (up into the notch area) that fades out below the bar, so
+            // levels scrolling underneath never read as part of the title.
             var header = UI.Rect("Header", Safe);
             header.TopStrip(200, 0, 0, 0);
-            var shade = UI.Image(header, ArtLibrary.Instance.Get(ArtNames.Gradient), new Color(0.05f, 0.03f, 0.15f, 0.85f), "Shade");
-            shade.rectTransform.Fill(0, -60, 0, -200);
+            var headerColour = new Color(0.07f, 0.05f, 0.2f, 0.94f);
+            var shade = UI.Image(header, null, headerColour, "Shade");
+            shade.rectTransform.Fill(0, 40, 0, -300);
+            shade.raycastTarget = true; // taps here mustn't reach a level hidden underneath (drags still scroll the map)
+            var fade = UI.Image(header, ArtLibrary.Instance.Get(ArtNames.Gradient), headerColour, "Fade");
+            fade.rectTransform.BottomStrip(160, -120);
             var bar = UI.Rect("Bar", header);
             bar.TopStrip(Theme.TopBarHeight, 18, Theme.Margin, Theme.Margin);
             var back = UI.IconButton(bar, Icon.Back, ButtonStyle.Secondary, () => Nav.Back(), Theme.IconButtonSize, "Back");
@@ -290,7 +295,7 @@ namespace ColourCascade.App
             var region = Ctx.Catalog.RegionForLevel(centreLevel);
             regionTitle.text = region.Name;
             float currentY = NodeY(highest) + content.anchoredPosition.y;
-            bool currentVisible = currentY > 120f && currentY < viewH - 260f;
+            bool currentVisible = currentY > 120f && currentY < viewH - 330f; // the header covers the top
             if (jumpButton.gameObject.activeSelf == currentVisible) jumpButton.gameObject.SetActive(!currentVisible);
         }
 
@@ -353,7 +358,13 @@ namespace ColourCascade.App
                 dot.gameObject.SetActive(show);
                 if (!show) continue;
                 float t = level + (d + 1f) / (DotsPerSegment + 1f);
-                dot.rectTransform.anchoredPosition = new Vector2(NodeX(t), PathY(t));
+                var p = new Vector2(NodeX(t), PathY(t));
+                if (Covered(level, p) || Covered(level + 1, p))
+                {
+                    dot.gameObject.SetActive(false);
+                    continue;
+                }
+                dot.rectTransform.anchoredPosition = p;
                 dot.color = segmentDone ? new Color(1, 1, 1, 0.95f) : new Color(0.06f, 0.04f, 0.18f, 0.45f);
                 dot.rectTransform.sizeDelta = segmentDone ? new Vector2(30, 30) : new Vector2(24, 24);
             }
@@ -375,6 +386,20 @@ namespace ColourCascade.App
             int lvl = level;
             s.Button.OnClick = () => OnNodeTapped(lvl);
             return s;
+        }
+
+        /// <summary>Whether a path dot at p would sit under a level's node, its star row or its label.</summary>
+        bool Covered(int level, Vector2 p)
+        {
+            if (level < 1 || level > maxLevel) return false;
+            float x = NodeX(level), y = NodeY(level);
+            bool milestone = Ctx.Catalog.IsMilestone(level);
+            bool done = Ctx.Campaign.IsCompleted(level);
+            float r = (level == highest ? 168f : milestone ? 160f : 136f) * 0.5f;
+            if ((p - new Vector2(x, y)).sqrMagnitude < (r + 16f) * (r + 16f)) return true;
+            if (done && Mathf.Abs(p.x - x) < 104f && Mathf.Abs(p.y - (y + r + 40f)) < 48f) return true;
+            bool tagged = level == highest || (milestone && !done);
+            return tagged && Mathf.Abs(p.x - x) < 72f && Mathf.Abs(p.y - (y - r - 40f)) < 40f;
         }
 
         Slot CreateSlot()

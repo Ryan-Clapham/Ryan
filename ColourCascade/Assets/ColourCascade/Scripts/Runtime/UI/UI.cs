@@ -263,21 +263,22 @@ namespace ColourCascade.App
 
             var content = Rect("Content", faceRt);
             content.Fill(18, 2, 18, 0);
+            // The row sets each child's width from its preferred width (icon size, label text width) and keeps
+            // their own heights, so icon and label always sit side by side, centred, even after a relabel.
             var row = HStack(content, 16, null, TextAnchor.MiddleCenter, false);
-            row.childControlWidth = false;
+            row.childControlWidth = true;
             row.childControlHeight = false;
             Image iconImg = null;
             if (icon.HasValue)
             {
                 iconImg = Icon(content, icon.Value, Color.white, fontSize * 1.25f);
+                iconImg.Layout(preferredWidth: fontSize * 1.25f);
             }
             Text text = null;
             if (!string.IsNullOrEmpty(label))
             {
                 text = Text(content, label, fontSize, Color.white, TextAnchor.MiddleCenter, true, "Label");
                 text.horizontalOverflow = HorizontalWrapMode.Overflow;
-                var fitter = text.gameObject.AddComponent<ContentSizeFitter>();
-                fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
                 text.rectTransform.sizeDelta = new Vector2(10, fontSize * 1.3f);
                 AddShadow(text, -3, 0.3f);
             }
@@ -300,6 +301,7 @@ namespace ColourCascade.App
             var rt = (RectTransform)btn.transform;
             rt.sizeDelta = new Vector2(size, size);
             btn.IconImage.rectTransform.sizeDelta = new Vector2(size * 0.5f, size * 0.5f);
+            btn.IconImage.Layout(preferredWidth: size * 0.5f);
             return btn;
         }
 

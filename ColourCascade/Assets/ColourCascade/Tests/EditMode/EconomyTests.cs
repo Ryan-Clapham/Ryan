@@ -47,6 +47,27 @@ namespace ColourCascade.Tests
             Assert.AreEqual(ctx.Config.Economy.ledgerCapacity, ctx.Wallet.Ledger.Count);
             Assert.AreEqual(500, ctx.Wallet.Balance);
         }
+
+        [Test]
+        public void LedgerReasonsReadAsPlainEnglish()
+        {
+            Assert.AreEqual("Level 4 cleared", RewardKeys.Describe(RewardKeys.CampaignFirstClear(4)));
+            Assert.AreEqual("Level 4, star 2", RewardKeys.Describe(RewardKeys.CampaignStar(4, 2)));
+            Assert.AreEqual("Level 10 milestone", RewardKeys.Describe(RewardKeys.CampaignMilestone(10)));
+            Assert.AreEqual("Daily 2026-10-25 complete", RewardKeys.Describe(RewardKeys.DailyComplete("2026-10-25")));
+            Assert.AreEqual("Daily 2026-10-25, 3 stars", RewardKeys.Describe(RewardKeys.DailyThreeStars("2026-10-25")));
+            Assert.AreEqual("Weekly Rush 2026-W43, tier 1", RewardKeys.Describe(RewardKeys.WeeklyTier("2026-W43", 0)));
+            Assert.AreEqual("Endless, 25,000 points", RewardKeys.Describe(RewardKeys.EndlessMilestone(25000)));
+            Assert.AreEqual("Developer coins", RewardKeys.Describe("debug.grant"));
+            Assert.AreEqual("unrecognised.key", RewardKeys.Describe("unrecognised.key"));
+
+            // Purchases, through the real shop.
+            var ctx = TestUtil.Context();
+            ctx.Data.HighestUnlocked = 100;
+            ctx.Wallet.Credit(1000, "debug.grant");
+            Assert.IsTrue(ctx.Shop.TryBuy(PowerUpId.ColourShift).Allowed);
+            Assert.AreEqual("Bought Colour Shift", RewardKeys.Describe(ctx.Wallet.Ledger[ctx.Wallet.Ledger.Count - 1].Reason));
+        }
     }
 
     public class ShopTests

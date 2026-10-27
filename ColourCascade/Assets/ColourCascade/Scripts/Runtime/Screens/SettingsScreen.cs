@@ -46,9 +46,7 @@ namespace ColourCascade.App
             if (list != null) Destroy(list.gameObject);
             previewSymbols.Clear();
             list = UI.Rect("List", scroll.viewport);
-            list.anchorMin = new Vector2(0, 1);
-            list.anchorMax = new Vector2(1, 1);
-            list.pivot = new Vector2(0.5f, 1);
+            list.TopStrip(0);
             var v = UI.VStack(list, 22, new RectOffset((int)Theme.Margin, (int)Theme.Margin, 10, 80));
             v.childForceExpandHeight = false;
             list.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -232,9 +230,14 @@ namespace ColourCascade.App
             {
                 var sb = new System.Text.StringBuilder();
                 var ledger = Ctx.Wallet.Ledger;
-                for (int i = ledger.Count - 1; i >= 0 && i >= ledger.Count - 8; i--)
-                    sb.Append(ledger[i].Delta > 0 ? "+" : "").Append(ledger[i].Delta).Append("  ").Append(ledger[i].Reason).Append("  = ").Append(ledger[i].Balance).Append('\n');
-                Nav.Open<ConfirmPopup>().Setup("Recent coins", sb.Length > 0 ? sb.ToString() : "No transactions yet", "OK", null, ButtonStyle.Secondary);
+                for (int i = ledger.Count - 1; i >= 0 && i >= ledger.Count - 10; i--)
+                {
+                    var e = ledger[i];
+                    if (sb.Length > 0) sb.Append('\n');
+                    sb.Append(e.Delta > 0 ? "+" : "").Append(e.Delta).Append("   ").Append(RewardKeys.Describe(e.Reason))
+                        .Append("   = ").Append(NumberFormat.Thousands(e.Balance));
+                }
+                Nav.Open<ConfirmPopup>().SetupInfo("Recent coins", sb.Length > 0 ? sb.ToString() : "No coins earned or spent yet", sb.Length > 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter);
             });
         }
     }

@@ -88,7 +88,7 @@ namespace ColourCascade.App
             var rt = (RectTransform)transform;
             rt.Fill();
             group = gameObject.AddComponent<CanvasGroup>();
-            dim = UI.Image(rt, ArtLibrary.Instance.Get(ArtNames.Round), Theme.Dim, "Dim");
+            dim = UI.Image(rt, null, Theme.Dim, "Dim");
             dim.rectTransform.Fill(-40, -40, -40, -40);
             dim.raycastTarget = true;
             var dimButton = dim.gameObject.AddComponent<Button>();
@@ -153,6 +153,23 @@ namespace ColourCascade.App
                 ((RectTransform)close.transform).Place(new Vector2(1, 1), new Vector2(1, 1), new Vector2(-26, -28), new Vector2(96, 96));
             }
             return t;
+        }
+
+        /// <summary>
+        /// Resizes the panel so a vertical stack fits exactly: <paramref name="above"/> and <paramref name="below"/>
+        /// are the space the popup keeps above the stack (title, art) and below it (buttons). Never taller than the screen.
+        /// </summary>
+        protected void FitHeight(RectTransform stack, float above, float below, float min = 600f)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(stack);
+            SetHeight(above + LayoutUtility.GetPreferredHeight(stack) + below, min);
+        }
+
+        protected void SetHeight(float height, float min = 600f)
+        {
+            float screen = ((RectTransform)Panel.parent).rect.height;
+            float max = screen > min ? screen - 150f : float.MaxValue;
+            Panel.sizeDelta = new Vector2(Panel.sizeDelta.x, Mathf.Clamp(height, min, Mathf.Max(min, max)));
         }
 
         protected CCButton FooterButton(string label, ButtonStyle style, Action onClick, Icon? icon, float fromBottom, float height = 150, float left = 60, float right = 60)

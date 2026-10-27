@@ -8,9 +8,13 @@ namespace ColourCascade.App
 {
     public sealed class ConfirmPopup : PopupBase
     {
+        const float MessageTop = 160f;
+        const float MessageBottom = 240f;
+
         Text title;
         Text message;
         CCButton confirm;
+        CCButton cancel;
         Action onConfirm;
 
         protected override float PanelHeight => 640f;
@@ -19,14 +23,14 @@ namespace ColourCascade.App
         {
             title = Title("", false, 50);
             message = UI.Text(Content, "", Theme.FontBody, Theme.TextSecondary, TextAnchor.MiddleCenter, false, "Message");
-            message.rectTransform.Fill(70, 260, 70, 160);
+            message.rectTransform.Fill(70, MessageBottom, 70, MessageTop);
             confirm = FooterButton("OK", ButtonStyle.Primary, () =>
             {
                 var a = onConfirm;
                 Close();
                 a?.Invoke();
             }, null, 60, 140, 500, 60);
-            FooterButton("Cancel", ButtonStyle.Ghost, Close, null, 60, 140, 60, 500);
+            cancel = FooterButton("Cancel", ButtonStyle.Ghost, Close, null, 60, 140, 60, 500);
         }
 
         public void Setup(string titleText, string body, string confirmLabel, Action onConfirmed, ButtonStyle style = ButtonStyle.Primary)
@@ -36,6 +40,17 @@ namespace ColourCascade.App
             confirm.SetLabel(confirmLabel);
             confirm.SetStyle(style);
             onConfirm = onConfirmed;
+            // The message's width is fixed by the panel, so its wrapped height is known now.
+            SetHeight(MessageTop + message.preferredHeight + 20f + MessageBottom, 640f);
+        }
+
+        /// <summary>A message with a single button that just closes it.</summary>
+        public void SetupInfo(string titleText, string body, TextAnchor align = TextAnchor.MiddleCenter)
+        {
+            message.alignment = align;
+            Setup(titleText, body, "OK", null, ButtonStyle.Secondary);
+            cancel.gameObject.SetActive(false);
+            ((RectTransform)confirm.transform).BottomStrip(140, 60, 60, 60);
         }
     }
 
@@ -205,10 +220,10 @@ namespace ColourCascade.App
                         var spec = Ctx.Challenges.Daily(Ctx.TodayKey);
                         var rec = Ctx.TodayRecord;
                         Para("Today's puzzle is the same for everyone. You have " + spec.Moves + " moves and no timer. Reach the target to complete it.");
-                        LevelPopup.InfoRow(body, Icon.Target, "Target  ·  ★★ ·  ★★★", NumberFormat.Thousands(spec.Target) + " · " + NumberFormat.Thousands(spec.Star2) + " · " + NumberFormat.Thousands(spec.Star3));
-                        LevelPopup.InfoRow(body, Icon.Trophy, "Your best today", rec != null && rec.Plays > 0 ? NumberFormat.Thousands(rec.BestScore) + (rec.Completed ? "  ✓" : "") : "Not played yet");
+                        LevelPopup.InfoRow(body, Icon.Target, "Target  ·  2  ·  3 stars", NumberFormat.Thousands(spec.Target) + " · " + NumberFormat.Thousands(spec.Star2) + " · " + NumberFormat.Thousands(spec.Star3));
+                        LevelPopup.InfoRow(body, Icon.Trophy, "Your best today", rec != null && rec.Plays > 0 ? NumberFormat.Thousands(rec.BestScore) + (rec.Completed ? "  ·  done" : "") : "Not played yet");
                         bool rewarded = Ctx.Rewards.IsClaimed(RewardKeys.DailyComplete(Ctx.TodayKey));
-                        LevelPopup.InfoRow(body, Icon.Gift, rewarded ? "Reward collected" : "Completion reward", rewarded ? "✓" : "+" + Ctx.Config.Daily.completionReward + " coins");
+                        LevelPopup.InfoRow(body, Icon.Gift, rewarded ? "Reward collected" : "Completion reward", rewarded ? "Done" : "+" + Ctx.Config.Daily.completionReward + " coins");
                         LevelPopup.InfoRow(body, Icon.Timer, "New puzzle in", NumberFormat.Duration(Ctx.TimeToDailyReset));
                         break;
                     }
@@ -231,6 +246,7 @@ namespace ColourCascade.App
                         break;
                     }
             }
+            FitHeight(body, 360f, 250f, 1000f);
         }
 
         void Para(string text)
