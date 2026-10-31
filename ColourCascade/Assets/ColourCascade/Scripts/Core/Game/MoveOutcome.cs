@@ -69,6 +69,20 @@ namespace ColourCascade.Core
         public int Wave;
     }
 
+    /// <summary>
+    /// Something a new Endless stage added to the board: an obstacle on an existing tile, or treasure placed in a
+    /// tile's cell (that tile, ReplacedTileId, leaves the board).
+    /// </summary>
+    public struct TileChange
+    {
+        public int TileId;
+        public GridPos Pos;
+        public ObstacleKind Obstacle;
+        public int Strength;
+        public bool IsTreasure;
+        public int ReplacedTileId;
+    }
+
     /// <summary>Moss that grew onto a neighbouring tile after a move that cleared none.</summary>
     public struct MossGrowth
     {
@@ -157,6 +171,8 @@ namespace ColourCascade.Core
         public readonly List<SpecialFired> SpecialsFired = new List<SpecialFired>();
         public readonly List<CollectedTreasure> Treasures = new List<CollectedTreasure>();
         public readonly List<MossGrowth> MossGrowth = new List<MossGrowth>();
+        /// <summary>Endless: what the stage just reached added to the board (after tiles have fallen).</summary>
+        public readonly List<TileChange> Added = new List<TileChange>();
 
         public void Reset()
         {
@@ -183,6 +199,7 @@ namespace ColourCascade.Core
             SpecialsFired.Clear();
             Treasures.Clear();
             MossGrowth.Clear();
+            Added.Clear();
             Cleared.Clear();
             ObstacleHits.Clear();
             Recolours.Clear();

@@ -74,6 +74,7 @@ namespace ColourCascade.App
             float t = stars.Reveal(result.Stars, 0.35f, App.GlobalFx);
             ScoreBlock(result.FinalScore, result.LeftoverBonus > 0 ? NumberFormat.Thousands(result.Score) + " + " + NumberFormat.Thousands(result.LeftoverBonus) + " bonus for spare moves" : "Target " + NumberFormat.Thousands(level.Target), t);
             if (result.NewBest) Badge("New best score!", Theme.Gold);
+            if (result.Stars < 3) StarList(t);
             Rewards(t + 0.2f);
             bool hasNext = Ctx.Campaign.IsUnlocked(level.Number + 1);
             var next = FooterButton(hasNext ? "Next Level" : "Continue", ButtonStyle.Primary, () =>
@@ -175,6 +176,9 @@ namespace ColourCascade.App
             ScoreBlock(result.Score, result.NewBest ? "" : "Best " + NumberFormat.Thousands(Mathf.Max(result.PreviousBest, result.Score)), 0.1f);
             if (result.NewBest) Badge("New personal best!", Theme.Gold);
             StatsRow(("Moves", result.MovesMade.ToString()), ("Biggest group", result.BiggestGroup.ToString()), ("Stage", result.Stage.ToString()));
+            // Endless progression: one level per stage reached; levels unlock tile mechanics for future runs.
+            if (result.EndlessLevel > result.EndlessLevelBefore) Badge("Endless level " + result.EndlessLevel + "  (+" + (result.EndlessLevel - result.EndlessLevelBefore) + ")", Theme.Teal);
+            if (result.NewUnlocks != MechanicSet.None) Badge("New in Endless: " + Mechanics.Names(result.NewUnlocks) + "!", Theme.Gold);
             Rewards(0.6f);
             FooterButton("Play Again", ButtonStyle.Primary, () =>
             {
@@ -192,6 +196,17 @@ namespace ColourCascade.App
             float t = stars.Reveal(result.Stars, 0.3f, App.GlobalFx);
             ScoreBlock(result.FinalScore, result.Success ? "Best today " + NumberFormat.Thousands(Mathf.Max(result.PreviousBest, result.FinalScore)) : "Target " + NumberFormat.Thousands(result.Level.Target) + " — try again!", t);
             if (result.NewBest) Badge("New best today!", Theme.Gold);
+            if (!result.Success && session != null && session.Goals != null && result.Level.Goals != null && result.Level.Goals.Length > 0)
+            {
+                var left = new System.Collections.Generic.List<string>();
+                for (int i = 0; i < session.Goals.Count; i++)
+                {
+                    if (session.Goals.IsComplete(i)) continue;
+                    var g = session.Goals.Goal(i);
+                    left.Add(GoalVisuals.Describe(new GoalSpec { kind = g.kind, colour = g.colour, amount = session.Goals.Remaining(i) }).ToLowerInvariant());
+                }
+                if (left.Count > 0) Para("Still to do: " + string.Join(", ", left) + ".");
+            }
             Rewards(t + 0.2f);
             Para("Next puzzle in " + NumberFormat.Duration(Ctx.TimeToDailyReset));
             FooterButton(result.Success ? "Play Again" : "Try Again", ButtonStyle.Primary, () =>
@@ -211,16 +226,18 @@ namespace ColourCascade.App
             var row = UI.Rect("Tiers", body);
             row.Layout(preferredHeight: 150);
             UI.HStack(row, 16);
-            for (int i = 0; i < rush.tierScores.Length; i++)
+            // The medal scores of the board that was played (adjusted for its tile mechanics).
+            var tiers = new[] { result.Level.Target, result.Level.Star2, result.Level.Star3 };
+            for (int i = 0; i < rush.tierScores.Length && i < tiers.Length; i++)
             {
-                bool got = result.Score >= rush.tierScores[i] || Ctx.Rewards.IsClaimed(RewardKeys.WeeklyTier(result.PeriodKey, i));
+                bool got = result.Score >= tiers[i] || Ctx.Rewards.IsClaimed(RewardKeys.WeeklyTier(result.PeriodKey, i));
                 var cell = UI.Rect("Tier" + i, row);
                 var bg = UI.Rounded(cell, got ? Theme.Gold.WithAlpha(0.25f) : new Color(0, 0, 0, 0.25f), 30, "Bg");
                 bg.rectTransform.Fill();
                 var name = UI.Text(cell, i < rush.tierNames.Length ? rush.tierNames[i] : "Tier " + (i + 1), Theme.FontSmall, got ? Theme.Gold : Theme.TextSecondary, TextAnchor.MiddleCenter, true, "Name");
                 if (got) UI.Icon(cell, Icon.Check, Theme.Gold, 40).rectTransform.Place(new Vector2(1, 1), new Vector2(1, 1), new Vector2(-12, -12), new Vector2(40, 40));
                 name.rectTransform.Fill(0, 70, 0, 14);
-                var score = UI.Text(cell, NumberFormat.Thousands(rush.tierScores[i]), Theme.FontSmall, Theme.Text, TextAnchor.MiddleCenter, true, "Score");
+                var score = UI.Text(cell, NumberFormat.Thousands(tiers[i]), Theme.FontSmall, Theme.Text, TextAnchor.MiddleCenter, true, "Score");
                 score.rectTransform.Fill(0, 14, 0, 70);
             }
             Rewards(0.5f);
@@ -234,6 +251,40 @@ namespace ColourCascade.App
         }
 
         // ------------------------------------------------------------------ Building blocks
+
+        /// <summary>What each star needs, ticked when earned, and a tip for scoring more (levels finished with under 3 stars).</summary>
+        void StarList(float delay)
+        {
+            var items = StarChecklist.For(result.Level, result.FinalScore, result.Stars);
+            var list = UI.Rect("StarChecklist", body);
+            list.Layout(preferredHeight: items.Count * 64 + 6 + 64);
+            UI.VStack(list, 4);
+            foreach (var item in items)
+            {
+                var row = UI.Rect("Row" + item.Stars, list);
+                row.Layout(preferredHeight: 60);
+                var bg = UI.Rounded(row, new Color(0, 0, 0, item.Met ? 0.12f : 0.24f), 26, "Bg");
+                bg.rectTransform.Fill();
+                for (int k = 0; k < 3; k++)
+                {
+                    bool show = k < item.Stars;
+                    var star = UI.Image(row, ArtLibrary.Instance.Get(show && item.Met ? ArtNames.StarGold : ArtNames.StarEmpty), Color.white, "Star" + k);
+                    star.rectTransform.Place(new Vector2(0, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(36 + k * 34, 0), new Vector2(34, 34));
+                    star.gameObject.SetActive(show);
+                }
+                var text = UI.FitText(row, item.Text, Theme.FontSmall, item.Met ? Theme.TextSecondary : Theme.Text, TextAnchor.MiddleLeft, true, "Text");
+                text.rectTransform.Fill(140, 0, 80, 0);
+                if (item.Met)
+                {
+                    var tick = UI.Icon(row, Icon.Check, Theme.Success, 40);
+                    tick.rectTransform.Place(new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-42, 0), new Vector2(40, 40));
+                }
+            }
+            var tip = UI.FitText(list, StarChecklist.Tip(result.Level), Theme.FontSmall - 4, Theme.TextMuted, TextAnchor.MiddleCenter, false, "Tip");
+            tip.Layout(preferredHeight: 60);
+            list.localScale = new Vector3(1f, 0f, 1f);
+            Tw.Scale(list, 1f, 0.3f, Ease.OutCubic, delay + 0.1f);
+        }
 
         void Para(string text)
         {

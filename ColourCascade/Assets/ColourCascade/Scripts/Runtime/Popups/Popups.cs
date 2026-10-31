@@ -231,6 +231,9 @@ namespace ColourCascade.App
                         var e = Ctx.Data.Endless;
                         LevelPopup.InfoRow(body, Icon.Trophy, "Best score", e.BestScore > 0 ? NumberFormat.Thousands(e.BestScore) : "—");
                         LevelPopup.InfoRow(body, Icon.Star, "Biggest group", e.BestGroup > 0 ? e.BestGroup + " tiles" : "—");
+                        int at;
+                        var next = Mechanics.NextEndlessUnlock(e.Level, Ctx.Config.Endless.mechanics, out at);
+                        LevelPopup.InfoRow(body, Icon.Bolt, "Endless level " + e.Level, next != MechanicSet.None ? "Next: " + Mechanics.Name(next) + " at " + at : "Everything unlocked");
                         LevelPopup.InfoRow(body, Icon.Gift, "Score milestones", "one-time coin rewards");
                         break;
                     }
@@ -239,10 +242,13 @@ namespace ColourCascade.App
                         title.text = "Daily Challenge";
                         badge.color = Theme.Gold;
                         badgeIcon.sprite = ArtLibrary.Instance.Icon(Icon.Calendar);
-                        var spec = Ctx.Challenges.Daily(Ctx.TodayKey);
+                        var spec = Ctx.Challenges.Daily(Ctx.TodayKey, Ctx.CampaignMechanics);
                         var rec = Ctx.TodayRecord;
-                        Para("Today's puzzle is the same for everyone. You have " + spec.Moves + " moves and no timer. Reach the target to complete it.");
+                        bool goals = spec.Goals != null && spec.Goals.Length > 0;
+                        Para("Today's puzzle is the same for everyone. You have " + spec.Moves + " moves and no timer. " + (goals ? "Reach the target and complete every goal." : "Reach the target to complete it."));
                         LevelPopup.InfoRow(body, Icon.Target, "Target  ·  2  ·  3 stars", NumberFormat.Thousands(spec.Target) + " · " + NumberFormat.Thousands(spec.Star2) + " · " + NumberFormat.Thousands(spec.Star3));
+                        string today = Mechanics.Names(ChallengeMechanics.DailyFor(Ctx.TodayKey, Ctx.CampaignMechanics), false);
+                        if (today.Length > 0) LevelPopup.InfoRow(body, Icon.Sparkle, "Today: " + today, "");
                         LevelPopup.InfoRow(body, Icon.Trophy, "Your best today", rec != null && rec.Plays > 0 ? NumberFormat.Thousands(rec.BestScore) + (rec.Completed ? "  ·  done" : "") : "Not played yet");
                         bool rewarded = Ctx.Rewards.IsClaimed(RewardKeys.DailyComplete(Ctx.TodayKey));
                         LevelPopup.InfoRow(body, Icon.Gift, rewarded ? "Reward collected" : "Completion reward", rewarded ? "Done" : "+" + Ctx.Config.Daily.completionReward + " coins");
@@ -255,14 +261,19 @@ namespace ColourCascade.App
                         badge.color = Theme.Primary;
                         badgeIcon.sprite = ArtLibrary.Instance.Icon(Icon.Bolt);
                         var rush = Ctx.Config.Rush;
+                        var week = Ctx.Challenges.Weekly(Ctx.ThisWeekKey, Ctx.CampaignMechanics);
                         Para(rush.seconds + " seconds on this week's board — the only timed mode. Clear as fast as you can and reach the medal scores for coins.");
                         var rec = Ctx.ThisWeekRecord;
                         LevelPopup.InfoRow(body, Icon.Trophy, "Best this week", rec != null && rec.BestScore > 0 ? NumberFormat.Thousands(rec.BestScore) : "—");
-                        for (int i = 0; i < rush.tierScores.Length && i < rush.tierRewards.Length; i++)
+                        MechanicSet theme;
+                        var weekSet = ChallengeMechanics.WeeklyFor(Ctx.ThisWeekKey, Ctx.CampaignMechanics, out theme);
+                        if (theme != MechanicSet.None) LevelPopup.InfoRow(body, Icon.Sparkle, ChallengeMechanics.ThemeName(theme), Mechanics.Names(weekSet, false));
+                        var tiers = new[] { week.Target, week.Star2, week.Star3 };
+                        for (int i = 0; i < tiers.Length && i < rush.tierRewards.Length; i++)
                         {
                             bool got = Ctx.Rewards.IsClaimed(RewardKeys.WeeklyTier(Ctx.ThisWeekKey, i));
                             string name = i < rush.tierNames.Length ? rush.tierNames[i] : "Tier " + (i + 1);
-                            LevelPopup.InfoRow(body, got ? Icon.Check : Icon.Star, name + "  " + NumberFormat.Thousands(rush.tierScores[i]), got ? "Collected" : "+" + rush.tierRewards[i] + " coins");
+                            LevelPopup.InfoRow(body, got ? Icon.Check : Icon.Star, name + "  " + NumberFormat.Thousands(tiers[i]), got ? "Collected" : "+" + rush.tierRewards[i] + " coins");
                         }
                         LevelPopup.InfoRow(body, Icon.Timer, "Ends in", NumberFormat.Duration(Ctx.TimeToWeeklyReset));
                         break;

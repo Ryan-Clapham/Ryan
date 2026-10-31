@@ -184,8 +184,8 @@ A campaign level has one to three goals and is complete when **all** are met.
 * A level with no goals listed has one Score goal equal to its target, so every score level plays as before.
 * Stars: completing every goal is one star. Two and three stars come from the level's score thresholds (for goal
   levels, set from the scores the Planner bot finishes with; see DESIGN.md).
-* Endless, Daily Challenge, Weekly Rush and Practice keep their own rules and never contain obstacles, pieces,
-  special tiles or campaign goals. This is enforced: a session in any of those modes refuses to start with them.
+* Every mode uses the same rules for every tile (section 9). What differs by mode is when a mechanic is unlocked and
+  how boards use it.
 
 ## 5. Points
 
@@ -243,7 +243,50 @@ A hand-made level in the config with the same number replaces the built-in intro
 
 | Part | Status |
 |---|---|
-| Ice, chains (phase 1), specials, combos, chain reactions, treasure, moss, all goals | Done in the engine and tested in the .NET harness |
+| Ice, chains, specials, combos, chain reactions, treasure, moss, all goals | Done in the engine and tested in the .NET harness |
+| The same mechanics in Daily Challenge, Weekly Rush and Endless (section 9) | Done and tested; simulated (DESIGN.md §4–6) |
 | Campaign schedule, introduction levels, practice levels, generated level recipes | Done and tested; balance simulated (DESIGN.md, campaign-simulation.csv) |
-| Art, overlays, strength badges, animations, sounds, goals panel, prism picker, tutorials, how-to-play pages | Written and compile-checked against Unity's assemblies; **not yet seen running in Unity** |
+| Art, overlays, strength badges, animations, sounds, goals panel, prism picker, tutorials, how-to-play pages, star checklist | Written and compile-checked against Unity's assemblies; **not yet seen running in Unity** |
 | Level files (JSON) for export and hand-made levels | Done and tested |
+
+## 9. Mechanics in every mode
+
+The seven mechanics are one shared system: the engine applies the rules above in every mode (there is no
+per-mode copy of any rule). Each mode only decides which mechanics a board may use, when they unlock, and how
+difficulty is controlled. Power-up rules per mode are unchanged (Daily Challenge and Weekly Rush stay power-up
+free), as are rewards and records.
+
+| | Campaign | Daily Challenge | Weekly Rush | Endless |
+|---|---|---|---|---|
+| Unlocked by | Its introduction levels (section 7) | Campaign: a mechanic counts once its introduction level is completed | Campaign, as for Daily | Endless level (below) |
+| Boards | Hand-made introductions, then recipes by band | The day's plan from the date | A weekly theme plus more | Waves added at each new stage |
+| Goals | 1–3 per level | The target plus the obstacles' goals | None (scored) | None (scored) |
+| Special tiles | From their introductions | Whatever the player has unlocked | Whatever the player has unlocked | From their Endless milestones |
+
+**Daily Challenge.** The day's plan comes from the date alone: one mechanic, or a pair that plays fairly on a
+20-move board (ice with treasure, moss or a colour goal; treasure with moss or a colour goal; moss with a colour
+goal). Chains only ever appear alone. A player gets the parts of the plan they have unlocked: everyone with the same
+unlocks plays exactly the same board, goals, moves and target, and the board underneath the mechanics is the day's
+board for everyone. Obstacles bring goals; the day is complete when the target **and** every goal are met by the
+last move, and stars need the goals too. Days with goals have a slightly lower target (config: daily →
+goalTargetEasingPermille). Records and rewards stay keyed by the date. If the day's obstacles would be too many for a
+casual player in 20 moves, they are scaled down (70%, then 50%).
+
+**Weekly Rush.** Each week has a theme (frozen, rocket, chain, bomb, treasure, prism or moss week); special-tile
+themes start the board with a few of that special. If the player has not unlocked the theme, their most recent
+obstacle stands in. Up to two more of the player's obstacles join it, so weekly boards combine more than daily ones
+(never treasure with chains). Rush is scored only: obstacles bring points, not goals. The medal scores move with the
+board: a bot plays 45 moves on the board with and without the mechanics, and the medal scores are multiplied by the
+ratio (0.7× to 1.8×), so a medal takes the same effort. Rewards use the medal scores of the board that was played.
+
+**Endless.** A run starts with the original tiles. Each new stage adds a wave of the mechanics the player has
+unlocked in Endless, more of them together as stages go up: one kind on stages 2–3, two on 4–5, three from 6
+(frozen tiles, chains, moss on free tiles; treasure in place of a tile in an open column). Special tiles appear as
+soon as they are unlocked. Each treasure brought down gives 3 bonus moves (config: endless → treasureBonusMoves).
+Complexity grows through these combinations, not through higher targets.
+
+**Endless level.** Saved with the player's progress: it starts at 1 and goes up by one for every stage reached in any
+Endless run. It unlocks mechanics at these levels (config: endless → mechanics): frozen tiles 5, rockets 10, thick
+ice 12, bombs 15, chains 20, prisms 25, treasure 30, moss 40. Saves from before Endless levels existed start from the
+player's best stage. The first time a mechanic appears outside the campaign without having been taught, its tutorial
+card is shown (tutorials are shared by every mode; Weekly Rush never shows one, as its clock is running).

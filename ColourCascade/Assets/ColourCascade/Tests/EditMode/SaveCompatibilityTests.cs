@@ -64,10 +64,26 @@ namespace ColourCascade.Tests
             "0000011920929,\"musicWhenOn\":0.30000001192092896,\"symbols\":true,\"reducedMotion\":false},\"stats\":{\"tiles" +
             "\":1217,\"groups\":227,\"powerUps\":0,\"games\":15,\"biggestGroup\":14,\"shuffles\":0}}";
 
+        /// <summary>
+        /// Fields added to the save since the fixture was written, with the value an old save gets. Everything else must
+        /// read and write back exactly. (endless.level: Endless progression, added with cross-mode mechanics.)
+        /// </summary>
+        static string WithoutNewFields(string json, out long endlessLevel)
+        {
+            var root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(json);
+            var endless = (System.Collections.Generic.Dictionary<string, object>)root["endless"];
+            endlessLevel = endless.ContainsKey("level") ? (long)endless["level"] : -1;
+            endless.Remove("level");
+            return Json.Write(root);
+        }
+
         [Test]
         public void ASaveFromBeforeTheOverhaulLoadsAndWritesBackUnchanged()
         {
-            Assert.AreEqual(SaveBeforeOverhaul, SaveCodec.Encode(SaveCodec.Decode(SaveBeforeOverhaul)), "nothing lost or changed");
+            string written = SaveCodec.Encode(SaveCodec.Decode(SaveBeforeOverhaul));
+            Assert.AreEqual(WithoutNewFields(SaveBeforeOverhaul, out _), WithoutNewFields(written, out long level), "nothing lost or changed");
+            var old = SaveCodec.Decode(SaveBeforeOverhaul);
+            Assert.AreEqual(System.Math.Max(1, old.Endless.BestStage), level, "an old save's Endless level starts from its best stage");
 
             var ctx = TestUtil.Context(null, new MemorySaveStorage { Main = SaveBeforeOverhaul });
             Assert.AreEqual(13, ctx.Campaign.HighestUnlocked);
@@ -91,7 +107,8 @@ namespace ColourCascade.Tests
         {
             var store = new MemorySaveStorage();
             PlayScript(store);
-            Assert.AreEqual(SaveBeforeOverhaul, store.Main, "same progress, stars, coins, ledger and records as before the overhaul");
+            Assert.AreEqual(WithoutNewFields(SaveBeforeOverhaul, out _), WithoutNewFields(store.Main, out long level), "same progress, stars, coins, ledger and records as before the overhaul");
+            Assert.GreaterOrEqual(level, 1);
         }
 
         /// <summary>A fixed sequence of real play through GameContext: campaign levels, every challenge mode, a purchase and settings.</summary>

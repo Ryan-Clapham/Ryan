@@ -13,10 +13,11 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **273 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **293 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Campaign mechanics: Casual and Planner bots play every level 1–200 (24 games each) and flag levels that look too easy, too hard or unfair | `Sim -- campaign 1 200 24 <csv>` | See DESIGN.md §3.1 and docs/campaign-simulation.csv |
+| Mechanics in other modes: Daily success by unlock level (60 days), Weekly Rush medal rates with and without mechanics (16 weeks), Endless runs by Endless level | `Sim -- modes` | See DESIGN.md §4–6 |
 | Economy: a simulated player earns coins for 30 days through the real reward code | `Sim -- economy` | See DESIGN.md §8 |
 | Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below); new-mechanics mock board reviewed (chain padlock moved off the colour symbol) |
 | Audio: every effect and the music loop synthesised and checked for NaN/clipping/silence | tests + `Sim -- art` | Pass |
@@ -24,7 +25,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (273 tests)
+### Automated test coverage (293 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -54,6 +55,7 @@ real Android builds provide it.
 | Treasure | 9 | Falls and is collected at the bottom edge and on stones, never through them; waits on ice, chains, moss and tiles; stacked treasure; untouched by power-ups and reshuffles; layout rules; the treasure goal wins the level |
 | Moss | 11 | Leaves with its group and with area hits; scraped off by a neighbouring clear; grows by one free tile after a move that clears none, repeatably, never two moves in a row, never past its cap, never onto ice, chains, specials or treasure; falls with its tile; can't block every move; the moss goal follows the board |
 | Campaign design and level files | 20 | No mechanic before its introduction (levels 1–200); each introduction teaches one thing with a tutorial; practice levels focus on it; generated levels valid with goals that can be met and moves in their band; same on every device; levels saved to JSON load back exactly and play the same board (13 levels covering every mechanic); hand-written level files load and bad ones are refused; progress on mechanic levels saves and loads |
+| Mechanics in every mode | 24 | Each of the seven mechanics gives identical results (and points) in Campaign, Daily, Weekly Rush and Endless; power-up rules per mode unchanged; recovery keeps obstacles in every mode; campaign and Endless unlocks (milestones configurable); Daily uses only the day's plan and the player's unlocks, is identical for players with the same unlocks, stays keyed by date, needs its goals as well as the target, and its goals are reachable (planner 27/30 days); Weekly themes, more combinations than Daily, never treasure with chains, medal rewards follow the board played; players with nothing unlocked get the original challenges and Endless; Endless level saved, migrated from old saves and unlocking at its milestones; Endless waves arrive only with new stages and combine more as stages rise; random play in every mode keeps every rule; the star checklist |
 | Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 2,000 actions, 170+ specials made, combos, treasure, moss growth): score bookkeeping, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
@@ -152,7 +154,17 @@ Use **Settings → Developer → unlock levels** to jump ahead, then open each i
 * [ ] **Level popup** on the map shows the goals instead of a target score for goal levels.
 * [ ] **How to Play** has two new pages (goals and obstacles, special tiles).
 * [ ] Toggle **Symbols**: tiles under ice, chains and moss still show their symbol, and the goals panel updates.
-* [ ] Daily Challenge, Weekly Rush and Endless look and play exactly as before (no obstacles, no specials).
+* [ ] **Star checklist:** finish a level with one or two stars: the Level Complete card lists what each star needs,
+      ticks the ones earned and says how many points short the others were.
+* [ ] **Daily Challenge with mechanics:** with the campaign past level 22, the Daily card may say "Today: frozen
+      tiles"; the game shows the goals panel (target first, then the obstacles); the result says what is still to do
+      if a goal was missed. With a fresh save the daily looks exactly as before.
+* [ ] **Weekly Rush with mechanics:** the Weekly card names the week's theme and its medal scores; the board has the
+      theme's tiles (a few rockets, bombs or prisms on special weeks); the result card shows the same medal scores.
+* [ ] **Endless progression:** the Endless card shows "Endless level N" and the next unlock. Play runs until level 5
+      (Settings → Developer can help): the result shows the level gained and "New in Endless: frozen tiles!". In the
+      next run, reaching stage 2 shows a banner naming what appears, frozen tiles appear on the board, and their card
+      explains them if never seen before. Close and reopen the app: the Endless level is kept.
 
 Use **Settings → Developer** (Editor/dev builds) to add coins, unlock levels and advance the clock.
 

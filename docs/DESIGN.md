@@ -81,12 +81,14 @@ sized.
   hand-made level with a tutorial card and a pointer, then three practice levels focused on it, then it mixes with
   the others. Special tiles are earned from their introduction on: rockets from 31, bombs from 41, prisms from 51.
 * **Bands:** Learn 1–20, Develop 21–60, Combine 61–120, Advanced 121–200, Expert 201+. Each band has a move range
-  (Develop 18–30, Combine 22–35, Advanced 26–40, Expert 30–45; treasure levels may go 5 over) and a share of
-  spare room (30%, 25%, 20%, 13%).
+  (Develop 16–30, Combine 20–35, Advanced 24–40, Expert 28–45; treasure levels may go 5 over) and a share of
+  spare room (20%, 18%, 15%, 11%; lowered from 30/25/20/13% after a player found the 40s easy).
 * **Ten-level rhythm:** levels ending 1–3 are generous (+10% moves), 4–5 medium, 6 a breather (+15%, or a plain
   score level), 7–9 harder (−5%), 0 a milestone, often combining two mechanics.
-* **Recipes:** a generated level picks one mechanic (sometimes two, more often later on, three goals at most)
-  from those taught so far, with amounts by band (fewer of each when combined). Obstacles are placed with mirror
+* **Recipes:** a generated level picks one mechanic from those taught so far, and often a second ("free 3 frozen
+  tiles and collect 10 blue"): about 45% of levels 29–40, 55% to 120, 65% to 200, nearly every milestone; from
+  level 61 some levels have three goals. The practice levels after each special-tile introduction ask for a colour
+  and some ice. Amounts are set by band (fewer of each when combined). Obstacles are placed with mirror
   symmetry away from the top row; treasure only in open columns; moss away from stones and edges. A level whose
   board would need more moves than its band allows is scaled down (70%, then 50%) and tried again.
 * **Moves** = what a casual player needs (median of 10 Casual-bot games with plenty of moves) × (1 + the band's
@@ -106,20 +108,22 @@ with one move of lookahead):
 | Band | Levels | Casual win rate | Planner win rate | Average moves |
 |---|---|---|---|---|
 | Learn | 1–20 | 85% | 100% | 17.5 |
-| Develop | 21–60 | 81% | 98% | 24.0 |
-| Combine | 61–120 | 67% | 94% | 28.4 |
-| Advanced | 121–200 | 60% | 90% | 34.5 |
+| Develop | 21–60 | 76% | 96% | 23.9 |
+| Combine | 61–120 | 66% | 95% | 28.8 |
+| Advanced | 121–200 | 57% | 89% | 34.3 |
+
+Levels 21–200: 73 with one goal, 67 with two, 11 with three, 29 score levels.
 
 | Main mechanic | Levels | Casual | Planner |
 |---|---|---|---|
-| Collect a colour | 24 | 86% | 99% |
-| Score | 50 | 72% | 99% |
-| Ice | 40 | 71% | 94% |
-| Moss | 21 | 68% | 97% |
-| Chains | 39 | 63% | 89% |
-| Treasure | 26 | 52% | 86% |
+| Collect a colour | 10 | 80% | 97% |
+| Score | 49 | 73% | 99% |
+| Ice | 47 | 72% | 95% |
+| Moss | 22 | 61% | 96% |
+| Chains | 39 | 60% | 90% |
+| Treasure | 33 | 53% | 84% |
 
-**Flagged levels (30 of 200):** the report flags a level as *too hard* when the Casual win rate is below the
+**Flagged levels (34 of 200):** the report flags a level as *too hard* when the Casual win rate is below the
 band's floor (Learn 75%, Develop 55%, Combine 40%, Advanced 30%, introductions 70%), *too easy* above its ceiling,
 and *unfair?* when even the Planner wins under 80%. Most flags are late treasure and chain levels, where finishing
 needs a colour brought next to one particular tile (a person would use power-ups or plan several moves ahead,
@@ -141,6 +145,15 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
 * Coins: one-time milestone rewards the first time any run reaches 2,500 / 5,000 / 10,000 / 20,000 / 40,000
   points (20/30/50/75/100). Endless never grants campaign rewards and never unlocks levels.
 * Typical runs last about 43–45 moves (3–5 minutes).
+* **Tile mechanics (Endless level):** the player's Endless level starts at 1 and goes up by one for every stage
+  reached in any run (saved). Mechanics unlock at Endless levels 5 (frozen tiles), 10 (rockets), 12 (thick ice),
+  15 (bombs), 20 (chains), 25 (prisms), 30 (treasure) and 40 (moss), set in the config. A run starts with the
+  original tiles; each new stage adds a wave of unlocked mechanics: one kind on stages 2–3, two on 4–5, three from 6.
+  Treasure brought down gives 3 bonus moves. The mode card shows the Endless level and the next unlock; the run
+  result shows levels gained and anything newly unlocked.
+* Simulation (Planner bot, 20 runs per level): median scores stay around 17,500–21,000 and median stage 5 at every
+  Endless level, with about 20–25 obstacles and treasures added per run once mechanics are unlocked: complexity
+  goes up without the targets moving.
 
 ## 5. Daily Challenge
 
@@ -152,6 +165,11 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
 * First completion each day pays **30 coins**; three stars pays **+10** once. Replays are unlimited and update
   the best score but never pay twice.
 * No power-ups and no shop during a run, so the challenge is identical for everyone.
+* **Tile mechanics:** each date has a plan of one mechanic, or a pair known to play fairly (chains only alone). A
+  player gets the parts of it they have completed in the campaign, so everyone with the same progress plays the same
+  puzzle, and a new player plays the original daily. Obstacles add goals (shown in the goals panel, with the target
+  as the first goal); the day is complete when the target and every goal are met. Days with goals have a target 12%
+  lower. Simulation (60 days): Casual-bot success 47% on plain days, 43–54% with mechanics; Planner 88–100%.
 * **Limitation:** the date comes from the device clock. A player who changes their clock can view other days'
   puzzles. Mitigation: rewards are refused for any date earlier than the latest one the player has opened.
   Moving the clock forward is not detected. All time reads go through `IClock`, so a server time source can
@@ -167,6 +185,12 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
 * Medal tiers: **Bronze 2,500 (+20), Silver 5,000 (+30), Gold 8,000 (+50)**, each paid once per week.
   Bots score about 5,000–6,200 in 40 moves and 7,900–9,700 in 60, so Gold rewards fast, good play.
 * No power-ups, no shop during the run.
+* **Tile mechanics:** each week has a theme (frozen, rocket, chain, bomb, treasure, prism or moss week) and up to two
+  more of the player's campaign-unlocked mechanics, so weekly boards combine more than daily ones. Special-tile weeks
+  start with a few of that special on the board. The medal scores are scaled by how much the mechanics change a
+  45-move bot score, and rewards use the medal scores of the board played. Simulation (16 weeks): with everything
+  unlocked the medal scores were 1.19× the plain ones on average, and the bot earned bronze, silver and gold at the
+  same rates as on the plain boards (100% / 98% / 43% against 100% / 98% / 42%).
 
 ## 7. Power-ups
 

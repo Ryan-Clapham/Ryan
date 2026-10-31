@@ -57,7 +57,7 @@ namespace ColourCascade.Core
             root["endless"] = new Dictionary<string, object>
             {
                 ["best"] = d.Endless.BestScore, ["bestGroup"] = d.Endless.BestGroup, ["bestMoves"] = d.Endless.BestMoves,
-                ["bestStage"] = d.Endless.BestStage, ["runs"] = d.Endless.Runs,
+                ["bestStage"] = d.Endless.BestStage, ["runs"] = d.Endless.Runs, ["level"] = d.Endless.Level,
             };
 
             var tutorials = new List<string>(d.Tutorials);
@@ -133,6 +133,8 @@ namespace ColourCascade.Core
                 BestScore = JsonRead.Int(endless, "best"), BestGroup = JsonRead.Int(endless, "bestGroup"), BestMoves = JsonRead.Int(endless, "bestMoves"),
                 BestStage = JsonRead.Int(endless, "bestStage"), Runs = JsonRead.Int(endless, "runs"),
             };
+            // Saves from before Endless levels existed start from the best stage reached (so the level is never lost).
+            d.Endless.Level = Math.Max(1, JsonRead.Int(endless, "level", Math.Max(1, d.Endless.BestStage)));
 
             var tutorials = JsonRead.Arr(root, "tutorials");
             if (tutorials != null) foreach (var t in tutorials) if (t is string s) d.Tutorials.Add(s);

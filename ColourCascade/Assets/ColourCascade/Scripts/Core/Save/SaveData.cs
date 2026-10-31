@@ -200,6 +200,9 @@ namespace ColourCascade.Core
 
     public sealed class EndlessRecord
     {
+        /// <summary>Endless progression: starts at 1 and goes up by one for every stage reached in any run. Unlocks
+        /// tile mechanics in Endless (EndlessConfig.mechanics).</summary>
+        public int Level = 1;
         public int BestScore;
         public int BestGroup;
         public int BestMoves;

@@ -506,7 +506,7 @@ namespace ColourCascade.Tests
     public class CampaignOnlyMechanicsTests
     {
         [Test]
-        public void ChallengeModesAndEndlessHaveNoObstaclesOrGoals()
+        public void ChallengeModesAndEndlessHaveNoMechanicsUntilThePlayerUnlocksThem()
         {
             var ctx = TestUtil.Context();
             var setups = new List<SessionSetup> { ctx.CreateEndlessRun(), ctx.CreatePracticeRun(LevelLayout.Open(6, 6), 4, 1) };
@@ -521,18 +521,6 @@ namespace ColourCascade.Tests
                 Assert.AreEqual(1, s.Goals.Count);
                 Assert.AreEqual(GoalKind.Score, s.Goals.Goal(0).kind);
             }
-        }
-
-        [TestCase(GameMode.Endless)]
-        [TestCase(GameMode.Daily)]
-        [TestCase(GameMode.WeeklyRush)]
-        [TestCase(GameMode.Practice)]
-        public void OtherModesRefuseCampaignMechanics(GameMode mode)
-        {
-            Assert.Throws<System.InvalidOperationException>(() =>
-                TestUtil.Session(mode, 20, 1000, 4, new[] { "0011", "2233" }, new[] { "i...", "...." }));
-            Assert.Throws<System.InvalidOperationException>(() =>
-                TestUtil.Session(mode, 20, 1000, 4, new[] { "0011", "2233" }, null, GoalSpec.Collect(0, 5)));
         }
 
         [Test]

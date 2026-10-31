@@ -150,6 +150,10 @@ namespace ColourCascade.Core
         public int MovesMade;
         public int Stage;
         public string PeriodKey = "";
+        /// <summary>Endless: the player's Endless level before and after this run, and mechanics it unlocked.</summary>
+        public int EndlessLevelBefore;
+        public int EndlessLevel;
+        public MechanicSet NewUnlocks;
         public RewardSummary Rewards = new RewardSummary();
     }
 
@@ -258,10 +262,18 @@ namespace ColourCascade.Core
             return new SessionSetup { Mode = GameMode.Campaign, Level = spec, Scoring = Config.Scoring, BoardSeed = FreshSeed() };
         }
 
-        /// <summary>Every Endless run gets a brand-new seed, so no two runs start with the same board.</summary>
+        /// <summary>Mechanics the player has been taught in the campaign (used by Daily Challenge and Weekly Rush).</summary>
+        public MechanicSet CampaignMechanics => Mechanics.FromCampaign(Campaign.HighestUnlocked, Catalog.Schedule);
+
+        /// <summary>Mechanics unlocked in Endless by the player's Endless level.</summary>
+        public MechanicSet EndlessMechanics => Mechanics.FromEndless(Data.Endless.Level, Config.Endless.mechanics);
+
+        /// <summary>Every Endless run gets a brand-new seed, so no two runs start with the same board. It starts with the
+        /// original tiles; each new stage adds the mechanics unlocked in Endless.</summary>
         public SessionSetup CreateEndlessRun()
         {
             var e = Config.Endless;
+            var pool = EndlessMechanics;
             var spec = new LevelSpec
             {
                 Id = "endless",
@@ -272,6 +284,8 @@ namespace ColourCascade.Core
                 AssistPermille = e.assistPermille,
                 Moves = Math.Max(1, e.startMoves),
                 Note = "Big groups earn extra moves",
+                Pool = pool,
+                Specials = Mechanics.Tier(pool),
             };
             return new SessionSetup { Mode = GameMode.Endless, Level = spec, Scoring = Config.Scoring, Endless = e, BoardSeed = FreshSeed() };
         }
@@ -280,13 +294,13 @@ namespace ColourCascade.Core
         {
             dayKey = dayKey ?? TodayKey;
             NoteDaySeen(dayKey);
-            var spec = Challenges.Daily(dayKey);
+            var spec = Challenges.Daily(dayKey, CampaignMechanics);
             return new SessionSetup { Mode = GameMode.Daily, Level = spec, Scoring = Config.Scoring, BoardSeed = spec.Seed };
         }
 
         public SessionSetup CreateWeeklyRun(string weekKey = null)
         {
-            var spec = Challenges.Weekly(weekKey ?? ThisWeekKey);
+            var spec = Challenges.Weekly(weekKey ?? ThisWeekKey, CampaignMechanics);
             return new SessionSetup { Mode = GameMode.WeeklyRush, Level = spec, Scoring = Config.Scoring, BoardSeed = spec.Seed };
         }
 
@@ -392,7 +406,7 @@ namespace ColourCascade.Core
                             r.NewBest = rec.BestScore > 0;
                             rec.BestScore = s.Score;
                         }
-                        r.Rewards = Rewards.ForWeekly(week, s.Score);
+                        r.Rewards = Rewards.ForWeekly(week, s.Score, new[] { level.Target, level.Star2, level.Star3 });
                         break;
                     }
 
@@ -409,6 +423,12 @@ namespace ColourCascade.Core
                         if (s.BiggestGroup > e.BestGroup) e.BestGroup = s.BiggestGroup;
                         if (s.MovesMade > e.BestMoves) e.BestMoves = s.MovesMade;
                         if (s.Stage > e.BestStage) e.BestStage = s.Stage;
+                        // Endless progression: one level for every stage reached this run, unlocking mechanics.
+                        var before = EndlessMechanics;
+                        r.EndlessLevelBefore = e.Level;
+                        e.Level = Math.Max(1, e.Level) + Math.Max(0, s.Stage - 1);
+                        r.EndlessLevel = e.Level;
+                        r.NewUnlocks = EndlessMechanics & ~before;
                         r.Rewards = Rewards.ForEndless(s.Score);
                         break;
                     }

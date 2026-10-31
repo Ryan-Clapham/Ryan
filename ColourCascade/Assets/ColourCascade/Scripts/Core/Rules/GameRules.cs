@@ -179,6 +179,10 @@ namespace ColourCascade.Core
         public int stageScoreStepAfter = 15000;
         /// <summary>Colours in play for each stage; the last entry applies to all later stages.</summary>
         public int[] stageColours = { 4, 4, 5, 5, 5, 6, 6 };
+        /// <summary>When each tile mechanic joins Endless, by Endless level (one level per stage reached in any run).</summary>
+        public EndlessMilestones mechanics = new EndlessMilestones();
+        /// <summary>Bonus moves for each treasure brought down in Endless.</summary>
+        public int treasureBonusMoves = 3;
         /// <summary>One-time coin rewards for reaching these run scores for the first time ever.</summary>
         public int[] milestoneScores = { 2500, 5000, 10000, 20000, 40000 };
         public int[] milestoneRewards = { 10, 15, 25, 40, 60 };
@@ -225,6 +229,8 @@ namespace ColourCascade.Core
         public int completionReward = 15;
         public int threeStarBonus = 5;
         public int calibrationRuns = 16;
+        /// <summary>On days with goals (tile mechanics), the target is this much lower (permille of the reference score).</summary>
+        public int goalTargetEasingPermille = 120;
     }
 
     [Serializable]

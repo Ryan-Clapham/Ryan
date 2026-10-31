@@ -16,10 +16,11 @@ namespace ColourCascade.Tests
         // and unchanged since. They must never change: players have already played them.
         const ulong ExpectedOpeningLevels = 6328615708927920260UL;
         const ulong ExpectedOpeningPlay = 8421993498075673067UL;
-        // Levels 1-60 and seeded games on 1-40: re-recorded when the campaign mechanics arrived (phase 2), which
-        // deliberately changed levels 21 and up. The pre-overhaul values were 16043548939747815137 and 15566285578730975039.
-        const ulong ExpectedCampaignLevels = 12182320859475582901UL;
-        const ulong ExpectedSeededPlay = 2883777929054136064UL;
+        // Levels 1-60 and seeded games on 1-40: re-recorded when the campaign mechanics arrived (phase 2) and again when
+        // levels 21+ got more mixed goals and less spare room (cross-mode update); both deliberately changed levels 21 and
+        // up only. The pre-overhaul values were 16043548939747815137 and 15566285578730975039.
+        const ulong ExpectedCampaignLevels = 15906189200241180985UL;
+        const ulong ExpectedSeededPlay = 5795225104261133210UL;
         const ulong ExpectedChallengeModes = 318364672465816974UL;
         const ulong ExpectedScriptedPowerUps = 2022348128171972134UL;
 

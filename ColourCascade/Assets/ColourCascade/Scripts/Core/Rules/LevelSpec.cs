@@ -25,8 +25,10 @@ namespace ColourCascade.Core
         public GoalSpec[] Goals;
         /// <summary>Which special tiles big groups create here (campaign only; None elsewhere).</summary>
         public SpecialTier Specials;
-        /// <summary>Most mossy tiles the board may hold; moss stops spreading at this number. 0 = twice the starting moss.</summary>
+        /// <summary>Most mossy tiles the board may hold; moss stops spreading at this number. 0 = the starting moss plus two.</summary>
         public int MossCap;
+        /// <summary>Endless only: the mechanics each new stage may add to the board (the player's Endless unlocks).</summary>
+        public MechanicSet Pool;
         public int Star2;
         public int Star3;
         /// <summary>Campaign only: points awarded per unused move when the target is reached.</summary>

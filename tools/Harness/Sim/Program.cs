@@ -13,6 +13,7 @@ static class Program
         string mode = args.Length > 0 ? args[0] : "balance";
         if (mode == "balance" || mode == "all") Balance(args.Length > 2 ? int.Parse(args[2]) : 60);
         if (mode == "art" || mode == "all") ArtPreview.Export(args.Length > 1 ? args[1] : "art-preview");
+        if (mode == "modes") ModesReport.Run();
         if (mode == "campaign")
         {
             int from = args.Length > 1 ? int.Parse(args[1]) : 1, to = args.Length > 2 ? int.Parse(args[2]) : 120;

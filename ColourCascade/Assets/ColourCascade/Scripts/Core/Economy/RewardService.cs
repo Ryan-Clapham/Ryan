@@ -175,12 +175,17 @@ namespace ColourCascade.Core
             return summary;
         }
 
-        public RewardSummary ForWeekly(string weekKey, int score)
+        public RewardSummary ForWeekly(string weekKey, int score) => ForWeekly(weekKey, score, rush.tierScores);
+
+        /// <summary>Medal rewards for a Weekly Rush score, against the medal scores of the board that was played (a board
+        /// with mechanics has its medal scores adjusted, so the same effort earns the same medals).</summary>
+        public RewardSummary ForWeekly(string weekKey, int score, int[] tierScores)
         {
             var summary = new RewardSummary();
-            for (int i = 0; i < rush.tierScores.Length && i < rush.tierRewards.Length; i++)
+            if (tierScores == null || tierScores.Length == 0) tierScores = rush.tierScores;
+            for (int i = 0; i < tierScores.Length && i < rush.tierRewards.Length; i++)
             {
-                if (score < rush.tierScores[i]) continue;
+                if (tierScores[i] <= 0 || score < tierScores[i]) continue;
                 string name = i < rush.tierNames.Length ? rush.tierNames[i] : "Tier " + (i + 1);
                 Claim(RewardKeys.WeeklyTier(weekKey, i), rush.tierRewards[i], RewardKind.WeeklyTier, name + " tier", summary);
             }

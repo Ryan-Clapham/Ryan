@@ -163,6 +163,22 @@ namespace ColourCascade.Core
             public int MovesLeft;
         }
 
+        /// <summary>Median Weekly Rush score after a fixed number of moves by the Mixed bot (the clock is not run).</summary>
+        public static int MedianRushScore(LevelSpec spec, ScoringRules scoring, int runs, int moves)
+        {
+            if (runs < 1) runs = 1;
+            var scores = new int[runs];
+            for (int i = 0; i < runs; i++)
+            {
+                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.WeeklyRush, Level = spec, Scoring = scoring, BoardSeed = spec.Seed });
+                session.Start();
+                session.StartTimer();
+                scores[i] = Bots.PlayOut(session, BotKind.Mixed, new Rng(StableHash.Combine(spec.Seed, (ulong)(3000 + i))), moves);
+            }
+            System.Array.Sort(scores);
+            return scores[runs / 2];
+        }
+
         /// <summary>Completed games by the Planner bot with the level's own moves, sorted by score.</summary>
         public static List<GameResult> PlannerResults(LevelSpec spec, ScoringRules scoring, int runs)
         {

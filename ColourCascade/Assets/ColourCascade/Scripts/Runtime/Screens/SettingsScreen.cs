@@ -221,6 +221,12 @@ namespace ColourCascade.App
                 Ctx.Save();
                 Toast.Show("Unlocked up to level " + Ctx.Data.HighestUnlocked, Icon.Check);
             });
+            ActionRow(Icon.Infinity, "Raise Endless level by 5", ButtonStyle.Ghost, "+5", () =>
+            {
+                Ctx.Data.Endless.Level = Mathf.Max(1, Ctx.Data.Endless.Level) + 5;
+                Ctx.Save();
+                Toast.Show("Endless level " + Ctx.Data.Endless.Level + (Ctx.EndlessMechanics != MechanicSet.None ? ": " + Mechanics.Names(Ctx.EndlessMechanics) : ""), Icon.Check);
+            });
             ActionRow(Icon.Calendar, "Advance clock one day", ButtonStyle.Ghost, "+1 day", () =>
             {
                 App.Clock.OffsetDays++;

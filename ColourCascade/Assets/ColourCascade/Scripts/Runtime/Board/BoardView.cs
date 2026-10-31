@@ -727,6 +727,47 @@ namespace ColourCascade.App
                 end = at + 0.3f;
             }
 
+            // A new Endless stage adds obstacles and treasure once everything has landed.
+            if (o.Added.Count > 0)
+            {
+                float at = end + 0.1f;
+                foreach (var a in o.Added)
+                {
+                    var add = a;
+                    var fxPos = CellInFx(add.Pos);
+                    if (add.IsTreasure)
+                    {
+                        TileView old;
+                        if (views.TryGetValue(add.ReplacedTileId, out old))
+                        {
+                            views.Remove(add.ReplacedTileId);
+                            var gone = old;
+                            Tw.Scale(gone.Rt, 0f, 0.15f, Ease.InQuad, at).OnComplete(() => Recycle(gone));
+                        }
+                        var t = new Tile { Type = CellType.Treasure, Id = add.TileId, Colour = -1 };
+                        var v = CreateView(t, add.Pos);
+                        v.Rt.localScale = Vector3.zero;
+                        Tw.Scale(v.Rt, 1f, 0.35f, Ease.OutBackStrong, at + 0.12f);
+                        Tw.Delay(at + 0.12f, () => Fx.Sparkle(fxPos, Theme.Gold, 10, cell * 0.5f), this);
+                    }
+                    else
+                    {
+                        TileView v;
+                        if (!views.TryGetValue(add.TileId, out v)) continue;
+                        var view = v;
+                        Tw.Delay(at, () =>
+                        {
+                            if (view == null) return;
+                            view.SetObstacle(add.Obstacle, add.Strength, true);
+                            Fx.Burst(fxPos, ObstacleColour(add.Obstacle), 5, cell * 2f, ArtNames.ParticleSoft, cell * 0.16f);
+                        }, this);
+                    }
+                    at += 0.03f;
+                }
+                SfxLater(SfxNames.Unlock, end + 0.1f, 0.6f);
+                end = at + 0.4f;
+            }
+
             // Dead-board recovery: shuffle after everything has landed.
             if (o.Shuffled && o.ShuffleMoves.Count > 0)
             {

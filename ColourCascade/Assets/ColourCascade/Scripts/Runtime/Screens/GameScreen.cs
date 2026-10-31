@@ -392,7 +392,7 @@ namespace ColourCascade.App
             }
             badgeFill.gameObject.SetActive(session.IsTimed);
             badgeRing.gameObject.SetActive(true);
-            goalsMode = session.Mode == GameMode.Campaign && level.Goals != null && level.Goals.Length > 0;
+            goalsMode = (session.Mode == GameMode.Campaign || session.Mode == GameMode.Daily) && level.Goals != null && level.Goals.Length > 0;
             goalsPanel.gameObject.SetActive(goalsMode);
             // The goals sit right of the score, so the score is set a little smaller there.
             scoreText.fontSize = goalsMode ? 64 : 78;
@@ -447,6 +447,11 @@ namespace ColourCascade.App
                         break;
                     }
                 default:
+                    if (goalsMode)
+                    {
+                        goalsPanel.Refresh(session.Goals, animate);
+                        break;
+                    }
                     targetText.text = (session.Mode == GameMode.Daily ? "Target " : "Bronze ") + NumberFormat.Thousands(level.Target);
                     progress.SetFraction(score / (float)Mathf.Max(1, level.Star3), animate);
                     progress.SetColour(score >= level.Target ? Theme.Success : Theme.Gold);
@@ -783,8 +788,58 @@ namespace ColourCascade.App
             }
             if (o.StageUp)
             {
-                ShowBanner("Stage " + o.NewStage + (Ctx.Config.Endless.ColoursForStage(o.NewStage) > Ctx.Config.Endless.ColoursForStage(o.NewStage - 1) ? "  ·  a new colour appears" : ""), 1.6f);
+                string added = AddedNames(o);
+                ShowBanner("Stage " + o.NewStage + (added.Length > 0 ? "  ·  " + added + " appear" : Ctx.Config.Endless.ColoursForStage(o.NewStage) > Ctx.Config.Endless.ColoursForStage(o.NewStage - 1) ? "  ·  a new colour appears" : ""), 1.6f);
                 AudioService.Sfx(SfxNames.Unlock, 0.7f);
+            }
+        }
+
+        /// <summary>"frozen tiles and treasure": what an Endless stage just added.</summary>
+        static string AddedNames(MoveOutcome o)
+        {
+            var set = MechanicSet.None;
+            foreach (var a in o.Added)
+            {
+                if (a.IsTreasure) set |= MechanicSet.Treasure;
+                else if (a.Obstacle == ObstacleKind.Ice) set |= MechanicSet.Ice;
+                else if (a.Obstacle == ObstacleKind.Chain) set |= MechanicSet.Chains;
+                else if (a.Obstacle == ObstacleKind.Moss) set |= MechanicSet.Moss;
+            }
+            return Mechanics.Names(set, false);
+        }
+
+        /// <summary>
+        /// Outside the campaign a mechanic can turn up before its campaign lesson (Endless unlocks on its own track):
+        /// the first time one appears, its card explains it, once, wherever it was first seen. Never during Weekly Rush.
+        /// </summary>
+        void TeachOnFirstSight(float delay)
+        {
+            if (session == null || session.IsTimed || session.Mode == GameMode.Campaign) return;
+            var keys = new List<string>();
+            foreach (var a in outcome.Added)
+                keys.Add(a.IsTreasure ? TutorialKeys.Treasure : a.Obstacle == ObstacleKind.Ice ? TutorialKeys.Ice : a.Obstacle == ObstacleKind.Chain ? TutorialKeys.Chains : TutorialKeys.Moss);
+            if (outcome.HasCreated)
+                keys.Add(outcome.Created.Kind == SpecialKind.Bomb ? TutorialKeys.Bombs : outcome.Created.Kind == SpecialKind.Prism ? TutorialKeys.Prisms : TutorialKeys.Rockets);
+            TeachFirstUnseen(keys, delay);
+        }
+
+        void TeachFirstUnseen(List<string> keys, float delay)
+        {
+            foreach (var key in keys)
+            {
+                if (Ctx.Tutorials.Seen(key)) continue;
+                var tip = MechanicTips.For(key, Ctx.Config.Scoring);
+                if (tip == null) continue;
+                Ctx.Tutorials.MarkSeen(key);
+                Tw.Delay(delay, () =>
+                {
+                    if (session == null || session.IsOver || Nav.AnyPopup) return;
+                    board.CancelPress();
+                    var popup = Nav.Open<MechanicIntroPopup>();
+                    popup.Setup(tip);
+                    popup.Closed += () => PointAtMechanic(key, tip);
+                }, this);
+                return;
             }
         }
 
@@ -1099,6 +1154,7 @@ namespace ColourCascade.App
                     break;
             }
             if (outcome.UsedTrial) Toast.Show("Free " + def.displayName + " used", Icon.Gift, Theme.Teal);
+            TeachOnFirstSight(duration + 0.3f);
             ShowMoveFeedback(outcome);
             RefreshHud(true);
             RefreshPowerBar();
@@ -1241,13 +1297,21 @@ namespace ColourCascade.App
                 case GameMode.Daily:
                     if (Ctx.Tutorials.MarkSeen(TutorialKeys.Daily))
                         CoachMark.Show("Everyone gets this same puzzle today. Plan your " + session.Level.Moves + " moves!", null, OverlayYAbove(board.Frame, 110f), 6f);
+                    else
+                    {
+                        // Mechanics on today's board that were never explained (e.g. tutorials reset): explain them now.
+                        var keys = new List<string>();
+                        foreach (var m in Mechanics.Each(ChallengeMechanics.DailyFor(Ctx.TodayKey, Ctx.CampaignMechanics))) keys.Add(Mechanics.TutorialKey(m));
+                        TeachFirstUnseen(keys, 0.1f);
+                    }
                     break;
             }
         }
 
         void AfterMoveTutorials()
         {
-            if (session.Mode != GameMode.Campaign) return;
+            if (session.IsTimed) return;
+            TeachOnFirstSight(1.2f);
             if (outcome.HasCreated && Ctx.Tutorials.MarkSeen(TutorialKeys.FirstSpecial))
             {
                 int id = outcome.Created.TileId;
@@ -1264,6 +1328,7 @@ namespace ColourCascade.App
                         }
                 }, this);
             }
+            if (session.Mode != GameMode.Campaign) return;
             if (session.Level.TutorialKey == TutorialKeys.TapGroup && session.MovesMade == 1 && Ctx.Tutorials.MarkSeen(TutorialKeys.TapGroup))
             {
                 Ctx.Tutorials.MarkSeen(TutorialKeys.BiggerGroups);
@@ -1286,8 +1351,12 @@ namespace ColourCascade.App
                 case GameMode.Campaign:
                     text = l.Goals != null && l.Goals.Length > 0 ? GoalVisuals.IntroLine(l) : "Score " + NumberFormat.Thousands(l.Target) + " in " + l.Moves + " moves";
                     break;
-                case GameMode.Daily: text = l.Moves + " moves  ·  target " + NumberFormat.Thousands(l.Target); break;
-                case GameMode.Endless: text = l.Moves + " moves  ·  big groups add more"; break;
+                case GameMode.Daily:
+                    text = l.Goals != null && l.Goals.Length > 0 ? GoalVisuals.IntroLine(l) : l.Moves + " moves  ·  target " + NumberFormat.Thousands(l.Target);
+                    break;
+                case GameMode.Endless:
+                    text = l.Moves + " moves  ·  big groups add more" + (l.Pool != MechanicSet.None ? "  ·  new stages bring " + Mechanics.Names(l.Pool, false) : "");
+                    break;
                 default: text = l.Title; break;
             }
             ShowBanner(text, 1.5f);

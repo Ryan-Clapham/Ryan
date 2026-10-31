@@ -54,6 +54,11 @@ namespace ColourCascade.Core
         // Moss never grows on two moves in a row (docs/MECHANICS.md §2.5).
         bool mossGrewLastMove;
         int startingMoss;
+        int mossCap;
+        // Endless: a new stage was reached this action; it adds a wave of unlocked mechanics once tiles have fallen.
+        bool pendingWave;
+        Rng waveRng;
+        readonly List<GridPos> waveCells = new List<GridPos>();
         readonly List<MossGrowth> mossCandidates = new List<MossGrowth>();
         readonly HashSet<GridPos> mossSeen = new HashSet<GridPos>();
         Rng recoveryRng;
@@ -105,11 +110,15 @@ namespace ColourCascade.Core
             get
             {
                 if (Mode == GameMode.Campaign && State != SessionState.Won) return 0;
+                if (!GoalsMet) return 0;
                 int stars = StarRating.Compute(FinalScore, Level.Target, Level.Star2, Level.Star3);
                 // A won campaign level (every goal met) always earns at least one star, even when it had no score goal.
                 return Mode == GameMode.Campaign ? Math.Max(1, stars) : stars;
             }
         }
+
+        /// <summary>A level's own goals are all met (true when it has none: score-only levels and modes).</summary>
+        public bool GoalsMet => Level.Goals == null || Level.Goals.Length == 0 || (Goals != null && Goals.AllComplete);
 
         /// <summary>Whether the run counts as a success (level won / daily target met).</summary>
         public bool Succeeded
@@ -119,7 +128,7 @@ namespace ColourCascade.Core
                 switch (Mode)
                 {
                     case GameMode.Campaign: return State == SessionState.Won;
-                    case GameMode.Daily: return IsOver && State != SessionState.Stuck && FinalScore >= Level.Target;
+                    case GameMode.Daily: return IsOver && State != SessionState.Stuck && FinalScore >= Level.Target && GoalsMet;
                     default: return IsOver && State != SessionState.Stuck;
                 }
             }
@@ -139,16 +148,15 @@ namespace ColourCascade.Core
         public void Start()
         {
             if (State != SessionState.Ready) throw new InvalidOperationException("Session already started");
-            if (!ActionPolicy.ModeAllowsCampaignMechanics(Mode) &&
-                (Level.Layout.HasObstacles || Level.Layout.HasPieces || Level.Specials != SpecialTier.None || (Level.Goals != null && Level.Goals.Length > 0)))
-                throw new InvalidOperationException(Mode + " levels cannot contain obstacles, treasure, special tiles or campaign goals");
             var rng = new Rng(setup.BoardSeed);
             source = new TileSource(rng.Fork(1), Level.Colours, Level.ColourWeights, Level.AssistPermille);
             recoveryRng = rng.Fork(2);
             mossRng = rng.Fork(3);
+            waveRng = rng.Fork(4);
             Board = BoardGenerator.Generate(Level.Layout, source);
             Goals = new GoalTracker(Level.EffectiveGoals(), Board);
             startingMoss = Board.CountObstacle(ObstacleKind.Moss);
+            mossCap = Level.MossCap > 0 ? Level.MossCap : startingMoss + 2;
             MovesLeft = Level.Moves;
             TimeLeft = Level.TimeLimitSeconds;
             Stage = 1;
@@ -606,11 +614,9 @@ namespace ColourCascade.Core
         {
             bool rested = mossGrewLastMove;
             mossGrewLastMove = false;
-            if (mossRemovedThisAction || startingMoss == 0 || rested) return;
+            if (mossRemovedThisAction || rested) return;
             int moss = Board.CountObstacle(ObstacleKind.Moss);
-            if (moss == 0) return;
-            int cap = Level.MossCap > 0 ? Level.MossCap : startingMoss + 2;
-            if (moss >= cap) return;
+            if (moss == 0 || moss >= mossCap) return;
             mossCandidates.Clear();
             mossSeen.Clear();
             for (int i = 0; i < Board.CellCount; i++)
@@ -696,9 +702,17 @@ namespace ColourCascade.Core
                     int points = o.Treasures.Count * Scoring.treasurePoints;
                     Score += points;
                     o.ScoreGained += points;
+                    if (Mode == GameMode.Endless && HasMoveLimit && setup.Endless.treasureBonusMoves > 0)
+                    {
+                        int bonus = o.Treasures.Count * setup.Endless.treasureBonusMoves;
+                        MovesLeft += bonus;
+                        o.BonusMoves += bonus;
+                    }
                 }
                 if (costsMove) SpreadMoss(o);
+                if (pendingWave) ApplyEndlessWave(o);
             }
+            pendingWave = false;
             if (Goals != null) o.GoalsChanged = Goals.Record(o, Score, Board);
             if (boardChanged) Recover(o);
             EvaluateEnd(o);
@@ -720,6 +734,115 @@ namespace ColourCascade.Core
             }
         }
 
+        /// <summary>
+        /// Endless: each new stage adds a wave of the mechanics the player has unlocked there (Level.Pool), more of
+        /// them together as stages go up: one kind on stages 2-3, two on 4-5, three from 6 (docs/MECHANICS.md §9).
+        /// Placed on free tiles with the session's own seeded generator, after tiles have fallen.
+        /// </summary>
+        void ApplyEndlessWave(MoveOutcome o)
+        {
+            var pool = Mechanics.ObstaclesIn(Level.Pool);
+            if (pool.Count == 0) return;
+            int kinds = Math.Min(pool.Count, 1 + Math.Max(0, Stage - 2) / 2);
+            for (int i = pool.Count - 1; i > 0; i--)
+            {
+                int j = waveRng.Next(i + 1);
+                var t = pool[i];
+                pool[i] = pool[j];
+                pool[j] = t;
+            }
+            for (int k = 0; k < kinds; k++)
+            {
+                switch (pool[k])
+                {
+                    case MechanicSet.Ice:
+                        {
+                            int n = Math.Min(10, 3 + Stage);
+                            bool thick = Level.Pool.Has(MechanicSet.ThickIce);
+                            foreach (var p in PickFreeCells(n, 1, Board.Height - 2, false))
+                                AddObstacle(p, ObstacleKind.Ice, thick && waveRng.ChancePermille(300) ? 2 : 1, o);
+                            break;
+                        }
+                    case MechanicSet.Chains:
+                        {
+                            int n = Math.Min(8, 2 + Stage / 2);
+                            int maxLinks = Math.Min(3, 1 + Stage / 3);
+                            foreach (var p in PickFreeCells(n, 1, Board.Height - 2, false))
+                                AddObstacle(p, ObstacleKind.Chain, 1 + waveRng.Next(maxLinks), o);
+                            break;
+                        }
+                    case MechanicSet.Moss:
+                        {
+                            int moss = Board.CountObstacle(ObstacleKind.Moss);
+                            int seeds = moss == 0 ? 2 : 1;
+                            foreach (var p in PickFreeCells(seeds, 1, Board.Height / 2, true))
+                                AddObstacle(p, ObstacleKind.Moss, 1, o);
+                            mossCap = Math.Max(mossCap, Board.CountObstacle(ObstacleKind.Moss) + 2);
+                            break;
+                        }
+                    case MechanicSet.Treasure:
+                        PlaceTreasure(Stage >= 6 ? 2 : 1, o);
+                        break;
+                }
+            }
+        }
+
+        /// <summary>Up to n free tiles in rows [fromRow, toRow], chosen at random; interior keeps them off the edges.</summary>
+        List<GridPos> PickFreeCells(int n, int fromRow, int toRow, bool interior)
+        {
+            waveCells.Clear();
+            for (int r = Math.Max(0, fromRow); r <= Math.Min(Board.Height - 1, toRow); r++)
+                for (int c = interior ? 1 : 0; c < (interior ? Board.Width - 1 : Board.Width); c++)
+                    if (TileRules.IsFree(Board[c, r])) waveCells.Add(new GridPos(c, r));
+            var picked = new List<GridPos>();
+            while (picked.Count < n && waveCells.Count > 0)
+            {
+                int i = waveRng.Next(waveCells.Count);
+                picked.Add(waveCells[i]);
+                waveCells.RemoveAt(i);
+            }
+            return picked;
+        }
+
+        void AddObstacle(GridPos p, ObstacleKind kind, int strength, MoveOutcome o)
+        {
+            var t = Board[p];
+            t.Obstacle = kind;
+            t.Strength = strength;
+            Board[p] = t;
+            o.Added.Add(new TileChange { TileId = t.Id, Pos = p, Obstacle = kind, Strength = strength });
+        }
+
+        /// <summary>Treasure goes in place of a free tile a few rows up, in a column with a fair path to the floor.</summary>
+        void PlaceTreasure(int n, MoveOutcome o)
+        {
+            waveCells.Clear();
+            int top = Board.Height - 3, bottom = Math.Max(2, Board.Height - 6);
+            for (int r = bottom; r <= top; r++)
+                for (int c = 1; c < Board.Width - 1; c++)
+                    if (TileRules.IsFree(Board[c, r]) && FairTreasureColumn(c, r)) waveCells.Add(new GridPos(c, r));
+            for (int k = 0; k < n && waveCells.Count > 0; k++)
+            {
+                int i = waveRng.Next(waveCells.Count);
+                var p = waveCells[i];
+                waveCells.RemoveAll(q => q.Col == p.Col);
+                int replaced = Board[p].Id;
+                var tile = Board.NewTreasure();
+                Board[p] = tile;
+                o.Added.Add(new TileChange { TileId = tile.Id, Pos = p, IsTreasure = true, ReplacedTileId = replaced });
+            }
+        }
+
+        bool FairTreasureColumn(int c, int r)
+        {
+            for (int y = r - 1; y >= 0; y--)
+            {
+                if (!Board.IsOpenCell(c, y) || TileRules.IsGravityBarrier(Board[c, y]) || Board[c, y].Type == CellType.Treasure) return false;
+                if (!Board.IsOpenCell(c - 1, y) || !Board.IsOpenCell(c + 1, y)) return false;
+            }
+            return true;
+        }
+
         void UpdateEndlessStage(MoveOutcome o)
         {
             int stage = setup.Endless.StageForScore(Score);
@@ -727,6 +850,7 @@ namespace ColourCascade.Core
             Stage = stage;
             o.StageUp = true;
             o.NewStage = stage;
+            if (Level.Pool != MechanicSet.None) pendingWave = true;
             source.Configure(setup.Endless.ColoursForStage(stage), Level.ColourWeights);
         }
 
