@@ -24,6 +24,8 @@ namespace UnityLint
     /// 2. Text in code using characters the bundled Fredoka font doesn't contain (shown as boxes or nothing).
     /// 3. Fields Unity would serialize (public or [SerializeField] on components, ScriptableObjects and [Serializable]
     ///    types) whose type is one of the game's own types without [Serializable] (Unity warning UAC1001).
+    /// 4. Sound without a listener: the game's scene is empty and everything is built in code, so if the code
+    ///    plays audio it must also create an AudioListener, or the game is silent.
     /// </summary>
     static class Program
     {
@@ -44,6 +46,7 @@ namespace UnityLint
             var problems = new List<string>();
             CheckMessages(Path.GetFullPath(paths.RuntimeDll), problems);
             CheckSerialization(Path.GetFullPath(paths.RuntimeDll), problems);
+            CheckAudioListener(Path.GetFullPath(paths.RuntimeDll), problems);
             CheckGlyphs(Path.GetFullPath(paths.Assets), problems);
             foreach (var p in problems) Console.WriteLine("error: " + p);
             Console.WriteLine(problems.Count == 0 ? "UnityLint: no problems found" : "UnityLint: " + problems.Count + " problem(s)");
@@ -98,6 +101,24 @@ namespace UnityLint
                 return md.GetString(r.Namespace).StartsWith("UnityEngine", StringComparison.Ordinal);
             }
             return false;
+        }
+
+        // ------------------------------------------------------------------ Audio listener
+
+        static void CheckAudioListener(string dll, List<string> problems)
+        {
+            using var stream = File.OpenRead(dll);
+            using var pe = new PEReader(stream);
+            var md = pe.GetMetadataReader();
+            var used = new HashSet<string>();
+            foreach (var h in md.TypeReferences)
+            {
+                var r = md.GetTypeReference(h);
+                if (md.GetString(r.Namespace) == "UnityEngine") used.Add(md.GetString(r.Name));
+            }
+            if (used.Contains("AudioSource") && !used.Contains("AudioListener"))
+                problems.Add("The game creates AudioSources but never an AudioListener; the scene has none either, so nothing would be heard.");
+            Console.WriteLine("Checked that audio has a listener");
         }
 
         // ------------------------------------------------------------------ Serialized fields

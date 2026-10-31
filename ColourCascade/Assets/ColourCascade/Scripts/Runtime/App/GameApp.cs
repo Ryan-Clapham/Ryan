@@ -83,6 +83,9 @@ namespace ColourCascade.App
             cam.cullingMask = 0;
             cam.orthographic = true;
             cam.depth = -10;
+            // Unity plays no sound without an AudioListener, and the game's scene has none (everything is built
+            // here), so the UI camera carries it unless the scene already provides one (two would make Unity warn).
+            if (FindAnyObjectByType<AudioListener>() == null) camGo.AddComponent<AudioListener>();
 
             var canvasGo = new GameObject("Canvas", typeof(RectTransform));
             canvasGo.transform.SetParent(transform, false);

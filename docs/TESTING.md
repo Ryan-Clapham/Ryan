@@ -14,7 +14,7 @@ reference assemblies:
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
 | Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **145 passed, 0 failed** |
-| Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
+| Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Economy: a simulated player earns coins for 30 days through the real reward code | `Sim -- economy` | See DESIGN.md §8 |
 | Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below) |
@@ -49,7 +49,10 @@ real Android builds provide it.
 * **Found in later Unity sessions:** shop buttons showed no prices (an empty button label never got a Text);
   warning UAC1001 for `TileView.Cell` (a runtime-only field Unity tried to serialize; now `[NonSerialized]`, and
   `UnityLint` checks for the rest); Unity opened an empty "Untitled" scene (only a sky in the Game view) instead
-  of the game's scene, which now opens automatically.
+  of the game's scene, which now opens automatically. Opening the real scene then showed **no sound at all**
+  ("There are no audio listeners in the scene"): the game never created an AudioListener and had only worked
+  because the Untitled scene's camera carried one. Android builds use the real scene, so they would have been
+  silent. The UI camera now carries the listener, and `UnityLint` checks for it.
 * **Found in the first real Unity sessions (6000.6.3f1, from the user's screenshots):**
   * `Script error (TweenRunner): Start() can not take parameters`. An internal method was called `Start`, which
     Unity reserves for its start-up message. Renamed; `UnityLint` now checks every message method.

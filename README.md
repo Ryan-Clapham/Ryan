@@ -66,7 +66,7 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
-  dotnet run --project UnityLint            # Unity message signatures, unsaveable fields, missing font characters
+  dotnet run --project UnityLint            # Unity message signatures, unsaveable fields, audio listener, missing font characters
   dotnet run --project Sim -c Release -- balance x 60   # bots play levels 1-60, Endless, Rush and Daily
   dotnet run --project Sim -c Release -- economy        # coins a simulated player earns over 30 days
   dotnet run --project Sim -c Release -- art ./preview  # exports every generated sprite as PNG
