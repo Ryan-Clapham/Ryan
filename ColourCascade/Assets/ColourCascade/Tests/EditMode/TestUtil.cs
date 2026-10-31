@@ -70,7 +70,7 @@ namespace ColourCascade.Tests
                     var expected = layout.TypeAt(c, r);
                     if (expected == CellType.Void) Assert.AreEqual(CellType.Void, t.Type, "void moved at " + c + "," + r);
                     Assert.AreNotEqual(CellType.Empty, t.Type, "empty cell left at " + c + "," + r);
-                    if (t.Type == CellType.Colour || t.Type == CellType.Stone) Assert.IsTrue(ids.Add(t.Id), "duplicate tile id " + t.Id);
+                    if (t.Type != CellType.Void && t.Type != CellType.Empty) Assert.IsTrue(ids.Add(t.Id), "duplicate tile id " + t.Id);
                 }
         }
     }

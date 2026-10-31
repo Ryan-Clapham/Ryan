@@ -199,7 +199,7 @@ namespace ColourCascade.Core
                 new LevelOverride
                 {
                     level = s.treasureFromLevel, colours = 4, moves = 22, tutorial = TutorialKeys.Treasure, note = "New: treasure",
-                    layout = new[] { "........", "........", "........", "........", "........", "..$..$..", "........", "........", "........" },
+                    layout = new[] { "........", "........", "........", "........", "........", "........", "..$..$..", "........", "........" },
                     goals = new[] { GoalSpec.CollectTreasure(2) },
                 },
                 new LevelOverride

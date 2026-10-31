@@ -13,17 +13,18 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **202 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **273 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
+| Campaign mechanics: Casual and Planner bots play every level 1–200 (24 games each) and flag levels that look too easy, too hard or unfair | `Sim -- campaign 1 200 24 <csv>` | See DESIGN.md §3.1 and docs/campaign-simulation.csv |
 | Economy: a simulated player earns coins for 30 days through the real reward code | `Sim -- economy` | See DESIGN.md §8 |
-| Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below) |
+| Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below); new-mechanics mock board reviewed (chain padlock moved off the colour symbol) |
 | Audio: every effect and the music loop synthesised and checked for NaN/clipping/silence | tests + `Sim -- art` | Pass |
 
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (202 tests)
+### Automated test coverage (273 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -41,7 +42,7 @@ real Android builds provide it.
 | Procedural assets | 6 | Atlas has every referenced sprite with no overlaps, cache round trip, **symbols measurably distinct**, valid audio |
 | Regression checklist | 13 | One test per logic item in the brief's §21 list |
 | Project setup | 2 | `Packages/manifest.json` declares every package and module the assemblies need |
-| Golden gameplay | 4 | Fingerprints recorded before the progression overhaul: campaign levels 1–60, seeded bot games, Endless/Daily/Rush, scripted power-ups. Refactors must reproduce them exactly (a deliberate gameplay change was confirmed to break them) |
+| Golden gameplay | 5 | Fingerprints of campaign levels, seeded bot games, Endless/Daily/Rush and scripted power-ups. Levels 1–20, the challenge modes and power-ups still match the values recorded before the overhaul; levels 21+ were re-recorded when the mechanics arrived (a deliberate gameplay change was confirmed to break them) |
 | Ice | 12 | Frozen tiles join no group and can't be tapped; several cleared neighbours take one layer; thick ice needs two actions; the freed tile falls in the same action; it holds up the tiles above and the gap below refills from beneath; no Swap or Colour Shift; Tile Breaker strips all layers; Blast and Colour Burst take one layer even with neighbours removed |
 | Chains | 7 | Chained tiles join their colour's group, stay and lose a link; a group of only chained tiles is a legal move; adjacent clears do nothing; no Swap, but Colour Shift recolours (chain stays); Tile Breaker strips all links; Blast/Colour Burst take one |
 | Obstacle boards and layouts | 6 | Recovery reshuffles only free tiles (40 seeds); obstacle notation round trips; validation; obstacles don't change generated colours; obstacle points configurable; `TileRules` matches the definitions |
@@ -49,6 +50,11 @@ real Android builds provide it.
 | Goals | 8 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; win the moment every goal is met (with spare-move bonus and at least one star); fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
 | Planner bot | 6 | Picks goal progress over the biggest group; breaks the ice/chains a goal needs; looks one move ahead; deterministic; beats Casual on levels 1–40 (120/120 vs 93/120) and on an ice level (29/30 vs 10/30) |
 | Save compatibility | 2 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte, and the same play on the new code produces exactly the same save (progress, stars, coins, ledger, records) |
+| Special tiles | 29 | Creation at 6/9/12 tiles and only as taught; configurable thresholds; row vs column rockets; placement (tapped cell, or nearest cleared cell); they fall and stop at stones; rocket, bomb and prism hits on every tile type; every combination; chain reactions in order, each once; goals count their clears; Blast, Tile Breaker, Swap, Colour Shift and Colour Burst with specials; a special is always a legal move |
+| Treasure | 9 | Falls and is collected at the bottom edge and on stones, never through them; waits on ice, chains, moss and tiles; stacked treasure; untouched by power-ups and reshuffles; layout rules; the treasure goal wins the level |
+| Moss | 11 | Leaves with its group and with area hits; scraped off by a neighbouring clear; grows by one free tile after a move that clears none, repeatably, never two moves in a row, never past its cap, never onto ice, chains, specials or treasure; falls with its tile; can't block every move; the moss goal follows the board |
+| Campaign design and level files | 20 | No mechanic before its introduction (levels 1–200); each introduction teaches one thing with a tutorial; practice levels focus on it; generated levels valid with goals that can be met and moves in their band; same on every device; levels saved to JSON load back exactly and play the same board (13 levels covering every mechanic); hand-written level files load and bad ones are refused; progress on mechanic levels saves and loads |
+| Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 2,000 actions, 170+ specials made, combos, treasure, moss growth): score bookkeeping, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
 ### Defects found and fixed during verification
@@ -107,12 +113,46 @@ real Android builds provide it.
 * The new Input System path (Active Input Handling set to "Input System Package (New)") has been compile-checked
   and checked against the Input System's source (module, keyboard and Back key names), but not run. The old
   Input Manager path is the one seen working in the editor.
-* **Campaign progression overhaul, phase 1** (obstacles, goals, the new move order, the Planner bot) is engine
-  code tested only in the .NET harness. No level uses obstacles or goals yet, and the board view has no art for
-  ice or chains and no goals panel (phase 3), so there is nothing new to see in Unity. The Unity scripts were
-  compile-checked against the changed engine, but the game has not been opened in Unity since these changes.
+* **The new tile mechanics (phase 2) have not been seen running.** Their rules are tested in the .NET harness and
+  their levels simulated, and the new Unity code (tile overlays and badges, special-tile effects, treasure and
+  moss animations, the goals panel, prism colour picker, tutorial cards, how-to-play pages, sounds) compiles
+  against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
+  watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
+  how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
+* Balance comes from bots, not people. 30 of levels 1–200 are flagged by the report (DESIGN.md §3.1).
 
 ## Manual test checklist (please run in Unity, then on a phone)
+
+### New tile mechanics (phase 2)
+
+Use **Settings → Developer → unlock levels** to jump ahead, then open each introduction level from the map.
+
+* [ ] **Level 21 (frozen tiles):** a "Something new!" card explains ice, then a pointer lands on a frozen tile.
+      Frozen tiles can't be tapped (a tip appears); clearing a group next to one cracks it (sound, shards) and,
+      once free, it falls. The goals panel at the top shows the ice left and ticks when done.
+* [ ] **Level 25 (collect a colour):** the goal shows a blue tile and a count; any blue cleared counts.
+* [ ] **Level 28 (thick ice):** thick ice has a double rim and a "2" badge; the first crack turns it to normal ice.
+* [ ] **Level 31 (rockets):** the card, then a pointer at the ready-made rocket. Press and hold it to preview its
+      row; release to fire (beam across the row, one move used). Clear the 8 blue tiles at the bottom: a rocket
+      appears where you tapped, and a tip says to tap it. Check row rockets (arrows left-right) and column rockets
+      (arrows up-down).
+* [ ] **Level 41 (bombs)** and **level 47 (combos):** a bomb clears a 3 × 3 square; tapping one of the two touching
+      rockets fires both (row and column at once).
+* [ ] **Level 51 (prisms):** tap the prism: a colour row replaces the power-up bar and the banner asks for a
+      colour. Pick a swatch, or tap any tile of that colour; Cancel backs out without using a move.
+* [ ] **Level 61 (chains):** chained tiles show chains, a padlock and a link count from 2; they match their colour,
+      stay in place and lose a link when their group clears.
+* [ ] **Level 71 (treasure):** clear the tiles under a chest; it falls, and is collected (sparkle, sound, +500) when
+      it reaches the bottom.
+* [ ] **Level 101 (moss):** mossy tiles clear with their group or when a group next to them clears; after a move
+      that clears no moss, it grows onto one neighbour (never two moves running).
+* [ ] **Power-ups with the new tiles:** Blast and Tile Breaker set off a special; Swap moves a special with a tile;
+      Colour Shift recolours a chained tile but not a frozen one; Tile Breaker strips ice or chains in one go.
+* [ ] **Losing a goal level:** the Out of Moves card lists what is still to do.
+* [ ] **Level popup** on the map shows the goals instead of a target score for goal levels.
+* [ ] **How to Play** has two new pages (goals and obstacles, special tiles).
+* [ ] Toggle **Symbols**: tiles under ice, chains and moss still show their symbol, and the goals panel updates.
+* [ ] Daily Challenge, Weekly Rush and Endless look and play exactly as before (no obstacles, no specials).
 
 Use **Settings → Developer** (Editor/dev builds) to add coins, unlock levels and advance the clock.
 

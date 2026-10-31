@@ -123,6 +123,10 @@ namespace ColourCascade.Core
         public string[] obstacles = new string[0];
         /// <summary>Optional goals. Empty = a single score goal equal to the target.</summary>
         public GoalSpec[] goals = new GoalSpec[0];
+        /// <summary>Special tiles big groups may create here: -1 = as the campaign schedule says, 0 none, 1 rockets, 2 +bombs, 3 +prisms.</summary>
+        public int specials = -1;
+        /// <summary>Most mossy tiles the board may hold (0 = the starting moss plus two).</summary>
+        public int mossCap;
         /// <summary>Tutorial hint shown when the level starts (see TutorialKeys).</summary>
         public string tutorial = "";
         /// <summary>Short line shown on the level card, e.g. "New: stone barriers".</summary>

@@ -58,9 +58,10 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
   use five, and from level 81 every fourth level uses six. Stone patterns (pillars, centre block, shelves, walls, steps, posts, scatter) appear from
   level 8 and grow over time; shaped boards with holes appear from level 25. Every fifth level is an open
   "breather" board. Some levels have a dominant or a scarce colour.
-* **Targets are calibrated, not guessed:** when a level is first needed, a reference bot (always takes the
-  biggest group) plays it 16 times. The target is a percentage of its median score, rising from 33% at level 1
-  to 80% by level 150. Targets therefore stay fair even if you change colours, sizes or scoring.
+* **Targets are calibrated, not guessed (levels 1–20):** when a level is first needed, a reference bot (always
+  takes the biggest group) plays it 16 times. The target is a percentage of its median score. These levels are
+  unchanged by the campaign mechanics (a test checks them against the pre-mechanics build).
+* **From level 21, every level is sized from simulated players** (details in 3.1).
 * **Win and stars:** reaching the target **wins immediately**. Each unused move is converted into bonus
   points (worth target ÷ moves), so finishing efficiently earns more. Stars use the final score:
   ★ target, ★★ 125% of target, ★★★ 150% of target.
@@ -70,15 +71,65 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
   Ember Canyon, Frost Peaks, Starlight Nebula). After six regions the names continue as "Sunrise Meadow II" etc.
 * **Milestones:** every 10th level is a gem-shaped node with a coin bonus; every 20th finishes a region.
 
-Balance check (bots, 40 attempts per level; "Casual" picks groups at random weighted by size, roughly a
-relaxed beginner):
+### 3.1 Campaign mechanics (from level 21)
 
-| Level | Board | Colours | Casual win rate | Greedy win rate |
+The rules of each mechanic are in docs/MECHANICS.md. This section is about where they appear and how levels are
+sized.
+
+* **Introductions, one at a time:** ice 21, collect-a-colour goals 25, thick ice 28, rockets 31, bombs 41,
+  special combos 47, prisms 51, chains 61, treasure 71, moss 101 (config: campaign → mechanics). Each has a
+  hand-made level with a tutorial card and a pointer, then three practice levels focused on it, then it mixes with
+  the others. Special tiles are earned from their introduction on: rockets from 31, bombs from 41, prisms from 51.
+* **Bands:** Learn 1–20, Develop 21–60, Combine 61–120, Advanced 121–200, Expert 201+. Each band has a move range
+  (Develop 18–30, Combine 22–35, Advanced 26–40, Expert 30–45; treasure levels may go 5 over) and a share of
+  spare room (30%, 25%, 20%, 13%).
+* **Ten-level rhythm:** levels ending 1–3 are generous (+10% moves), 4–5 medium, 6 a breather (+15%, or a plain
+  score level), 7–9 harder (−5%), 0 a milestone, often combining two mechanics.
+* **Recipes:** a generated level picks one mechanic (sometimes two, more often later on, three goals at most)
+  from those taught so far, with amounts by band (fewer of each when combined). Obstacles are placed with mirror
+  symmetry away from the top row; treasure only in open columns; moss away from stones and edges. A level whose
+  board would need more moves than its band allows is scaled down (70%, then 50%) and tried again.
+* **Moves** = what a casual player needs (median of 10 Casual-bot games with plenty of moves) × (1 + the band's
+  spare room + the rhythm), within the band's range. Built-in introductions keep their hand-set moves unless
+  calibration says a casual player needs more.
+* **Stars** on goal levels: completing every goal is one star; two and three stars are the 35th and 75th
+  percentiles of the Planner bot's final scores (spare-move bonus included), so a thoughtful player usually gets
+  two and sometimes three. Score levels from 21 on take their target from Casual-bot scores at a percentile set
+  by band and rhythm.
+* **Same on every device:** generation and calibration use fixed seeds and integer arithmetic only. A level
+  takes 2–36 ms to generate (mean 6.5 ms in the .NET harness).
+
+**Simulation results** (docs/campaign-simulation.csv; 24 Casual and 24 Planner games per level on fresh
+boards; "Casual" picks groups at random weighted by size, roughly a relaxed beginner; "Planner" is goal-aware
+with one move of lookahead):
+
+| Band | Levels | Casual win rate | Planner win rate | Average moves |
 |---|---|---|---|---|
-| 1–5 | 6×6 / 7×7 | 3–4 | 90–100% | 100% |
-| 8–20 | 8×9 with stones | 4–5 | 80–90% | 98–100% |
-| 30–60 | 8×9 | 5 | 48–85% | 90–100% |
-| 75–100 | 8×9 | 5–6 | 58–65% | 78–93% |
+| Learn | 1–20 | 85% | 100% | 17.5 |
+| Develop | 21–60 | 81% | 98% | 24.0 |
+| Combine | 61–120 | 67% | 94% | 28.4 |
+| Advanced | 121–200 | 60% | 90% | 34.5 |
+
+| Main mechanic | Levels | Casual | Planner |
+|---|---|---|---|
+| Collect a colour | 24 | 86% | 99% |
+| Score | 50 | 72% | 99% |
+| Ice | 40 | 71% | 94% |
+| Moss | 21 | 68% | 97% |
+| Chains | 39 | 63% | 89% |
+| Treasure | 26 | 52% | 86% |
+
+**Flagged levels (30 of 200):** the report flags a level as *too hard* when the Casual win rate is below the
+band's floor (Learn 75%, Develop 55%, Combine 40%, Advanced 30%, introductions 70%), *too easy* above its ceiling,
+and *unfair?* when even the Planner wins under 80%. Most flags are late treasure and chain levels, where finishing
+needs a colour brought next to one particular tile (a person would use power-ups or plan several moves ahead,
+which neither bot does). Score levels 19, 38, 127 and 172 are hard for the Casual bot but won by the Planner
+96–100% of the time. The full list is in the CSV; tune a level by adding an override in the config.
+
+Changes made because of the simulation: specials at 6/9/12 tiles instead of 7/10/14; moss falls with its tile,
+is scraped off by a neighbouring clear and never grows two moves in a row; treasure only in open interior
+columns; fewer chains, and four colours on chain levels until 121; score levels from 21 calibrated against the
+Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
 
 ## 4. Endless
 

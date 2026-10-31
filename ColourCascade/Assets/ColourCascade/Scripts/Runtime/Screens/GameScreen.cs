@@ -394,6 +394,8 @@ namespace ColourCascade.App
             badgeRing.gameObject.SetActive(true);
             goalsMode = session.Mode == GameMode.Campaign && level.Goals != null && level.Goals.Length > 0;
             goalsPanel.gameObject.SetActive(goalsMode);
+            // The goals sit right of the score, so the score is set a little smaller there.
+            scoreText.fontSize = goalsMode ? 64 : 78;
             targetText.gameObject.SetActive(!goalsMode);
             progress.gameObject.SetActive(!goalsMode);
             if (goalsMode) goalsPanel.Configure(session.Goals, Ctx.Settings.Symbols);
@@ -556,7 +558,8 @@ namespace ColourCascade.App
                 case PowerUpTargeting.AdjacentPair:
                     if (!hasFirstPick || !cell.IsAdjacentTo(firstPick))
                     {
-                        if (!session.Board.IsColourAt(cell.Col, cell.Row)) return 0;
+                        // Swap can move free tiles and special tiles.
+                        if (!TileRules.CanSwap(session.Board[cell])) return 0;
                         cells.Add(cell);
                         return 1;
                     }
@@ -943,6 +946,7 @@ namespace ColourCascade.App
         {
             targeting = def;
             hasFirstPick = false;
+            prismPending = false;
             targetingText.text = def.targetingHint;
             targetingBanner.gameObject.SetActive(true);
             targetingBanner.localScale = Vector3.one * 0.9f;

@@ -59,6 +59,8 @@ namespace ColourCascade.Core
         readonly Dictionary<int, LevelSpec> cache = new Dictionary<int, LevelSpec>();
         readonly Dictionary<int, LevelOverride> overrides = new Dictionary<int, LevelOverride>();
         readonly MechanicSchedule schedule;
+        // Built-in introduction levels (not replaced by the config): never given fewer moves than calibration says.
+        readonly HashSet<LevelOverride> builtInIntros = new HashSet<LevelOverride>();
 
         public CampaignCatalog(CampaignConfig cfg, ScoringRules scoring)
         {
@@ -67,7 +69,11 @@ namespace ColourCascade.Core
             schedule = cfg.mechanics ?? new MechanicSchedule();
             // Built-in introduction levels first, so a hand-made level in the config can replace any of them.
             foreach (var o in CampaignDesign.IntroLevels(schedule))
-                if (o != null && o.level >= 1) overrides[o.level] = o;
+                if (o != null && o.level >= 1)
+                {
+                    overrides[o.level] = o;
+                    builtInIntros.Add(o);
+                }
             if (cfg.overrides != null)
                 foreach (var o in cfg.overrides)
                     if (o != null && o.level >= 1) overrides[o.level] = o;
@@ -167,16 +173,22 @@ namespace ColourCascade.Core
                 IsRegionFinale = IsRegionFinale(n),
                 TutorialKey = ov != null ? ov.tutorial ?? "" : "",
                 Note = ov != null && !string.IsNullOrEmpty(ov.note) ? ov.note : recipe != null ? CampaignDesign.NoteFor(recipe) : DefaultNote(n, layout),
-                Specials = CampaignDesign.SpecialsFor(n, schedule),
+                Specials = ov != null && ov.specials >= 0 ? (SpecialTier)Math.Min(3, ov.specials) : CampaignDesign.SpecialsFor(n, schedule),
             };
             if (recipe != null && !DecorateAndSize(spec, recipe, n)) recipe = null;
             if (recipe == null && goals != null && goals.Length > 0)
             {
                 spec.Goals = goals;
                 SetMossCap(spec);
-                // Hand-made goal levels (the introductions) never get fewer moves than a casual player needs, with room to spare.
-                int calibrated = CalibrateMoves(spec, n, true);
-                spec.Moves = ov != null && ov.moves > 0 ? Math.Max(ov.moves, calibrated) : calibrated;
+                if (ov != null && ov.mossCap > 0) spec.MossCap = ov.mossCap;
+                // Built-in introductions never get fewer moves than a casual player needs, with room to spare; levels
+                // from the config (or imported) keep exactly the moves they give.
+                if (ov != null && ov.moves > 0 && !builtInIntros.Contains(ov)) spec.Moves = ov.moves;
+                else
+                {
+                    int calibrated = CalibrateMoves(spec, n, true);
+                    spec.Moves = ov != null && ov.moves > 0 ? Math.Max(ov.moves, calibrated) : calibrated;
+                }
             }
             if (spec.Goals != null && spec.Goals.Length > 0)
             {

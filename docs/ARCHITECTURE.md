@@ -28,7 +28,8 @@ Unity. That is what lets the same tests run in Unity's Test Runner and in plain 
 | | `Gravity`, `TileSource` | Falling and refill per barrier-separated section; weighted, integer-only colour choice with optional assist. |
 | | `BoardRecovery` | Dead-board reshuffle: bounded random attempts, then a guaranteed constructive arrangement. |
 | | `LevelLayout`, `BoardGenerator` | Board shape (open/stone/void/fixed colour, plus an optional obstacle layer) and its text format. |
-| Tiles | `ObstacleKind`, `ObstacleDefinition`, `Obstacles`, `TileRules` | Obstacles (ice, chains) as data: each kind is a definition of flags (holds in place, joins groups, hit by its own group, hit by adjacent clears, can be recoloured). `TileRules` answers every rule question about a tile; group search, gravity, recovery, power-ups and bots ask it instead of checking cell types. See docs/MECHANICS.md. |
+| Tiles | `SpecialKind`, `SpecialTier`, `SpecialRules`, `SpecialEffects` | Special tiles (rockets, bombs, prisms): which group sizes earn them, the cells each one (or a pair fired together) reaches, combination partners. |
+| | `ObstacleKind`, `ObstacleDefinition`, `Obstacles`, `TileRules` | Obstacles (ice, chains, moss) as data: each kind is a definition of flags (holds in place, joins groups, hit by its own group, hit by adjacent clears, can be recoloured). `TileRules` answers every rule question about a tile; group search, gravity, recovery, power-ups and bots ask it instead of checking cell types. See docs/MECHANICS.md. |
 | Goals | `GoalKind`, `GoalSpec`, `GoalTracker` | A level's one to three goals and their progress, read from each `MoveOutcome`. A campaign level is won when every goal is met; a level with no goals has a score goal equal to its target. |
 | Rules | `ScoringRules`, `CampaignConfig`, `EndlessConfig`, `DailyConfig`, `RushConfig`, `EconomyConfig` | All tunables (serialised by Unity into the config asset). |
 | | `LevelSpec` | Everything needed to play one board. |
@@ -36,7 +37,7 @@ Unity. That is what lets the same tests run in Unity's Test Runner and in plain 
 | | `GameContext` | Composition root: owns the save and every service; starts runs (`CreateCampaignRun`…), finishes them idempotently (`FinishRun`). |
 | Power-ups | `PowerUpDefinition`, `PowerUpCatalog`, `IPowerUpEffect`, `PowerUpEffects` | Data-driven definitions plus one effect class per power-up. |
 | Economy | `Wallet`, `Inventory`, `RewardService`, `ShopService`, `PowerUpService`, `ActionPolicy`, `ActivityTracker` | Coins (single source of truth + ledger), stock and trials, one-time claim keys, validated purchases, central eligibility rules. |
-| Progression | `CampaignCatalog`, `LayoutLibrary`, `LevelCalibrator`, `Bots`, `PlannerBot`, `CampaignProgress`, `Regions`, `DefaultLevels` | Level generation and calibration, unlocks and stars. Bots: Greedy, Casual, Mixed and Planner (goal-aware, one move of lookahead, deterministic). |
+| Progression | `CampaignCatalog`, `CampaignDesign`, `MechanicSchedule`, `LayoutLibrary`, `LevelCalibrator`, `Bots`, `PlannerBot`, `LevelCodec`, `CampaignProgress`, `Regions`, `DefaultLevels` | Level generation and calibration, unlocks and stars. `CampaignDesign` holds the mechanic schedule, the built-in introduction levels, bands, rhythm and recipes that decorate generated boards. Bots: Greedy, Casual, Mixed (fire specials too) and Planner (goal-aware, one move of lookahead, integer-only so calibration is identical on every device). `LevelCodec` reads and writes levels as JSON. |
 | Challenges | `ChallengeCalendar`, `ChallengeFactory` | UTC day keys, ISO week keys, deterministic daily/weekly boards. |
 | Save | `SaveData`, `SaveCodec`, `Json`, `SaveSystem`, `ISaveStorage`, `FileSaveStorage` | Versioned JSON, atomic writes with backup, corruption recovery. |
 | Navigation | `NavStack<T>` | Screen history rules (tested). |
@@ -51,8 +52,11 @@ finger up on that group ─▶ BoardView.Committed ─▶ GameScreen.PlayGroup �
     PuzzleSession: validate → remove group (chained tiles stay and lose a link) → score → moves
                    → ice next to removed tiles loses a layer (one step per obstacle per action) → obstacle points
                    → Gravity.Apply → goal progress → BoardRecovery (free tiles only) → win/lose check
-    Power-ups run the same tail after their effect (docs/MECHANICS.md §3.1).
-GameScreen ─▶ BoardView.Animate(outcome) (clear → fall → refill → shuffle; input blocked until tiles land)
+    Special tiles: a tap on one fires it (and a touching partner); anything it hits is queued and fires in turn.
+    Big groups leave a special where they were tapped. Treasure is collected inside Gravity.Apply; moss grows
+    after move-costing actions. Power-ups run the same tail after their effect (docs/MECHANICS.md §3.1).
+GameScreen ─▶ BoardView.Animate(outcome) (specials wave by wave → clear → obstacle hits → new special →
+             fall → treasure collected → refill → moss growth → shuffle; input blocked until tiles land)
            ─▶ HUD, sounds, haptics, floating text
 if outcome.Ended ─▶ GameContext.FinishRun(session) (progress, records, rewards, save) ─▶ ResultPopup
 ```
@@ -71,7 +75,8 @@ the board and silently repairs any difference, so a visual glitch can never desy
 | Navigation | `Router`, `ScreenBase`, `PopupBase` | Screens are built once and re-bound on show; popups are created per use. |
 | Screens | `HomeScreen`, `MapScreen`, `GameScreen`, `ShopScreen`, `SettingsScreen`, `HowToPlayScreen` | The map is virtualised: only on-screen levels exist as (pooled) objects. |
 | Popups | `LevelPopup`, `ModePopup`, `ResultPopup`, `PausePopup`, `ConfirmPopup`, `PowerUpIntroPopup`, `QuickBuyPopup` | |
-| Board | `BoardView`, `TileView` | Rendering, press-and-hold preview, drag to explore, animation choreography. |
+| Board | `BoardView`, `TileView` | Rendering, press-and-hold preview, drag to explore, animation choreography. A `TileView` shows a colour tile with an obstacle overlay and strength badge, a stone, a special tile or treasure. |
+| UI | `GoalsPanel`, `GoalVisuals`, `MechanicTips`, `MechanicIntroPopup` | The goals row on the game screen, goal pictures and wording, and each mechanic's tutorial card and pointer. |
 
 ## Determinism
 
