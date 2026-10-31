@@ -102,7 +102,7 @@ namespace ColourCascade.Core
             return groups.Count;
         }
 
-        /// <summary>True if at least one group of two or more matching tiles exists (docs/MECHANICS.md §3.3).</summary>
+        /// <summary>True if at least one group of two or more matching tiles, or a special tile, exists (docs/MECHANICS.md §3.3).</summary>
         public static bool HasLegalMove(Board board)
         {
             int w = board.Width, h = board.Height;
@@ -111,6 +111,7 @@ namespace ColourCascade.Core
                 for (int c = 0; c < w; c++)
                 {
                     var t = board[c, r];
+                    if (TileRules.IsSpecial(t)) return true;
                     if (!TileRules.JoinsGroups(t)) continue;
                     if (c + 1 < w)
                     {

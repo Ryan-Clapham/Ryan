@@ -10,6 +10,8 @@ namespace ColourCascade.Core
         Ice = 1,
         /// <summary>Chained tile: 1-3 links, broken off when its own colour's group clears.</summary>
         Chain = 2,
+        /// <summary>Mossy tile: joins its colour's groups and leaves with them; spreads when a move clears none.</summary>
+        Moss = 3,
     }
 
     /// <summary>
@@ -32,6 +34,11 @@ namespace ColourCascade.Core
         public bool HitByAdjacentClear;
         /// <summary>Colour Shift may repaint the tile (the obstacle stays).</summary>
         public bool CanBeRecoloured;
+        /// <summary>An area hit (Blast, Colour Burst, a special) removes the tile together with the obstacle,
+        /// instead of taking one step off it.</summary>
+        public bool AreaHitRemovesTile;
+        /// <summary>Grows onto a neighbouring free tile after a move that removes none of it (docs/MECHANICS.md §2.5).</summary>
+        public bool Spreads;
     }
 
     public static class Obstacles
@@ -49,6 +56,12 @@ namespace ColourCascade.Core
             {
                 Kind = ObstacleKind.Chain, Name = "Chain", MaxStrength = 3,
                 HoldsInPlace = true, JoinsGroups = true, HitWhenItsGroupClears = true, HitByAdjacentClear = false, CanBeRecoloured = true,
+            });
+            Register(new ObstacleDefinition
+            {
+                Kind = ObstacleKind.Moss, Name = "Moss", MaxStrength = 1,
+                HoldsInPlace = true, JoinsGroups = true, HitWhenItsGroupClears = false, HitByAdjacentClear = false, CanBeRecoloured = false,
+                AreaHitRemovesTile = true, Spreads = true,
             });
         }
 

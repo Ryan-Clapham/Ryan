@@ -23,6 +23,16 @@ namespace ColourCascade.Core
         public bool FromBoardTop;
     }
 
+    /// <summary>A treasure that reached a permanent floor and left the board (docs/MECHANICS.md §2.4).</summary>
+    public struct CollectedTreasure
+    {
+        public int TileId;
+        /// <summary>Where it was before this gravity step.</summary>
+        public GridPos From;
+        /// <summary>The bottom cell of its section, where it was collected.</summary>
+        public GridPos At;
+    }
+
     /// <summary>Supplies colours for newly created tiles.</summary>
     public interface ITileSource
     {
@@ -32,11 +42,12 @@ namespace ColourCascade.Core
     /// <summary>
     /// Gravity and refill. Each column is divided into independent sections by gravity barriers: stones, voids,
     /// and tiles held in place by an obstacle (TileRules.IsGravityBarrier). Tiles fall to the bottom of their own
-    /// section, and each section refills from its own top.
+    /// section, and each section refills from its own top. Treasure that comes to rest on a permanent floor (the
+    /// bottom edge, a stone or a void) is collected, and the tiles above close the gap before the refill.
     /// </summary>
     public static class Gravity
     {
-        public static void Apply(Board board, ITileSource source, List<TileMove> moves, List<TileSpawn> spawns, bool refill = true)
+        public static void Apply(Board board, ITileSource source, List<TileMove> moves, List<TileSpawn> spawns, bool refill = true, List<CollectedTreasure> collected = null)
         {
             int w = board.Width, h = board.Height;
             for (int c = 0; c < w; c++)
@@ -53,11 +64,19 @@ namespace ColourCascade.Core
                     int end = r;
                     while (end + 1 < h && !TileRules.IsGravityBarrier(board[c, end + 1])) end++;
 
+                    bool permanentFloor = start == 0 || TileRules.IsPermanentFloor(board[c, start - 1]);
                     int write = start;
                     for (int i = start; i <= end; i++)
                     {
                         var t = board[c, i];
                         if (!TileRules.Falls(t)) continue;
+                        if (permanentFloor && write == start && t.Type == CellType.Treasure)
+                        {
+                            board[c, i] = default;
+                            if (i != start) moves?.Add(new TileMove { TileId = t.Id, From = new GridPos(c, i), To = new GridPos(c, start) });
+                            collected?.Add(new CollectedTreasure { TileId = t.Id, From = new GridPos(c, i), At = new GridPos(c, start) });
+                            continue;
+                        }
                         if (i != write)
                         {
                             board[c, write] = t;

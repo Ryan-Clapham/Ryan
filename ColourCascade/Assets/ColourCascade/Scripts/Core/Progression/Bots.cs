@@ -21,7 +21,11 @@ namespace ColourCascade.Core
         {
             pick = default;
             if (kind == BotKind.Planner) throw new System.ArgumentException("The planner needs the session: use PlannerBot.Choose or Bots.PlayOut.");
-            if (finder.FindAllGroups(board, groups) == 0) return false;
+            finder.FindAllGroups(board, groups);
+            // Special tiles are moves too (campaign only). They join the list as "groups" sized by the colour tiles
+            // they reach, after the real groups, so boards without specials choose exactly as before.
+            AddSpecials(board, groups);
+            if (groups.Count == 0) return false;
             if (kind == BotKind.Mixed) kind = rng.ChancePermille(750) ? BotKind.Greedy : BotKind.Casual;
             if (kind == BotKind.Greedy)
             {
@@ -47,6 +51,20 @@ namespace ColourCascade.Core
             return true;
         }
 
+        [System.ThreadStatic] static List<GridPos> reachScratch;
+
+        static void AddSpecials(Board board, List<GroupInfo> groups)
+        {
+            for (int i = 0; i < board.CellCount; i++)
+            {
+                if (board.GetByIndex(i).Type != CellType.Special) continue;
+                if (reachScratch == null) reachScratch = new List<GridPos>();
+                var p = board.PosOf(i);
+                int reach = SpecialEffects.EstimateReach(board, p, reachScratch);
+                groups.Add(new GroupInfo { Anchor = p, Size = System.Math.Max(1, reach), Colour = -1 });
+            }
+        }
+
         /// <summary>Plays until the session stops accepting moves or maxMoves is reached. Returns the final score.</summary>
         public static int PlayOut(PuzzleSession session, BotKind kind, Rng rng, int maxMoves = 10000)
         {
@@ -58,9 +76,10 @@ namespace ColourCascade.Core
             while (session.AcceptsMoves && moves < maxMoves)
             {
                 GridPos pick;
-                bool found = planner != null ? planner.Choose(session, out pick) : Choose(session.Board, kind, rng, finder, groups, out pick);
+                int colour = -1;
+                bool found = planner != null ? planner.Choose(session, out pick, out colour) : Choose(session.Board, kind, rng, finder, groups, out pick);
                 if (!found) break;
-                if (!session.TryPlay(pick, outcome)) break;
+                if (!session.TryPlay(pick, outcome, colour)) break;
                 moves++;
             }
             return session.FinalScore;

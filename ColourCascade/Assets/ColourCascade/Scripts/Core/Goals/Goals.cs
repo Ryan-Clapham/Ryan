@@ -14,6 +14,10 @@ namespace ColourCascade.Core
         FreeIce = 2,
         /// <summary>Free a number of chained tiles (their last link removed).</summary>
         BreakChains = 3,
+        /// <summary>Collect a number of treasures (they reach the bottom of their section).</summary>
+        CollectTreasure = 4,
+        /// <summary>Leave no moss on the board. The amount is the starting moss, for display.</summary>
+        ClearMoss = 5,
     }
 
     /// <summary>One goal of a level. Serializable so hand-made levels can list goals in the config asset.</summary>
@@ -29,6 +33,9 @@ namespace ColourCascade.Core
         public static GoalSpec Collect(int colour, int amount) => new GoalSpec { kind = GoalKind.CollectColour, colour = colour, amount = amount };
         public static GoalSpec FreeIce(int amount) => new GoalSpec { kind = GoalKind.FreeIce, amount = amount };
         public static GoalSpec BreakChains(int amount) => new GoalSpec { kind = GoalKind.BreakChains, amount = amount };
+        public static GoalSpec CollectTreasure(int amount) => new GoalSpec { kind = GoalKind.CollectTreasure, amount = amount };
+        /// <summary>Clear all moss. Leave the amount at 0 to use the starting moss count.</summary>
+        public static GoalSpec ClearMoss(int startingMoss = 0) => new GoalSpec { kind = GoalKind.ClearMoss, amount = startingMoss };
 
         public GoalSpec Clone() => new GoalSpec { kind = kind, amount = amount, colour = colour };
 
@@ -36,27 +43,36 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Progress towards one level's goals during a run. Reads what each action did (MoveOutcome) and the running
-    /// score; knows nothing about the UI. A level is complete when every goal is.
+    /// Progress towards one level's goals during a run. Reads what each action did (MoveOutcome), the running
+    /// score and, for moss, the board; knows nothing about the UI. A level is complete when every goal is.
     /// </summary>
     public sealed class GoalTracker
     {
         readonly GoalSpec[] goals;
         readonly int[] progress;
+        // ClearMoss: moss on the board right now (it can grow, so progress is not a running count).
+        readonly int[] live;
 
-        public GoalTracker(IList<GoalSpec> goalSpecs)
+        public GoalTracker(IList<GoalSpec> goalSpecs, Board board = null)
         {
             int n = goalSpecs != null ? goalSpecs.Count : 0;
             goals = new GoalSpec[n];
             progress = new int[n];
-            for (int i = 0; i < n; i++) goals[i] = goalSpecs[i].Clone();
+            live = new int[n];
+            for (int i = 0; i < n; i++)
+            {
+                goals[i] = goalSpecs[i].Clone();
+                if (goals[i].kind != GoalKind.ClearMoss) continue;
+                live[i] = board != null ? board.CountObstacle(ObstacleKind.Moss) : 0;
+                if (goals[i].amount <= 0) goals[i].amount = live[i];
+            }
         }
 
         public int Count => goals.Length;
         public GoalSpec Goal(int i) => goals[i];
-        public int Progress(int i) => progress[i];
-        public int Remaining(int i) => Math.Max(0, goals[i].amount - progress[i]);
-        public bool IsComplete(int i) => progress[i] >= goals[i].amount;
+        public int Progress(int i) => goals[i].kind == GoalKind.ClearMoss ? Math.Max(0, goals[i].amount - live[i]) : progress[i];
+        public int Remaining(int i) => goals[i].kind == GoalKind.ClearMoss ? live[i] : Math.Max(0, goals[i].amount - progress[i]);
+        public bool IsComplete(int i) => goals[i].kind == GoalKind.ClearMoss ? live[i] <= 0 : progress[i] >= goals[i].amount;
 
         /// <summary>True when every goal is met. A tracker with no goals is never complete.</summary>
         public bool AllComplete
@@ -78,11 +94,19 @@ namespace ColourCascade.Core
         }
 
         /// <summary>Adds what one action achieved. Returns true if any goal's progress changed.</summary>
-        public bool Record(MoveOutcome o, int score)
+        public bool Record(MoveOutcome o, int score, Board board = null)
         {
             bool changed = false;
             for (int i = 0; i < goals.Length; i++)
             {
+                if (goals[i].kind == GoalKind.ClearMoss)
+                {
+                    if (board == null) continue;
+                    int now = board.CountObstacle(ObstacleKind.Moss);
+                    if (now != live[i]) changed = true;
+                    live[i] = now;
+                    continue;
+                }
                 int before = progress[i];
                 switch (goals[i].kind)
                 {
@@ -98,6 +122,9 @@ namespace ColourCascade.Core
                         break;
                     case GoalKind.BreakChains:
                         progress[i] += CountFreed(o, ObstacleKind.Chain);
+                        break;
+                    case GoalKind.CollectTreasure:
+                        progress[i] += o.Treasures.Count;
                         break;
                 }
                 if (progress[i] != before) changed = true;

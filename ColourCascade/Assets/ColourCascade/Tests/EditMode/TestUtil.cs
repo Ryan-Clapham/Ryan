@@ -22,6 +22,14 @@ namespace ColourCascade.Tests
         /// </summary>
         public static PuzzleSession Session(GameMode mode, int moves, int target, int colours, string[] rowsTopFirst, string[] obstacleRowsTopFirst, params GoalSpec[] goals)
         {
+            var s = new PuzzleSession(Setup(mode, moves, target, colours, rowsTopFirst, obstacleRowsTopFirst, goals));
+            s.Start();
+            return s;
+        }
+
+        /// <summary>The setup behind Session, for tests that change the level (special tiles, moss cap) before starting.</summary>
+        public static SessionSetup Setup(GameMode mode, int moves, int target, int colours, string[] rowsTopFirst, string[] obstacleRowsTopFirst, params GoalSpec[] goals)
+        {
             var layout = LevelLayout.Parse(rowsTopFirst);
             if (obstacleRowsTopFirst != null) layout.ApplyObstacleRows(obstacleRowsTopFirst);
             var spec = new LevelSpec
@@ -39,10 +47,7 @@ namespace ColourCascade.Tests
                 LeftoverBonusPerMove = 100,
                 TimeLimitSeconds = mode == GameMode.WeeklyRush ? 60 : 0,
             };
-            var setup = new SessionSetup { Mode = mode, Level = spec, Scoring = new ScoringRules(), BoardSeed = 12345, Endless = mode == GameMode.Endless ? new EndlessConfig() : null };
-            var s = new PuzzleSession(setup);
-            s.Start();
-            return s;
+            return new SessionSetup { Mode = mode, Level = spec, Scoring = new ScoringRules(), BoardSeed = 12345, Endless = mode == GameMode.Endless ? new EndlessConfig() : null };
         }
 
         public static GameContext Context(DateTime? now = null, MemorySaveStorage storage = null)

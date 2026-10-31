@@ -50,6 +50,12 @@ namespace ColourCascade.Core
         public int iceLayerPoints = 100;
         /// <summary>Points for each chain link removed.</summary>
         public int chainLinkPoints = 150;
+        /// <summary>Points for each mossy tile cleared (on top of the tile's own points).</summary>
+        public int mossPoints = 100;
+        /// <summary>Points for each treasure collected.</summary>
+        public int treasurePoints = 500;
+        /// <summary>Group sizes that earn special tiles, and the points specials score (campaign only).</summary>
+        public SpecialRules specials = new SpecialRules();
         public int praiseGoodSize = 5;
         public int praiseGreatSize = 8;
         public int praiseAmazingSize = 12;
@@ -75,6 +81,7 @@ namespace ColourCascade.Core
             {
                 case ObstacleKind.Ice: return iceLayerPoints;
                 case ObstacleKind.Chain: return chainLinkPoints;
+                case ObstacleKind.Moss: return mossPoints;
                 default: return 0;
             }
         }

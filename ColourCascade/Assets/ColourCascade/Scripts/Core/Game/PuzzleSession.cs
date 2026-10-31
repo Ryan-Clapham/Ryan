@@ -42,7 +42,18 @@ namespace ColourCascade.Core
         // Obstacles already hit during the current action: each loses at most one step per action (MECHANICS §2.1).
         readonly HashSet<int> hitThisAction = new HashSet<int>();
         int actionObstaclePoints;
+        // Special tiles hit during the current action, waiting to fire in hit order; each fires once per action.
+        readonly List<GridPos> specialQueue = new List<GridPos>();
+        readonly HashSet<int> firedThisAction = new HashSet<int>();
+        readonly List<GridPos> effectCells = new List<GridPos>();
+        int actionSpecialPoints;
+        int nextWave;
+        bool mossRemovedThisAction;
+        int startingMoss;
+        readonly List<MossGrowth> mossCandidates = new List<MossGrowth>();
+        readonly HashSet<GridPos> mossSeen = new HashSet<GridPos>();
         Rng recoveryRng;
+        Rng mossRng;
         TileSource source;
 
         public PuzzleSession(SessionSetup setup)
@@ -124,13 +135,16 @@ namespace ColourCascade.Core
         public void Start()
         {
             if (State != SessionState.Ready) throw new InvalidOperationException("Session already started");
-            if (!ActionPolicy.ModeAllowsCampaignMechanics(Mode) && (Level.Layout.HasObstacles || (Level.Goals != null && Level.Goals.Length > 0)))
-                throw new InvalidOperationException(Mode + " levels cannot contain obstacles or campaign goals");
+            if (!ActionPolicy.ModeAllowsCampaignMechanics(Mode) &&
+                (Level.Layout.HasObstacles || Level.Layout.HasPieces || Level.Specials != SpecialTier.None || (Level.Goals != null && Level.Goals.Length > 0)))
+                throw new InvalidOperationException(Mode + " levels cannot contain obstacles, treasure, special tiles or campaign goals");
             var rng = new Rng(setup.BoardSeed);
             source = new TileSource(rng.Fork(1), Level.Colours, Level.ColourWeights, Level.AssistPermille);
             recoveryRng = rng.Fork(2);
+            mossRng = rng.Fork(3);
             Board = BoardGenerator.Generate(Level.Layout, source);
-            Goals = new GoalTracker(Level.EffectiveGoals());
+            Goals = new GoalTracker(Level.EffectiveGoals(), Board);
+            startingMoss = Board.CountObstacle(ObstacleKind.Moss);
             MovesLeft = Level.Moves;
             TimeLeft = Level.TimeLimitSeconds;
             Stage = 1;
@@ -173,16 +187,72 @@ namespace ColourCascade.Core
             return finder.FindGroup(Board, p, into);
         }
 
+        /// <summary>True when the cell holds a special tile (tapping it fires it).</summary>
+        public bool IsSpecialAt(GridPos p) => Board != null && Board.InBounds(p) && Board[p].Type == CellType.Special;
+
+        /// <summary>Tapping p would fire a prism (alone or with a neighbour), so the player picks a colour first.</summary>
+        public bool NeedsColourChoice(GridPos p)
+        {
+            if (!IsSpecialAt(p)) return false;
+            if (Board[p].Special == SpecialKind.Prism) return true;
+            GridPos partner;
+            return SpecialEffects.FindPartner(Board, p, out partner) && Board[partner].Special == SpecialKind.Prism;
+        }
+
+        /// <summary>
+        /// The cells a tap on the special at p reaches directly (chain reactions not included), for previews and
+        /// bots. colour is the prism's colour (-1 = the most common). Returns false if p is not a special tile.
+        /// </summary>
+        public bool PreviewSpecial(GridPos p, int colour, List<GridPos> cells, out GridPos partner, out bool combo)
+        {
+            cells.Clear();
+            partner = default;
+            combo = false;
+            if (!IsSpecialAt(p)) return false;
+            var t = Board[p];
+            combo = SpecialEffects.FindPartner(Board, p, out partner);
+            var other = combo ? Board[partner].Special : SpecialKind.None;
+            if (colour < 0) colour = SpecialEffects.MostCommonColour(Board);
+            AreaFor(p, t.Special, combo, partner, other, colour, cells);
+            return true;
+        }
+
+        void AreaFor(GridPos p, SpecialKind kind, bool combo, GridPos partnerPos, SpecialKind partner, int colour, List<GridPos> cells)
+        {
+            if (!combo)
+            {
+                SpecialEffects.Single(Board, p, kind, colour, cells);
+                return;
+            }
+            bool onePrism = (kind == SpecialKind.Prism) != (partner == SpecialKind.Prism);
+            if (!onePrism)
+            {
+                SpecialEffects.Combined(Board, p, kind, partner, cells);
+                return;
+            }
+            // Prism + another special: the chosen colour everywhere, then the other special from where it sat.
+            SpecialEffects.Single(Board, p, SpecialKind.Prism, colour, cells);
+            if (kind == SpecialKind.Prism) SpecialEffects.Single(Board, partnerPos, partner, colour, cells);
+            else SpecialEffects.Single(Board, p, kind, colour, cells);
+        }
+
         public int PointsForGroup(int size) => Scoring.GroupPoints(size);
 
         /// <summary>
         /// Clears the group containing p. Returns false (and changes nothing) if the move is not legal.
         /// Free tiles in the group are removed; chained tiles stay and lose a link (docs/MECHANICS.md §2.2).
         /// </summary>
-        public bool TryPlay(GridPos p, MoveOutcome o)
+        public bool TryPlay(GridPos p, MoveOutcome o) => TryPlay(p, o, -1);
+
+        /// <summary>
+        /// Plays a tap at p: clears its group, or fires the special tile there (docs/MECHANICS.md §2.3). prismColour
+        /// is the colour a prism clears (the player picks it); -1 picks the most common colour.
+        /// </summary>
+        public bool TryPlay(GridPos p, MoveOutcome o, int prismColour)
         {
             o.Reset();
-            if (!AcceptsMoves) return false;
+            if (!AcceptsMoves || Board == null || !Board.InBounds(p)) return false;
+            if (Board[p].Type == CellType.Special) return FireTappedSpecial(p, o, prismColour);
             int size = finder.FindGroup(Board, p, groupBuffer);
             if (size < 2) return false;
 
@@ -201,9 +271,11 @@ namespace ColourCascade.Core
                     HitObstacle(pos, HitCause.GroupClear, o);
                     continue;
                 }
+                if (TileRules.HasObstacle(t)) RemoveObstacleWithTile(pos, t, HitCause.GroupClear, o);
                 o.Cleared.Add(new ClearedTile { TileId = t.Id, Pos = pos, Colour = t.Colour });
                 Board[pos] = default;
             }
+            CreateSpecial(p, size, o);
 
             int points = Scoring.GroupPoints(size);
             Score += points;
@@ -226,8 +298,117 @@ namespace ColourCascade.Core
                 UpdateEndlessStage(o);
             }
 
-            Resolve(o, true);
+            Resolve(o, true, true);
             return true;
+        }
+
+        /// <summary>A big group earns a special tile in the cell the player tapped (or the nearest cleared cell).</summary>
+        void CreateSpecial(GridPos tapped, int size, MoveOutcome o)
+        {
+            if (Level.Specials == SpecialTier.None) return;
+            int minC = int.MaxValue, maxC = int.MinValue, minR = int.MaxValue, maxR = int.MinValue;
+            for (int i = 0; i < groupBuffer.Count; i++)
+            {
+                var g = groupBuffer[i];
+                minC = Math.Min(minC, g.Col);
+                maxC = Math.Max(maxC, g.Col);
+                minR = Math.Min(minR, g.Row);
+                maxR = Math.Max(maxR, g.Row);
+            }
+            var kind = Scoring.specials.KindFor(size, Level.Specials, maxC - minC > maxR - minR);
+            if (kind == SpecialKind.None) return;
+            GridPos at = tapped;
+            if (Board[tapped].Type != CellType.Empty)
+            {
+                // The tapped tile stayed (it was chained): use the nearest cleared cell, lowest row then column on a tie.
+                int best = int.MaxValue;
+                bool found = false;
+                for (int i = 0; i < groupBuffer.Count; i++)
+                {
+                    var g = groupBuffer[i];
+                    if (Board[g].Type != CellType.Empty) continue;
+                    int d = Math.Abs(g.Col - tapped.Col) + Math.Abs(g.Row - tapped.Row);
+                    if (d < best || (d == best && (g.Row < at.Row || (g.Row == at.Row && g.Col < at.Col))))
+                    {
+                        best = d;
+                        at = g;
+                        found = true;
+                    }
+                }
+                if (!found) return;
+            }
+            var tile = Board.NewSpecial(kind);
+            Board[at] = tile;
+            o.HasCreated = true;
+            o.Created = new SpecialCreated { TileId = tile.Id, Pos = at, Kind = kind };
+        }
+
+        /// <summary>A tap on a special tile: it fires (with a neighbouring special, if any) and costs a move.</summary>
+        bool FireTappedSpecial(GridPos p, MoveOutcome o, int prismColour)
+        {
+            BeginAction();
+            o.Kind = OutcomeKind.Special;
+            o.Origin = p;
+            MovesMade++;
+            if (HasMoveLimit) MovesLeft--;
+            FireSpecial(p, true, prismColour, o);
+            RunSpecialQueue(o);
+            Resolve(o, true, true);
+            return true;
+        }
+
+        void FireSpecial(GridPos p, bool tapped, int chosenColour, MoveOutcome o)
+        {
+            var t = Board[p];
+            if (t.Type != CellType.Special) return;
+            firedThisAction.Add(t.Id);
+            GridPos partnerPos = default;
+            bool combo = tapped && SpecialEffects.FindPartner(Board, p, out partnerPos);
+            var partner = combo ? Board[partnerPos] : default;
+            if (combo) firedThisAction.Add(partner.Id);
+            bool prism = t.Special == SpecialKind.Prism || (combo && partner.Special == SpecialKind.Prism);
+            int colour = -1;
+            if (prism) colour = chosenColour >= 0 && chosenColour < TileColours.Max ? chosenColour : SpecialEffects.MostCommonColour(Board);
+            int wave = nextWave++;
+            Board[p] = default;
+            if (combo) Board[partnerPos] = default;
+            o.SpecialsFired.Add(new SpecialFired
+            {
+                TileId = t.Id, Pos = p, Kind = t.Special, ComboWith = combo ? partner.Special : SpecialKind.None,
+                ComboPos = partnerPos, Colour = colour, Wave = wave,
+            });
+            if (tapped && prism) o.GroupColour = colour;
+            effectCells.Clear();
+            AreaFor(p, t.Special, combo, partnerPos, combo ? partner.Special : SpecialKind.None, colour, effectCells);
+            int rate = combo ? Scoring.specials.comboPointsPerTile : Scoring.specials.pointsPerTile;
+            int before = o.Cleared.Count;
+            // Copy: hitting cells can queue more specials but never changes this list.
+            for (int i = 0; i < effectCells.Count; i++) HitCell(effectCells[i], o);
+            for (int i = before; i < o.Cleared.Count; i++)
+            {
+                var c = o.Cleared[i];
+                c.Wave = wave;
+                o.Cleared[i] = c;
+                if (c.WasStone) continue;
+                actionSpecialPoints += rate;
+                TilesCleared++;
+            }
+        }
+
+        void QueueSpecial(GridPos p)
+        {
+            var t = Board[p];
+            if (t.Type != CellType.Special || firedThisAction.Contains(t.Id)) return;
+            for (int i = 0; i < specialQueue.Count; i++)
+                if (specialQueue[i] == p) return;
+            specialQueue.Add(p);
+        }
+
+        /// <summary>Fires the specials hit so far, in the order they were hit; any they hit join the end of the queue.</summary>
+        void RunSpecialQueue(MoveOutcome o)
+        {
+            for (int i = 0; i < specialQueue.Count; i++) FireSpecial(specialQueue[i], false, -1, o);
+            specialQueue.Clear();
         }
 
         /// <summary>Validates a power-up target without applying it.</summary>
@@ -278,8 +459,13 @@ namespace ColourCascade.Core
                 TilesCleared += colourTiles;
                 if (Mode == GameMode.Endless) UpdateEndlessStage(o);
             }
+            if (specialQueue.Count > 0)
+            {
+                nextWave = 1;
+                RunSpecialQueue(o);
+            }
 
-            Resolve(o, effect.ChangesBoard);
+            Resolve(o, effect.ChangesBoard, false);
             failure = PowerUpFailure.None;
             return true;
         }
@@ -308,17 +494,40 @@ namespace ColourCascade.Core
         {
             if (!Board.InBounds(p)) return false;
             var t = Board[p];
+            if (t.Type == CellType.Special)
+            {
+                QueueSpecial(p);
+                return true;
+            }
+            if (TileRules.AreaHitRemovesTile(t))
+            {
+                RemoveObstacleWithTile(p, t, HitCause.Area, o);
+                RemoveTile(p, o);
+                return true;
+            }
             if (TileRules.HasObstacle(t)) return HitObstacle(p, HitCause.Area, o);
             if (!TileRules.IsFree(t)) return false;
             RemoveTile(p, o);
             return true;
         }
 
-        /// <summary>Tile Breaker: removes a free colour tile or a stone; strips every layer or link from an obstacle (the tile stays).</summary>
+        /// <summary>Tile Breaker: removes a free colour tile, a mossy tile or a stone; strips every layer or link from ice
+        /// and chains (the tile stays); fires a special tile.</summary>
         public bool StrongHit(GridPos p, MoveOutcome o)
         {
             if (!Board.InBounds(p)) return false;
             var t = Board[p];
+            if (t.Type == CellType.Special)
+            {
+                QueueSpecial(p);
+                return true;
+            }
+            if (TileRules.AreaHitRemovesTile(t))
+            {
+                RemoveObstacleWithTile(p, t, HitCause.Strong, o);
+                RemoveTile(p, o);
+                return true;
+            }
             if (TileRules.HasObstacle(t)) return HitObstacle(p, HitCause.Strong, o);
             if (!TileRules.IsFree(t) && t.Type != CellType.Stone) return false;
             RemoveTile(p, o);
@@ -363,6 +572,57 @@ namespace ColourCascade.Core
         {
             hitThisAction.Clear();
             actionObstaclePoints = 0;
+            actionSpecialPoints = 0;
+            specialQueue.Clear();
+            firedThisAction.Clear();
+            nextWave = 0;
+            mossRemovedThisAction = false;
+        }
+
+        /// <summary>An obstacle that leaves with its tile (moss): recorded as a hit that frees it, and scored.</summary>
+        void RemoveObstacleWithTile(GridPos p, Tile t, HitCause cause, MoveOutcome o)
+        {
+            if (!hitThisAction.Add(t.Id)) return;
+            o.ObstacleHits.Add(new ObstacleHit
+            {
+                TileId = t.Id, Pos = p, Kind = t.Obstacle, Colour = t.Colour, StrengthBefore = t.Strength, StrengthAfter = 0, Cause = cause,
+            });
+            actionObstaclePoints += Scoring.ObstacleStepPoints(t.Obstacle) * Math.Max(1, t.Strength);
+            if (t.Obstacle == ObstacleKind.Moss) mossRemovedThisAction = true;
+        }
+
+        /// <summary>
+        /// After a move that removed no moss, moss grows onto one free tile next to it, chosen with the session's own
+        /// seeded generator; it stops at the level's cap (docs/MECHANICS.md §2.5).
+        /// </summary>
+        void SpreadMoss(MoveOutcome o)
+        {
+            if (mossRemovedThisAction || startingMoss == 0) return;
+            int moss = Board.CountObstacle(ObstacleKind.Moss);
+            if (moss == 0) return;
+            int cap = Level.MossCap > 0 ? Level.MossCap : startingMoss * 2;
+            if (moss >= cap) return;
+            mossCandidates.Clear();
+            mossSeen.Clear();
+            for (int i = 0; i < Board.CellCount; i++)
+            {
+                var t = Board.GetByIndex(i);
+                if (t.Type != CellType.Colour || t.Obstacle != ObstacleKind.Moss) continue;
+                var from = Board.PosOf(i);
+                for (int d = 0; d < 4; d++)
+                {
+                    var n = new GridPos(from.Col + Board.DCol[d], from.Row + Board.DRow[d]);
+                    if (!Board.InBounds(n) || !TileRules.CanBeOvergrown(Board[n]) || !mossSeen.Add(n)) continue;
+                    mossCandidates.Add(new MossGrowth { TileId = Board[n].Id, Pos = n, From = from });
+                }
+            }
+            if (mossCandidates.Count == 0) return;
+            var g = mossCandidates[mossRng.Next(mossCandidates.Count)];
+            var tile = Board[g.Pos];
+            tile.Obstacle = ObstacleKind.Moss;
+            tile.Strength = 1;
+            Board[g.Pos] = tile;
+            o.MossGrowth.Add(g);
         }
 
         /// <summary>
@@ -404,17 +664,29 @@ namespace ColourCascade.Core
         /// The shared tail of every action (docs/MECHANICS.md §3.1): obstacle reactions, obstacle points, gravity
         /// and refill, goal progress, no-move recovery and the end check.
         /// </summary>
-        void Resolve(MoveOutcome o, bool boardChanged)
+        void Resolve(MoveOutcome o, bool boardChanged, bool costsMove)
         {
             if (boardChanged) ApplyAdjacentHits(o);
-            if (actionObstaclePoints > 0)
+            int extra = actionObstaclePoints + actionSpecialPoints;
+            actionObstaclePoints = 0;
+            actionSpecialPoints = 0;
+            if (extra > 0)
             {
-                Score += actionObstaclePoints;
-                o.ScoreGained += actionObstaclePoints;
-                actionObstaclePoints = 0;
+                Score += extra;
+                o.ScoreGained += extra;
             }
-            if (boardChanged) Gravity.Apply(Board, source, o.Falls, o.Spawns);
-            if (Goals != null) o.GoalsChanged = Goals.Record(o, Score);
+            if (boardChanged)
+            {
+                Gravity.Apply(Board, source, o.Falls, o.Spawns, true, o.Treasures);
+                if (o.Treasures.Count > 0)
+                {
+                    int points = o.Treasures.Count * Scoring.treasurePoints;
+                    Score += points;
+                    o.ScoreGained += points;
+                }
+                if (costsMove) SpreadMoss(o);
+            }
+            if (Goals != null) o.GoalsChanged = Goals.Record(o, Score, Board);
             if (boardChanged) Recover(o);
             EvaluateEnd(o);
         }

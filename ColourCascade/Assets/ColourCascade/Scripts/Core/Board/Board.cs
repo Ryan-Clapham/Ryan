@@ -14,6 +14,10 @@ namespace ColourCascade.Core
         Stone = 2,
         /// <summary>No cell at all (used to shape boards). Behaves like an unbreakable barrier and is not drawn.</summary>
         Void = 3,
+        /// <summary>A special tile (rocket, bomb, prism; see Tile.Special). Falls, never joins groups, tapped to fire.</summary>
+        Special = 4,
+        /// <summary>Treasure: falls, never joins groups, collected at the bottom of its section.</summary>
+        Treasure = 5,
     }
 
     /// <summary>Colour indices, in the order new colours are introduced to the player.</summary>
@@ -35,17 +39,20 @@ namespace ColourCascade.Core
         public ObstacleKind Obstacle;
         /// <summary>Remaining ice layers or chain links (0 when there is no obstacle).</summary>
         public int Strength;
+        /// <summary>Which special tile this is (CellType.Special only).</summary>
+        public SpecialKind Special;
 
         public bool IsColour => Type == CellType.Colour;
         /// <summary>A permanent barrier (stone or void). Temporary ones (ice, chains) are TileRules.IsGravityBarrier.</summary>
         public bool IsBarrier => Type == CellType.Stone || Type == CellType.Void;
         public bool IsEmpty => Type == CellType.Empty;
 
-        public bool Equals(Tile other) => Type == other.Type && Colour == other.Colour && Id == other.Id && Obstacle == other.Obstacle && Strength == other.Strength;
+        public bool Equals(Tile other) => Type == other.Type && Colour == other.Colour && Id == other.Id && Obstacle == other.Obstacle && Strength == other.Strength && Special == other.Special;
         public override bool Equals(object obj) => obj is Tile t && Equals(t);
-        public override int GetHashCode() => (Id * 397) ^ ((int)Type * 31) ^ Colour ^ ((int)Obstacle << 20) ^ (Strength << 24);
+        public override int GetHashCode() => (Id * 397) ^ ((int)Type * 31) ^ Colour ^ ((int)Obstacle << 20) ^ (Strength << 24) ^ ((int)Special << 16);
         public override string ToString()
         {
+            if (Type == CellType.Special) return Special + "#" + Id;
             if (Type != CellType.Colour) return Type.ToString();
             return "C" + Colour + "#" + Id + (Obstacle != ObstacleKind.None ? "+" + Obstacle + Strength : "");
         }
@@ -134,14 +141,33 @@ namespace ColourCascade.Core
 
         public static Tile VoidTile => new Tile { Type = CellType.Void, Colour = -1, Id = 0 };
 
+        public Tile NewSpecial(SpecialKind kind)
+        {
+            return new Tile { Type = CellType.Special, Colour = -1, Special = kind, Id = nextId++ };
+        }
+
+        public Tile NewTreasure()
+        {
+            return new Tile { Type = CellType.Treasure, Colour = -1, Id = nextId++ };
+        }
+
         public bool IsColourAt(int col, int row) => InBounds(col, row) && cells[row * Width + col].Type == CellType.Colour;
 
-        /// <summary>A cell that can hold a colour tile (not a stone and not a void).</summary>
+        /// <summary>A cell that can hold a tile (not a stone and not a void).</summary>
         public bool IsOpenCell(int col, int row)
         {
             if (!InBounds(col, row)) return false;
             var t = cells[row * Width + col].Type;
-            return t == CellType.Colour || t == CellType.Empty;
+            return t != CellType.Stone && t != CellType.Void;
+        }
+
+        /// <summary>Number of colour tiles carrying this obstacle.</summary>
+        public int CountObstacle(ObstacleKind kind)
+        {
+            int n = 0;
+            for (int i = 0; i < cells.Length; i++)
+                if (cells[i].Type == CellType.Colour && cells[i].Obstacle == kind) n++;
+            return n;
         }
 
         public int CountColour(int colour)
@@ -168,7 +194,7 @@ namespace ColourCascade.Core
             return b;
         }
 
-        /// <summary>Rows printed top first. Digits = colours, '#' stone, 'x' void, '.' empty.</summary>
+        /// <summary>Rows printed top first. Digits = colours, '#' stone, 'x' void, '.' empty; specials and treasure as in PieceChar.</summary>
         public string ToDebugString()
         {
             var sb = new StringBuilder();
@@ -182,12 +208,58 @@ namespace ColourCascade.Core
                         case CellType.Colour: sb.Append((char)('0' + t.Colour)); break;
                         case CellType.Stone: sb.Append('#'); break;
                         case CellType.Void: sb.Append('x'); break;
+                        case CellType.Special:
+                        case CellType.Treasure: sb.Append(PieceChar(t)); break;
                         default: sb.Append('.'); break;
                     }
                 }
                 if (r > 0) sb.Append('\n');
             }
             return sb.ToString();
+        }
+
+        /// <summary>Notation for pieces in board and layout rows: '-' row rocket, '|' column rocket, '*' bomb, '@' prism, '$' treasure.</summary>
+        public const string PieceChars = "-|*@$";
+
+        public static char PieceChar(Tile t)
+        {
+            if (t.Type == CellType.Treasure) return '$';
+            if (t.Type != CellType.Special) return '?';
+            switch (t.Special)
+            {
+                case SpecialKind.RocketRow: return '-';
+                case SpecialKind.RocketColumn: return '|';
+                case SpecialKind.Bomb: return '*';
+                case SpecialKind.Prism: return '@';
+                default: return '?';
+            }
+        }
+
+        /// <summary>Reads a piece character (see PieceChars). Treasure gives CellType.Treasure and SpecialKind.None.</summary>
+        public static bool TryParsePiece(char ch, out CellType type, out SpecialKind kind)
+        {
+            type = CellType.Special;
+            kind = SpecialKind.None;
+            switch (ch)
+            {
+                case '-': kind = SpecialKind.RocketRow; return true;
+                case '|': kind = SpecialKind.RocketColumn; return true;
+                case '*': kind = SpecialKind.Bomb; return true;
+                case '@': kind = SpecialKind.Prism; return true;
+                case '$': type = CellType.Treasure; return true;
+                default: type = CellType.Empty; return false;
+            }
+        }
+
+        /// <summary>A tile for a piece character, or false.</summary>
+        public bool TryNewPiece(char ch, out Tile tile)
+        {
+            tile = default;
+            CellType type;
+            SpecialKind kind;
+            if (!TryParsePiece(ch, out type, out kind)) return false;
+            tile = type == CellType.Treasure ? NewTreasure() : NewSpecial(kind);
+            return true;
         }
 
         /// <summary>
@@ -212,6 +284,7 @@ namespace ColourCascade.Core
             {
                 case ObstacleKind.Ice: return t.Strength >= 2 ? 'I' : 'i';
                 case ObstacleKind.Chain: return (char)('0' + Math.Max(1, Math.Min(9, t.Strength)));
+                case ObstacleKind.Moss: return 'm';
                 default: return '.';
             }
         }
@@ -226,6 +299,7 @@ namespace ColourCascade.Core
                 case '.': return true;
                 case 'i': kind = ObstacleKind.Ice; strength = 1; return true;
                 case 'I': kind = ObstacleKind.Ice; strength = 2; return true;
+                case 'm': kind = ObstacleKind.Moss; strength = 1; return true;
                 default:
                     if (ch >= '1' && ch <= '9')
                     {
@@ -281,6 +355,7 @@ namespace ColourCascade.Core
                     if (ch >= '0' && ch <= '9') b[c, r] = b.NewColourTile(ch - '0');
                     else if (ch == '#') b[c, r] = b.NewStone();
                     else if (ch == 'x') b[c, r] = VoidTile;
+                    else if (b.TryNewPiece(ch, out var piece)) b[c, r] = piece;
                     else b[c, r] = default;
                 }
             }

@@ -66,11 +66,19 @@ namespace ColourCascade.Core
         internal static bool CanSwap(PuzzleSession s, GridPos p) => s.Board.InBounds(p) && TileRules.CanSwap(s.Board[p]);
 
         internal static bool CanRecolour(PuzzleSession s, GridPos p) => s.Board.InBounds(p) && TileRules.CanRecolour(s.Board[p]);
+
+        /// <summary>A cell an area power-up can affect: a colour tile (free or under an obstacle) or a special tile.</summary>
+        internal static bool IsAreaTarget(Board b, int col, int row)
+        {
+            if (!b.InBounds(col, row)) return false;
+            var t = b[col, row].Type;
+            return t == CellType.Colour || t == CellType.Special;
+        }
     }
 
-    /// <summary>Hits every cell in the 3×3 square centred on the target (clipped to the board): free colour tiles are
-    /// removed, ice and chains lose one step, stones and voids are untouched (docs/MECHANICS.md §6). The area must
-    /// contain at least one colour tile.</summary>
+    /// <summary>Hits every cell in the 3×3 square centred on the target (clipped to the board): free and mossy colour
+    /// tiles are removed, ice and chains lose one step, special tiles fire, stones, voids and treasure are untouched
+    /// (docs/MECHANICS.md §6). The area must contain at least one colour or special tile.</summary>
     public sealed class BlastEffect : IPowerUpEffect
     {
         public const int Radius = 1;
@@ -87,7 +95,7 @@ namespace ColourCascade.Core
             }
             for (int dr = -Radius; dr <= Radius; dr++)
                 for (int dc = -Radius; dc <= Radius; dc++)
-                    if (b.IsColourAt(r.A.Col + dc, r.A.Row + dr))
+                    if (PowerUpEffects.IsAreaTarget(b, r.A.Col + dc, r.A.Row + dr))
                     {
                         failure = PowerUpFailure.None;
                         return true;
@@ -102,7 +110,7 @@ namespace ColourCascade.Core
                 for (int dc = -Radius; dc <= Radius; dc++)
                 {
                     var p = new GridPos(r.A.Col + dc, r.A.Row + dr);
-                    if (s.Board.IsColourAt(p.Col, p.Row)) s.HitCell(p, o);
+                    if (PowerUpEffects.IsAreaTarget(s.Board, p.Col, p.Row)) s.HitCell(p, o);
                 }
         }
 
@@ -111,12 +119,12 @@ namespace ColourCascade.Core
             cells.Clear();
             for (int dr = -Radius; dr <= Radius; dr++)
                 for (int dc = -Radius; dc <= Radius; dc++)
-                    if (s.Board.IsColourAt(r.A.Col + dc, r.A.Row + dr)) cells.Add(new GridPos(r.A.Col + dc, r.A.Row + dr));
+                    if (PowerUpEffects.IsAreaTarget(s.Board, r.A.Col + dc, r.A.Row + dr)) cells.Add(new GridPos(r.A.Col + dc, r.A.Row + dr));
         }
     }
 
-    /// <summary>Swaps two orthogonally adjacent free colour tiles of different colours. Nothing is cleared.
-    /// Tiles under an obstacle cannot be moved.</summary>
+    /// <summary>Swaps two orthogonally adjacent tiles: free colour tiles of different colours, or a special tile and a
+    /// free tile. Nothing is cleared. Tiles under an obstacle and treasure cannot be moved.</summary>
     public sealed class SwapEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.Swap;
@@ -190,8 +198,8 @@ namespace ColourCascade.Core
         }
     }
 
-    /// <summary>Removes a single colour tile or a single stone barrier, or strips every layer of ice or every chain
-    /// link from one tile (the tile stays). Voids cannot be broken.</summary>
+    /// <summary>Removes a single colour tile (with its moss) or a single stone barrier, strips every layer of ice or
+    /// every chain link from one tile (the tile stays), or fires a special tile. Voids and treasure are not targets.</summary>
     public sealed class TileBreakerEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.TileBreaker;
@@ -200,7 +208,7 @@ namespace ColourCascade.Core
         public bool Validate(PuzzleSession s, PowerUpRequest r, out PowerUpFailure failure)
         {
             var b = s.Board;
-            if (!b.InBounds(r.A) || (b[r.A].Type != CellType.Colour && b[r.A].Type != CellType.Stone))
+            if (!IsTarget(b, r.A))
             {
                 failure = PowerUpFailure.InvalidTarget;
                 return false;
@@ -209,13 +217,19 @@ namespace ColourCascade.Core
             return true;
         }
 
+        static bool IsTarget(Board b, GridPos p)
+        {
+            if (!b.InBounds(p)) return false;
+            var t = b[p].Type;
+            return t == CellType.Colour || t == CellType.Stone || t == CellType.Special;
+        }
+
         public void Apply(PuzzleSession s, PowerUpRequest r, MoveOutcome o) => s.StrongHit(r.A, o);
 
         public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells)
         {
             cells.Clear();
-            var b = s.Board;
-            if (b.InBounds(r.A) && (b[r.A].Type == CellType.Colour || b[r.A].Type == CellType.Stone)) cells.Add(r.A);
+            if (IsTarget(s.Board, r.A)) cells.Add(r.A);
         }
     }
 
@@ -242,8 +256,8 @@ namespace ColourCascade.Core
         public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells) => cells.Clear();
     }
 
-    /// <summary>Hits every tile of the target tile's colour: free tiles are removed, ice and chains of that colour
-    /// lose one step. The target may be any colour tile; it picks the colour.</summary>
+    /// <summary>Hits every tile of the target tile's colour: free and mossy tiles are removed, ice and chains of that
+    /// colour lose one step. The target may be any colour tile; it picks the colour. Special tiles are not touched.</summary>
     public sealed class ColourBurstEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.ColourBurst;

@@ -23,6 +23,10 @@ namespace ColourCascade.Core
         public int Target;
         /// <summary>Campaign goals (docs/MECHANICS.md §4). Null or empty = one score goal equal to Target.</summary>
         public GoalSpec[] Goals;
+        /// <summary>Which special tiles big groups create here (campaign only; None elsewhere).</summary>
+        public SpecialTier Specials;
+        /// <summary>Most mossy tiles the board may hold; moss stops spreading at this number. 0 = twice the starting moss.</summary>
+        public int MossCap;
         public int Star2;
         public int Star3;
         /// <summary>Campaign only: points awarded per unused move when the target is reached.</summary>

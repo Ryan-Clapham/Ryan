@@ -7,9 +7,11 @@ namespace ColourCascade.Core
     /// Static shape of a board: which cells are open, stone or void, plus optional fixed starting colours.
     /// Text notation (rows written top first):
     ///   '.' open cell with a random colour, '#' stone, 'x' void (no cell),
-    ///   'R','Y','B','G','P','O' (or digits 0-5) open cell with a fixed starting colour.
+    ///   'R','Y','B','G','P','O' (or digits 0-5) open cell with a fixed starting colour,
+    ///   '$' treasure, '-' / '|' row / column rocket, '*' bomb, '@' prism (pieces for hand-made levels).
     /// Obstacles are a second, optional set of rows of the same size (ApplyObstacleRows), in the notation of
-    /// Board.ToObstacleString: '.' none, 'i'/'I' ice with 1/2 layers, '1'-'3' chain links. They go on open cells.
+    /// Board.ToObstacleString: '.' none, 'i'/'I' ice with 1/2 layers, '1'-'3' chain links, 'm' moss. They go on
+    /// open cells without a piece.
     /// </summary>
     public sealed class LevelLayout
     {
@@ -19,6 +21,8 @@ namespace ColourCascade.Core
         readonly int[] fixedColours;
         readonly ObstacleKind[] obstacles;
         readonly int[] strengths;
+        // Piece characters (Board.PieceChars) or '\0'.
+        readonly char[] pieces;
 
         public LevelLayout(int width, int height)
         {
@@ -28,6 +32,7 @@ namespace ColourCascade.Core
             fixedColours = new int[width * height];
             obstacles = new ObstacleKind[width * height];
             strengths = new int[width * height];
+            pieces = new char[width * height];
             for (int i = 0; i < fixedColours.Length; i++) fixedColours[i] = -1;
         }
 
@@ -46,7 +51,35 @@ namespace ColourCascade.Core
                 fixedColours[r * Width + c] = -1;
                 obstacles[r * Width + c] = ObstacleKind.None;
                 strengths[r * Width + c] = 0;
+                pieces[r * Width + c] = '\0';
             }
+        }
+
+        /// <summary>The piece placed on an open cell ('$' treasure, '-', '|', '*', '@' specials) or '\0'.</summary>
+        public char PieceAt(int c, int r) => pieces[r * Width + c];
+
+        /// <summary>Places a piece on an open cell ('\0' removes it). A piece replaces any fixed colour.</summary>
+        public void SetPiece(int c, int r, char piece)
+        {
+            pieces[r * Width + c] = piece;
+            if (piece != '\0') fixedColours[r * Width + c] = -1;
+        }
+
+        public int PieceCount(char piece)
+        {
+            int n = 0;
+            for (int i = 0; i < pieces.Length; i++) if (pieces[i] == piece) n++;
+            return n;
+        }
+
+        public int TreasureCount => PieceCount('$');
+
+        /// <summary>True when a piece at (c, r) would rest on a permanent floor: the bottom edge, a stone or a void.</summary>
+        public bool RestsOnPermanentFloor(int c, int r)
+        {
+            if (r == 0) return true;
+            var below = TypeAt(c, r - 1);
+            return below == CellType.Stone || below == CellType.Void;
         }
 
         public ObstacleKind ObstacleAt(int c, int r) => obstacles[r * Width + c];
@@ -65,6 +98,16 @@ namespace ColourCascade.Core
             int n = 0;
             for (int i = 0; i < obstacles.Length; i++) if (obstacles[i] == kind) n++;
             return n;
+        }
+
+        /// <summary>Treasure or special tiles placed by the layout (campaign-only, like obstacles).</summary>
+        public bool HasPieces
+        {
+            get
+            {
+                for (int i = 0; i < pieces.Length; i++) if (pieces[i] != '\0') return true;
+                return false;
+            }
         }
 
         public bool HasObstacles
@@ -155,6 +198,7 @@ namespace ColourCascade.Core
             Array.Copy(fixedColours, l.fixedColours, fixedColours.Length);
             Array.Copy(obstacles, l.obstacles, obstacles.Length);
             Array.Copy(strengths, l.strengths, strengths.Length);
+            Array.Copy(pieces, l.pieces, pieces.Length);
             return l;
         }
 
@@ -180,14 +224,32 @@ namespace ColourCascade.Core
                     var kind = ObstacleAt(c, r);
                     if (kind == ObstacleKind.None) continue;
                     var def = Obstacles.Get(kind);
-                    if (def == null || !IsOpen(c, r))
+                    if (def == null || !IsOpen(c, r) || PieceAt(c, r) != '\0')
                     {
-                        error = "Obstacle at " + new GridPos(c, r) + " must be a known kind on an open cell";
+                        error = "Obstacle at " + new GridPos(c, r) + " must be a known kind on an open cell without a piece";
                         return false;
                     }
                     if (StrengthAt(c, r) < 1 || StrengthAt(c, r) > def.MaxStrength)
                     {
                         error = def.Name + " at " + new GridPos(c, r) + " needs a strength from 1 to " + def.MaxStrength;
+                        return false;
+                    }
+                }
+            }
+            for (int r = 0; r < Height; r++)
+            {
+                for (int c = 0; c < Width; c++)
+                {
+                    char piece = PieceAt(c, r);
+                    if (piece == '\0') continue;
+                    if (!IsOpen(c, r) || Board.PieceChars.IndexOf(piece) < 0)
+                    {
+                        error = "Piece at " + new GridPos(c, r) + " must be a known piece on an open cell";
+                        return false;
+                    }
+                    if (piece == '$' && RestsOnPermanentFloor(c, r))
+                    {
+                        error = "Treasure at " + new GridPos(c, r) + " would be collected before the first move";
                         return false;
                     }
                 }
@@ -235,6 +297,11 @@ namespace ColourCascade.Core
                         case ' ': layout.SetType(c, r, CellType.Void); break;
                         case '.': break;
                         default:
+                            if (Board.PieceChars.IndexOf(ch) >= 0)
+                            {
+                                layout.SetPiece(c, r, ch);
+                                break;
+                            }
                             int colour = TileColours.Letters.IndexOf(char.ToUpperInvariant(ch));
                             if (colour < 0 && ch >= '0' && ch <= '5') colour = ch - '0';
                             if (colour < 0) throw new ArgumentException("Unknown layout character '" + ch + "'");
@@ -257,7 +324,8 @@ namespace ColourCascade.Core
                 {
                     var t = TypeAt(c, r);
                     int f = FixedColourAt(c, r);
-                    chars[c] = t == CellType.Stone ? '#' : t == CellType.Void ? 'x' : f >= 0 ? TileColours.Letters[f] : '.';
+                    char piece = PieceAt(c, r);
+                    chars[c] = t == CellType.Stone ? '#' : t == CellType.Void ? 'x' : piece != '\0' ? piece : f >= 0 ? TileColours.Letters[f] : '.';
                 }
                 rows[i] = new string(chars);
             }
@@ -278,6 +346,7 @@ namespace ColourCascade.Core
                     var type = layout.TypeAt(c, r);
                     if (type == CellType.Stone) board[c, r] = board.NewStone();
                     else if (type == CellType.Void) board[c, r] = Board.VoidTile;
+                    else if (layout.PieceAt(c, r) != '\0' && board.TryNewPiece(layout.PieceAt(c, r), out var piece)) board[c, r] = piece;
                     else
                     {
                         int fixedColour = layout.FixedColourAt(c, r);

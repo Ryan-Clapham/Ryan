@@ -14,11 +14,39 @@ namespace ColourCascade.Tests
             return TestUtil.Session(GameMode.Campaign, moves, 1000000, TileColours.Max, rows, obstacles, goals);
         }
 
-        public static MoveOutcome Tap(PuzzleSession s, int col, int row)
+        /// <summary>A campaign level whose big groups earn special tiles up to the given tier.</summary>
+        public static PuzzleSession Specials(string[] rows, string[] obstacles, SpecialTier tier = SpecialTier.Prisms, int moves = 20, params GoalSpec[] goals)
+        {
+            var setup = TestUtil.Setup(GameMode.Campaign, moves, 1000000, TileColours.Max, rows, obstacles, goals);
+            setup.Level.Specials = tier;
+            var s = new PuzzleSession(setup);
+            s.Start();
+            return s;
+        }
+
+        /// <summary>A campaign level with moss, with an optional cap on how far it may grow.</summary>
+        public static PuzzleSession Moss(string[] rows, string[] obstacles, int mossCap = 0, int moves = 20, ulong seed = 12345, params GoalSpec[] goals)
+        {
+            var setup = TestUtil.Setup(GameMode.Campaign, moves, 1000000, TileColours.Max, rows, obstacles, goals);
+            setup.Level.MossCap = mossCap;
+            setup.BoardSeed = seed;
+            var s = new PuzzleSession(setup);
+            s.Start();
+            return s;
+        }
+
+        public static MoveOutcome Tap(PuzzleSession s, int col, int row, int prismColour = -1)
         {
             var o = new MoveOutcome();
-            Assert.IsTrue(s.TryPlay(new GridPos(col, row), o), "tap at " + col + "," + row + " was refused");
+            Assert.IsTrue(s.TryPlay(new GridPos(col, row), o, prismColour), "tap at " + col + "," + row + " was refused");
             return o;
+        }
+
+        public static int CountPieces(Board b, CellType type)
+        {
+            int n = 0;
+            for (int i = 0; i < b.CellCount; i++) if (b.GetByIndex(i).Type == type) n++;
+            return n;
         }
 
         public static MoveOutcome Use(PuzzleSession s, PowerUpRequest r)
@@ -45,7 +73,7 @@ namespace ColourCascade.Tests
         {
             for (int r = 0; r < b.Height; r++)
                 for (int c = 0; c < b.Width; c++)
-                    if (b[c, r].Type == CellType.Colour && b[c, r].Id == tileId) return new GridPos(c, r);
+                    if (b[c, r].Type != CellType.Empty && b[c, r].Type != CellType.Void && b[c, r].Id == tileId) return new GridPos(c, r);
             Assert.Fail("tile " + tileId + " is not on the board");
             return default;
         }
