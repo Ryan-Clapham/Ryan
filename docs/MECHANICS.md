@@ -34,8 +34,8 @@ and the plan differ, the brief wins (noted where it matters, e.g. moss).
 
 * A colour tile under 1 or 2 layers of ice (thick ice, 2 layers, arrives later in the campaign).
 * It cannot be tapped, does not join groups, cannot be swapped, recoloured or reshuffled.
-* **Adjacent clear:** when an action removes at least one tile orthogonally next to a frozen tile, that frozen
-  tile loses **one** layer. Several cleared neighbours in the same action still remove only one layer.
+* **Adjacent clear:** when an action removes at least one tile orthogonally next to a frozen tile (a colour
+  tile, or a stone removed by Tile Breaker), that frozen tile loses **one** layer. Several cleared neighbours in the same action still remove only one layer.
 * **Area hits** (Blast, a bomb, a rocket's line, a prism or Colour Burst of its colour) remove one layer.
 * **Tile Breaker** removes all its layers at once (the tile stays, now free).
 * **One step per action:** apart from Tile Breaker, a frozen tile loses at most one layer per action, however
@@ -156,7 +156,10 @@ A campaign level has one to three goals and is complete when **all** are met.
 
 * A level with no goals listed has one Score goal equal to its target, so every existing level plays exactly as
   before.
-* Endless, Daily Challenge and Weekly Rush keep their own rules and never contain campaign-only tiles.
+* A won campaign level always earns at least one star (every goal met), even when it has no score goal. Two and
+  three stars still come from the level's score thresholds (stars v2 in phase 2 sets those per level).
+* Endless, Daily Challenge, Weekly Rush and Practice keep their own rules and never contain campaign-only tiles
+  or goals. This is enforced: a session in any of those modes refuses to start with obstacles or non-score goals.
 
 ## 5. Points
 
@@ -191,10 +194,11 @@ All values live in the game config's scoring section.
 
 | Part | Phase | Status |
 |---|---|---|
-| Tile behaviour system, obstacles framework, ice and chain rules, power-up interactions for them | 1 | Implemented and tested in the engine; no level contains them yet |
-| Goals (score, colour, ice, chains) and goal-based completion | 1 | Implemented and tested; levels still use a score goal only |
-| Ordered move resolution (3.1 steps 1, 4, 5, 7, 8, 9) | 1 | Implemented |
-| Planner bot | 1 | Implemented |
+| Tile behaviour system, obstacles framework, ice and chain rules, power-up interactions for them | 1 | Done in the engine, tested in the .NET harness. No level contains them yet; no tile art yet (phase 3) |
+| Goals (score, colour, ice, chains) and goal-based completion | 1 | Done and tested. Levels still use a score goal only; no goals panel yet (phase 3) |
+| Ordered move resolution (3.1 steps 1, 4, 5, 7, 8, 9) | 1 | Done and tested |
+| Planner bot | 1 | Done, tested, and in the balance simulation |
+| Campaign-only enforcement for other modes | 1 | Done and tested |
 | Bands, rhythm, slack-based sizing, stars v2, generator | 2 | Planned |
 | Ice in levels, colour goals in levels, art, goals panel, introductions | 3 | Planned |
 | Specials (rockets, bombs, prisms, combinations) | 4 | Planned |

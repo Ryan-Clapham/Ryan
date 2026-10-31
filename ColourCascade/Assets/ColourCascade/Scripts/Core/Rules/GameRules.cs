@@ -46,6 +46,10 @@ namespace ColourCascade.Core
         public int exponent = 2;
         /// <summary>Flat points per colour tile removed by a power-up (power-ups are not "groups").</summary>
         public int powerUpPointsPerTile = 20;
+        /// <summary>Points for each layer of ice removed (docs/MECHANICS.md §5).</summary>
+        public int iceLayerPoints = 100;
+        /// <summary>Points for each chain link removed.</summary>
+        public int chainLinkPoints = 150;
         public int praiseGoodSize = 5;
         public int praiseGreatSize = 8;
         public int praiseAmazingSize = 12;
@@ -62,6 +66,17 @@ namespace ColourCascade.Core
         public int PowerUpPoints(int tilesRemoved)
         {
             return tilesRemoved <= 0 ? 0 : tilesRemoved * powerUpPointsPerTile;
+        }
+
+        /// <summary>Points for one step of strength taken off an obstacle.</summary>
+        public int ObstacleStepPoints(ObstacleKind kind)
+        {
+            switch (kind)
+            {
+                case ObstacleKind.Ice: return iceLayerPoints;
+                case ObstacleKind.Chain: return chainLinkPoints;
+                default: return 0;
+            }
         }
 
         public PraiseTier PraiseFor(int groupSize)
@@ -97,6 +112,10 @@ namespace ColourCascade.Core
         public int assistPermille = -1;
         /// <summary>Rows top first: '.' random, '#' stone, 'x' void, R/Y/B/G/P/O fixed colour. Empty = open board.</summary>
         public string[] layout = new string[0];
+        /// <summary>Optional obstacle rows, same size as the layout: '.' none, 'i'/'I' ice 1/2 layers, '1'-'3' chain links.</summary>
+        public string[] obstacles = new string[0];
+        /// <summary>Optional goals. Empty = a single score goal equal to the target.</summary>
+        public GoalSpec[] goals = new GoalSpec[0];
         /// <summary>Tutorial hint shown when the level starts (see TutorialKeys).</summary>
         public string tutorial = "";
         /// <summary>Short line shown on the level card, e.g. "New: stone barriers".</summary>

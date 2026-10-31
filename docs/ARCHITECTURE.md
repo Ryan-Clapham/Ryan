@@ -27,14 +27,16 @@ Unity. That is what lets the same tests run in Unity's Test Runner and in plain 
 | | `GroupFinder` | Allocation-free flood fill; `HasLegalMove`. |
 | | `Gravity`, `TileSource` | Falling and refill per barrier-separated section; weighted, integer-only colour choice with optional assist. |
 | | `BoardRecovery` | Dead-board reshuffle: bounded random attempts, then a guaranteed constructive arrangement. |
-| | `LevelLayout`, `BoardGenerator` | Board shape (open/stone/void/fixed colour) and its text format. |
+| | `LevelLayout`, `BoardGenerator` | Board shape (open/stone/void/fixed colour, plus an optional obstacle layer) and its text format. |
+| Tiles | `ObstacleKind`, `ObstacleDefinition`, `Obstacles`, `TileRules` | Obstacles (ice, chains) as data: each kind is a definition of flags (holds in place, joins groups, hit by its own group, hit by adjacent clears, can be recoloured). `TileRules` answers every rule question about a tile; group search, gravity, recovery, power-ups and bots ask it instead of checking cell types. See docs/MECHANICS.md. |
+| Goals | `GoalKind`, `GoalSpec`, `GoalTracker` | A level's one to three goals and their progress, read from each `MoveOutcome`. A campaign level is won when every goal is met; a level with no goals has a score goal equal to its target. |
 | Rules | `ScoringRules`, `CampaignConfig`, `EndlessConfig`, `DailyConfig`, `RushConfig`, `EconomyConfig` | All tunables (serialised by Unity into the config asset). |
 | | `LevelSpec` | Everything needed to play one board. |
-| Game | `PuzzleSession` | **The rules engine.** One run in any mode: moves, timer, power-up effects, win/lose. Returns a `MoveOutcome` describing exactly what happened (cleared, swapped, recoloured, falls, spawns, shuffle). |
+| Game | `PuzzleSession` | **The rules engine.** One run in any mode: moves, timer, power-up effects, obstacle hits, goals, win/lose. Returns a `MoveOutcome` describing exactly what happened (cleared, obstacle hits, swapped, recoloured, falls, spawns, shuffle, goal changes). |
 | | `GameContext` | Composition root: owns the save and every service; starts runs (`CreateCampaignRun`…), finishes them idempotently (`FinishRun`). |
 | Power-ups | `PowerUpDefinition`, `PowerUpCatalog`, `IPowerUpEffect`, `PowerUpEffects` | Data-driven definitions plus one effect class per power-up. |
 | Economy | `Wallet`, `Inventory`, `RewardService`, `ShopService`, `PowerUpService`, `ActionPolicy`, `ActivityTracker` | Coins (single source of truth + ledger), stock and trials, one-time claim keys, validated purchases, central eligibility rules. |
-| Progression | `CampaignCatalog`, `LayoutLibrary`, `LevelCalibrator`, `Bots`, `CampaignProgress`, `Regions`, `DefaultLevels` | Level generation and calibration, unlocks and stars. |
+| Progression | `CampaignCatalog`, `LayoutLibrary`, `LevelCalibrator`, `Bots`, `PlannerBot`, `CampaignProgress`, `Regions`, `DefaultLevels` | Level generation and calibration, unlocks and stars. Bots: Greedy, Casual, Mixed and Planner (goal-aware, one move of lookahead, deterministic). |
 | Challenges | `ChallengeCalendar`, `ChallengeFactory` | UTC day keys, ISO week keys, deterministic daily/weekly boards. |
 | Save | `SaveData`, `SaveCodec`, `Json`, `SaveSystem`, `ISaveStorage`, `FileSaveStorage` | Versioned JSON, atomic writes with backup, corruption recovery. |
 | Navigation | `NavStack<T>` | Screen history rules (tested). |
@@ -46,7 +48,10 @@ Unity. That is what lets the same tests run in Unity's Test Runner and in plain 
 finger down on a tile ─▶ BoardView.OnPointerDown ─▶ GameScreen.Preview ─▶ PuzzleSession.PreviewGroup
                          (highlight + "+90" bubble)
 finger up on that group ─▶ BoardView.Committed ─▶ GameScreen.PlayGroup ─▶ PuzzleSession.TryPlay(cell, outcome)
-    PuzzleSession: validate → remove group → score → moves → Gravity.Apply → BoardRecovery → win/lose check
+    PuzzleSession: validate → remove group (chained tiles stay and lose a link) → score → moves
+                   → ice next to removed tiles loses a layer (one step per obstacle per action) → obstacle points
+                   → Gravity.Apply → goal progress → BoardRecovery (free tiles only) → win/lose check
+    Power-ups run the same tail after their effect (docs/MECHANICS.md §3.1).
 GameScreen ─▶ BoardView.Animate(outcome) (clear → fall → refill → shuffle; input blocked until tiles land)
            ─▶ HUD, sounds, haptics, floating text
 if outcome.Ended ─▶ GameContext.FinishRun(session) (progress, records, rewards, save) ─▶ ResultPopup
@@ -93,8 +98,14 @@ derive from stable seeds. `System.Random` and floating point are never used for 
   in `ArtBook.PowerUpIcon`. The shop, in-game bar, inventory, trial grant and eligibility rules pick it up.
 * **New shop category:** add a `ShopTab` subclass to the list in `ShopScreen.Build`.
 * **New hand-made level:** add a `LevelOverride` in the config asset (any field left at 0 is generated).
-* **New board obstacle:** add a `CellType`, teach `Gravity`/`GroupFinder` how it behaves, add a sprite and a
-  case in `TileView.Setup`.
+* **New obstacle on tiles:** add an `ObstacleKind`, register an `ObstacleDefinition` in `Obstacles` (its flags
+  decide how it behaves everywhere), a character for the layout notation in `Board.ObstacleChar` /
+  `TryParseObstacle`, a goal kind if levels should ask for it, and its art. Write the rules in
+  docs/MECHANICS.md first and add tests for every interaction.
+* **New fixed cell type:** add a `CellType` and answer for it in `TileRules`, add a sprite and a case in
+  `TileView.Setup`.
+* Obstacles and non-score goals are campaign-only: `ActionPolicy.ModeAllowsCampaignMechanics`, and a session
+  in any other mode refuses to start with them.
 * **New mode:** add a `GameMode`, a `Create…Run` method in `GameContext`, end rules in
   `PuzzleSession.EvaluateEnd`, result handling in `FinishRun`, and a card on the home screen.
 * **Online features later:** replace `IClock` with server time; challenge seeds are already shared by key,

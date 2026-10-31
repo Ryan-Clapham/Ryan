@@ -31,15 +31,24 @@ namespace ColourCascade.Core
         public int Colour;
         /// <summary>Unique per board; lets the view track a tile as it moves.</summary>
         public int Id;
+        /// <summary>Layer on a colour tile (ice, chain); None for every other tile. Rules: TileRules.</summary>
+        public ObstacleKind Obstacle;
+        /// <summary>Remaining ice layers or chain links (0 when there is no obstacle).</summary>
+        public int Strength;
 
         public bool IsColour => Type == CellType.Colour;
+        /// <summary>A permanent barrier (stone or void). Temporary ones (ice, chains) are TileRules.IsGravityBarrier.</summary>
         public bool IsBarrier => Type == CellType.Stone || Type == CellType.Void;
         public bool IsEmpty => Type == CellType.Empty;
 
-        public bool Equals(Tile other) => Type == other.Type && Colour == other.Colour && Id == other.Id;
+        public bool Equals(Tile other) => Type == other.Type && Colour == other.Colour && Id == other.Id && Obstacle == other.Obstacle && Strength == other.Strength;
         public override bool Equals(object obj) => obj is Tile t && Equals(t);
-        public override int GetHashCode() => (Id * 397) ^ ((int)Type * 31) ^ Colour;
-        public override string ToString() => Type == CellType.Colour ? "C" + Colour + "#" + Id : Type.ToString();
+        public override int GetHashCode() => (Id * 397) ^ ((int)Type * 31) ^ Colour ^ ((int)Obstacle << 20) ^ (Strength << 24);
+        public override string ToString()
+        {
+            if (Type != CellType.Colour) return Type.ToString();
+            return "C" + Colour + "#" + Id + (Obstacle != ObstacleKind.None ? "+" + Obstacle + Strength : "");
+        }
     }
 
     /// <summary>
@@ -179,6 +188,80 @@ namespace ColourCascade.Core
                 if (r > 0) sb.Append('\n');
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Obstacles printed top first: '.' none, 'i' ice (1 layer), 'I' ice (2 layers), '1'-'3' chain with that
+        /// many links. Kept separate from ToDebugString, whose output for obstacle-free boards never changes.
+        /// </summary>
+        public string ToObstacleString()
+        {
+            var sb = new StringBuilder();
+            for (int r = Height - 1; r >= 0; r--)
+            {
+                for (int c = 0; c < Width; c++) sb.Append(ObstacleChar(this[c, r]));
+                if (r > 0) sb.Append('\n');
+            }
+            return sb.ToString();
+        }
+
+        public static char ObstacleChar(Tile t)
+        {
+            if (t.Type != CellType.Colour) return '.';
+            switch (t.Obstacle)
+            {
+                case ObstacleKind.Ice: return t.Strength >= 2 ? 'I' : 'i';
+                case ObstacleKind.Chain: return (char)('0' + Math.Max(1, Math.Min(9, t.Strength)));
+                default: return '.';
+            }
+        }
+
+        /// <summary>Reads one obstacle character (see ToObstacleString). Returns false for an unknown character.</summary>
+        public static bool TryParseObstacle(char ch, out ObstacleKind kind, out int strength)
+        {
+            kind = ObstacleKind.None;
+            strength = 0;
+            switch (ch)
+            {
+                case '.': return true;
+                case 'i': kind = ObstacleKind.Ice; strength = 1; return true;
+                case 'I': kind = ObstacleKind.Ice; strength = 2; return true;
+                default:
+                    if (ch >= '1' && ch <= '9')
+                    {
+                        kind = ObstacleKind.Chain;
+                        strength = ch - '0';
+                        return true;
+                    }
+                    return false;
+            }
+        }
+
+        /// <summary>Builds a board from tile rows plus an obstacle overlay of the same size (notation of ToObstacleString).</summary>
+        public static Board FromRows(string[] rowsTopFirst, string[] obstacleRowsTopFirst)
+        {
+            var b = FromRows(rowsTopFirst);
+            if (obstacleRowsTopFirst == null) return b;
+            if (obstacleRowsTopFirst.Length != b.Height) throw new ArgumentException("Obstacle rows must match the board height");
+            for (int i = 0; i < b.Height; i++)
+            {
+                string line = obstacleRowsTopFirst[i];
+                if (line.Length != b.Width) throw new ArgumentException("Obstacle row " + i + " has the wrong length");
+                int r = b.Height - 1 - i;
+                for (int c = 0; c < b.Width; c++)
+                {
+                    ObstacleKind kind;
+                    int strength;
+                    if (!TryParseObstacle(line[c], out kind, out strength)) throw new ArgumentException("Unknown obstacle character '" + line[c] + "'");
+                    if (kind == ObstacleKind.None) continue;
+                    var t = b[c, r];
+                    if (t.Type != CellType.Colour) throw new ArgumentException("Obstacles go on colour tiles only (" + c + "," + r + ")");
+                    t.Obstacle = kind;
+                    t.Strength = strength;
+                    b[c, r] = t;
+                }
+            }
+            return b;
         }
 
         /// <summary>Builds a board from rows written top first (same notation as ToDebugString).</summary>

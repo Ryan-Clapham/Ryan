@@ -13,8 +13,8 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Dead-board recovery. Rearranges the existing colour tiles (barriers never move) until a legal move
-    /// exists. Tries a bounded number of random shuffles, then falls back to a constructive arrangement that
+    /// Dead-board recovery. Rearranges the existing free colour tiles (barriers and every tile under an obstacle
+    /// keep their cells, TileRules.CanShuffle) until a legal move exists. Tries a bounded number of random shuffles, then falls back to a constructive arrangement that
     /// is guaranteed to work whenever recovery is possible at all. Never loops indefinitely and never touches
     /// score, moves or progress.
     /// </summary>
@@ -34,7 +34,7 @@ namespace ColourCascade.Core
                 for (int c = 0; c < board.Width; c++)
                 {
                     var t = board[c, r];
-                    if (t.Type != CellType.Colour) continue;
+                    if (!TileRules.CanShuffle(t)) continue;
                     positions.Add(new GridPos(c, r));
                     original.Add(t);
                 }

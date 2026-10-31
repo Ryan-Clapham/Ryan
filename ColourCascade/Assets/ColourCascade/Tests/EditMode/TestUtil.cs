@@ -13,12 +13,24 @@ namespace ColourCascade.Tests
         /// <summary>A session whose starting board is exactly the given rows (top first; digits are colours, '#' stone, 'x' void).</summary>
         public static PuzzleSession Session(GameMode mode, int moves, int target, int colours, params string[] rowsTopFirst)
         {
+            return Session(mode, moves, target, colours, rowsTopFirst, null);
+        }
+
+        /// <summary>
+        /// As above, plus obstacle rows in the layout notation ('.' none, 'i'/'I' ice 1/2 layers, '1'-'3' chain
+        /// links) and the level's goals (none = a score goal equal to the target).
+        /// </summary>
+        public static PuzzleSession Session(GameMode mode, int moves, int target, int colours, string[] rowsTopFirst, string[] obstacleRowsTopFirst, params GoalSpec[] goals)
+        {
+            var layout = LevelLayout.Parse(rowsTopFirst);
+            if (obstacleRowsTopFirst != null) layout.ApplyObstacleRows(obstacleRowsTopFirst);
             var spec = new LevelSpec
             {
                 Id = "test",
                 Mode = mode,
                 Number = 1,
-                Layout = LevelLayout.Parse(rowsTopFirst),
+                Layout = layout,
+                Goals = goals != null && goals.Length > 0 ? goals : null,
                 Colours = colours,
                 Moves = moves,
                 Target = target,

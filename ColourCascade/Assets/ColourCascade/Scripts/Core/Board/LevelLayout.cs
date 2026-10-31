@@ -8,6 +8,8 @@ namespace ColourCascade.Core
     /// Text notation (rows written top first):
     ///   '.' open cell with a random colour, '#' stone, 'x' void (no cell),
     ///   'R','Y','B','G','P','O' (or digits 0-5) open cell with a fixed starting colour.
+    /// Obstacles are a second, optional set of rows of the same size (ApplyObstacleRows), in the notation of
+    /// Board.ToObstacleString: '.' none, 'i'/'I' ice with 1/2 layers, '1'-'3' chain links. They go on open cells.
     /// </summary>
     public sealed class LevelLayout
     {
@@ -15,6 +17,8 @@ namespace ColourCascade.Core
         public readonly int Height;
         readonly CellType[] types;
         readonly int[] fixedColours;
+        readonly ObstacleKind[] obstacles;
+        readonly int[] strengths;
 
         public LevelLayout(int width, int height)
         {
@@ -22,6 +26,8 @@ namespace ColourCascade.Core
             Height = height;
             types = new CellType[width * height];
             fixedColours = new int[width * height];
+            obstacles = new ObstacleKind[width * height];
+            strengths = new int[width * height];
             for (int i = 0; i < fixedColours.Length; i++) fixedColours[i] = -1;
         }
 
@@ -35,7 +41,73 @@ namespace ColourCascade.Core
         public void SetType(int c, int r, CellType t)
         {
             types[r * Width + c] = t == CellType.Colour ? CellType.Empty : t;
-            if (t != CellType.Empty && t != CellType.Colour) fixedColours[r * Width + c] = -1;
+            if (t != CellType.Empty && t != CellType.Colour)
+            {
+                fixedColours[r * Width + c] = -1;
+                obstacles[r * Width + c] = ObstacleKind.None;
+                strengths[r * Width + c] = 0;
+            }
+        }
+
+        public ObstacleKind ObstacleAt(int c, int r) => obstacles[r * Width + c];
+
+        public int StrengthAt(int c, int r) => strengths[r * Width + c];
+
+        /// <summary>Puts an obstacle on an open cell (ObstacleKind.None removes it).</summary>
+        public void SetObstacle(int c, int r, ObstacleKind kind, int strength)
+        {
+            obstacles[r * Width + c] = kind;
+            strengths[r * Width + c] = kind == ObstacleKind.None ? 0 : strength;
+        }
+
+        public int ObstacleCount(ObstacleKind kind)
+        {
+            int n = 0;
+            for (int i = 0; i < obstacles.Length; i++) if (obstacles[i] == kind) n++;
+            return n;
+        }
+
+        public bool HasObstacles
+        {
+            get
+            {
+                for (int i = 0; i < obstacles.Length; i++) if (obstacles[i] != ObstacleKind.None) return true;
+                return false;
+            }
+        }
+
+        /// <summary>Reads obstacle rows (top first, same size as the layout).</summary>
+        public void ApplyObstacleRows(IList<string> rowsTopFirst)
+        {
+            if (rowsTopFirst == null || rowsTopFirst.Count == 0) return;
+            if (rowsTopFirst.Count != Height) throw new ArgumentException("Obstacle rows: expected " + Height + ", got " + rowsTopFirst.Count);
+            for (int i = 0; i < Height; i++)
+            {
+                string line = rowsTopFirst[i] ?? string.Empty;
+                if (line.Length != Width) throw new ArgumentException("Obstacle row " + i + " has length " + line.Length + ", expected " + Width);
+                int r = Height - 1 - i;
+                for (int c = 0; c < Width; c++)
+                {
+                    ObstacleKind kind;
+                    int strength;
+                    if (!Board.TryParseObstacle(line[c], out kind, out strength)) throw new ArgumentException("Unknown obstacle character '" + line[c] + "'");
+                    SetObstacle(c, r, kind, strength);
+                }
+            }
+        }
+
+        public string[] ToObstacleRows()
+        {
+            var rows = new string[Height];
+            var chars = new char[Width];
+            for (int i = 0; i < Height; i++)
+            {
+                int r = Height - 1 - i;
+                for (int c = 0; c < Width; c++)
+                    chars[c] = Board.ObstacleChar(new Tile { Type = CellType.Colour, Obstacle = ObstacleAt(c, r), Strength = StrengthAt(c, r) });
+                rows[i] = new string(chars);
+            }
+            return rows;
         }
 
         public bool IsOpen(int c, int r) => InBounds(c, r) && types[r * Width + c] == CellType.Empty;
@@ -81,6 +153,8 @@ namespace ColourCascade.Core
             var l = new LevelLayout(Width, Height);
             Array.Copy(types, l.types, types.Length);
             Array.Copy(fixedColours, l.fixedColours, fixedColours.Length);
+            Array.Copy(obstacles, l.obstacles, obstacles.Length);
+            Array.Copy(strengths, l.strengths, strengths.Length);
             return l;
         }
 
@@ -98,6 +172,25 @@ namespace ColourCascade.Core
             {
                 error = "Layout must keep at least half of the cells open";
                 return false;
+            }
+            for (int r = 0; r < Height; r++)
+            {
+                for (int c = 0; c < Width; c++)
+                {
+                    var kind = ObstacleAt(c, r);
+                    if (kind == ObstacleKind.None) continue;
+                    var def = Obstacles.Get(kind);
+                    if (def == null || !IsOpen(c, r))
+                    {
+                        error = "Obstacle at " + new GridPos(c, r) + " must be a known kind on an open cell";
+                        return false;
+                    }
+                    if (StrengthAt(c, r) < 1 || StrengthAt(c, r) > def.MaxStrength)
+                    {
+                        error = def.Name + " at " + new GridPos(c, r) + " needs a strength from 1 to " + def.MaxStrength;
+                        return false;
+                    }
+                }
             }
             bool anyPair = false;
             for (int r = 0; r < Height; r++)
@@ -188,7 +281,14 @@ namespace ColourCascade.Core
                     else
                     {
                         int fixedColour = layout.FixedColourAt(c, r);
-                        board[c, r] = board.NewColourTile(fixedColour >= 0 ? fixedColour : source.NextColour(board, c, r));
+                        var tile = board.NewColourTile(fixedColour >= 0 ? fixedColour : source.NextColour(board, c, r));
+                        var obstacle = layout.ObstacleAt(c, r);
+                        if (obstacle != ObstacleKind.None)
+                        {
+                            tile.Obstacle = obstacle;
+                            tile.Strength = layout.StrengthAt(c, r);
+                        }
+                        board[c, r] = tile;
                     }
                 }
             }

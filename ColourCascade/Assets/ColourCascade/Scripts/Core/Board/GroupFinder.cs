@@ -10,7 +10,8 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Finds orthogonally connected groups of same-coloured tiles. Diagonal contact does not connect.
+    /// Finds orthogonally connected groups of same-coloured tiles. Diagonal contact does not connect. Which tiles
+    /// take part is decided by TileRules.JoinsGroups (free tiles and chained tiles; not frozen ones).
     /// Reuses its internal buffers, so repeated searches do not allocate.
     /// </summary>
     public sealed class GroupFinder
@@ -41,13 +42,13 @@ namespace ColourCascade.Core
             return generation;
         }
 
-        /// <summary>Fills <paramref name="result"/> with the group containing start. Returns its size (0 if start is not a colour tile).</summary>
+        /// <summary>Fills <paramref name="result"/> with the group containing start. Returns its size (0 if start cannot join a group).</summary>
         public int FindGroup(Board board, GridPos start, List<GridPos> result)
         {
             result?.Clear();
             if (!board.InBounds(start)) return 0;
             var first = board[start];
-            if (first.Type != CellType.Colour) return 0;
+            if (!TileRules.JoinsGroups(first)) return 0;
             return Flood(board, board.Index(start.Col, start.Row), first.Colour, NextGeneration(board.CellCount), result);
         }
 
@@ -76,7 +77,7 @@ namespace ColourCascade.Core
                     int ni = nr * w + nc;
                     if (stamp[ni] == gen) continue;
                     var t = board.GetByIndex(ni);
-                    if (t.Type != CellType.Colour || t.Colour != colour) continue;
+                    if (t.Colour != colour || !TileRules.JoinsGroups(t)) continue;
                     stamp[ni] = gen;
                     stack[top++] = ni;
                 }
@@ -93,7 +94,7 @@ namespace ColourCascade.Core
             {
                 if (stamp[i] == gen) continue;
                 var t = board.GetByIndex(i);
-                if (t.Type != CellType.Colour) continue;
+                if (!TileRules.JoinsGroups(t)) continue;
                 int size = Flood(board, i, t.Colour, gen, null);
                 if (size >= minSize)
                     groups.Add(new GroupInfo { Anchor = board.PosOf(i), Size = size, Colour = t.Colour });
@@ -101,7 +102,7 @@ namespace ColourCascade.Core
             return groups.Count;
         }
 
-        /// <summary>True if at least one group of two or more matching tiles exists.</summary>
+        /// <summary>True if at least one group of two or more matching tiles exists (docs/MECHANICS.md §3.3).</summary>
         public static bool HasLegalMove(Board board)
         {
             int w = board.Width, h = board.Height;
@@ -110,16 +111,16 @@ namespace ColourCascade.Core
                 for (int c = 0; c < w; c++)
                 {
                     var t = board[c, r];
-                    if (t.Type != CellType.Colour) continue;
+                    if (!TileRules.JoinsGroups(t)) continue;
                     if (c + 1 < w)
                     {
                         var n = board[c + 1, r];
-                        if (n.Type == CellType.Colour && n.Colour == t.Colour) return true;
+                        if (n.Colour == t.Colour && TileRules.JoinsGroups(n)) return true;
                     }
                     if (r + 1 < h)
                     {
                         var n = board[c, r + 1];
-                        if (n.Type == CellType.Colour && n.Colour == t.Colour) return true;
+                        if (n.Colour == t.Colour && TileRules.JoinsGroups(n)) return true;
                     }
                 }
             }

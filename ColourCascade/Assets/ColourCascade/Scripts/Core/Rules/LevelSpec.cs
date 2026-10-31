@@ -21,6 +21,8 @@ namespace ColourCascade.Core
         /// <summary>Countdown in seconds; 0 means untimed. Only Weekly Rush is timed.</summary>
         public int TimeLimitSeconds;
         public int Target;
+        /// <summary>Campaign goals (docs/MECHANICS.md §4). Null or empty = one score goal equal to Target.</summary>
+        public GoalSpec[] Goals;
         public int Star2;
         public int Star3;
         /// <summary>Campaign only: points awarded per unused move when the target is reached.</summary>
@@ -34,6 +36,13 @@ namespace ColourCascade.Core
         public bool IsRegionFinale;
         public string TutorialKey = "";
         public string Note = "";
+
+        /// <summary>The goals this level is played with: its own, or a single score goal equal to its target.</summary>
+        public GoalSpec[] EffectiveGoals()
+        {
+            if (Goals != null && Goals.Length > 0) return Goals;
+            return new[] { GoalSpec.Score(Target) };
+        }
 
         public int Width => Layout.Width;
         public int Height => Layout.Height;

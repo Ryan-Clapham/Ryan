@@ -39,6 +39,9 @@ namespace ColourCascade.Core
         readonly SessionSetup setup;
         readonly GroupFinder finder = new GroupFinder();
         readonly List<GridPos> groupBuffer = new List<GridPos>();
+        // Obstacles already hit during the current action: each loses at most one step per action (MECHANICS §2.1).
+        readonly HashSet<int> hitThisAction = new HashSet<int>();
+        int actionObstaclePoints;
         Rng recoveryRng;
         TileSource source;
 
@@ -68,6 +71,8 @@ namespace ColourCascade.Core
         public int Stage { get; private set; }
         /// <summary>Campaign bonus for unused moves, set when the target is reached.</summary>
         public int LeftoverBonus { get; private set; }
+        /// <summary>Progress towards the level's goals (campaign completion; tracked in every mode).</summary>
+        public GoalTracker Goals { get; private set; }
         public double TimeLeft { get; private set; }
         public bool TimerRunning { get; private set; }
         public bool Paused { get; private set; }
@@ -85,7 +90,9 @@ namespace ColourCascade.Core
             get
             {
                 if (Mode == GameMode.Campaign && State != SessionState.Won) return 0;
-                return StarRating.Compute(FinalScore, Level.Target, Level.Star2, Level.Star3);
+                int stars = StarRating.Compute(FinalScore, Level.Target, Level.Star2, Level.Star3);
+                // A won campaign level (every goal met) always earns at least one star, even when it had no score goal.
+                return Mode == GameMode.Campaign ? Math.Max(1, stars) : stars;
             }
         }
 
@@ -117,10 +124,13 @@ namespace ColourCascade.Core
         public void Start()
         {
             if (State != SessionState.Ready) throw new InvalidOperationException("Session already started");
+            if (!ActionPolicy.ModeAllowsCampaignMechanics(Mode) && (Level.Layout.HasObstacles || (Level.Goals != null && Level.Goals.Length > 0)))
+                throw new InvalidOperationException(Mode + " levels cannot contain obstacles or campaign goals");
             var rng = new Rng(setup.BoardSeed);
             source = new TileSource(rng.Fork(1), Level.Colours, Level.ColourWeights, Level.AssistPermille);
             recoveryRng = rng.Fork(2);
             Board = BoardGenerator.Generate(Level.Layout, source);
+            Goals = new GoalTracker(Level.EffectiveGoals());
             MovesLeft = Level.Moves;
             TimeLeft = Level.TimeLimitSeconds;
             Stage = 1;
@@ -165,7 +175,10 @@ namespace ColourCascade.Core
 
         public int PointsForGroup(int size) => Scoring.GroupPoints(size);
 
-        /// <summary>Clears the group containing p. Returns false (and changes nothing) if the move is not legal.</summary>
+        /// <summary>
+        /// Clears the group containing p. Returns false (and changes nothing) if the move is not legal.
+        /// Free tiles in the group are removed; chained tiles stay and lose a link (docs/MECHANICS.md §2.2).
+        /// </summary>
         public bool TryPlay(GridPos p, MoveOutcome o)
         {
             o.Reset();
@@ -173,6 +186,7 @@ namespace ColourCascade.Core
             int size = finder.FindGroup(Board, p, groupBuffer);
             if (size < 2) return false;
 
+            BeginAction();
             int colour = Board[p].Colour;
             o.Kind = OutcomeKind.Group;
             o.Origin = p;
@@ -182,6 +196,11 @@ namespace ColourCascade.Core
             {
                 var pos = groupBuffer[i];
                 var t = Board[pos];
+                if (TileRules.StaysWhenItsGroupClears(t))
+                {
+                    HitObstacle(pos, HitCause.GroupClear, o);
+                    continue;
+                }
                 o.Cleared.Add(new ClearedTile { TileId = t.Id, Pos = pos, Colour = t.Colour });
                 Board[pos] = default;
             }
@@ -192,7 +211,7 @@ namespace ColourCascade.Core
             o.Praise = Scoring.PraiseFor(size);
             MovesMade++;
             GroupsCleared++;
-            TilesCleared += size;
+            TilesCleared += o.Cleared.Count;
             if (size > BiggestGroup) BiggestGroup = size;
             if (HasMoveLimit) MovesLeft--;
 
@@ -207,8 +226,7 @@ namespace ColourCascade.Core
                 UpdateEndlessStage(o);
             }
 
-            Settle(o);
-            EvaluateEnd(o);
+            Resolve(o, true);
             return true;
         }
 
@@ -241,6 +259,7 @@ namespace ColourCascade.Core
             o.Reset();
             if (!CanApplyPowerUp(req, out failure)) return false;
             var effect = PowerUpEffects.Get(req.Id);
+            BeginAction();
             o.Kind = OutcomeKind.PowerUp;
             o.PowerUp = req.Id;
             o.Origin = req.A;
@@ -260,8 +279,7 @@ namespace ColourCascade.Core
                 if (Mode == GameMode.Endless) UpdateEndlessStage(o);
             }
 
-            if (effect.ChangesBoard) Settle(o);
-            EvaluateEnd(o);
+            Resolve(o, effect.ChangesBoard);
             failure = PowerUpFailure.None;
             return true;
         }
@@ -282,6 +300,31 @@ namespace ColourCascade.Core
 
         // ---- Operations used by power-up effects ----
 
+        /// <summary>
+        /// An area effect reaching a cell (Blast, Colour Burst; specials later): a free colour tile is removed, an
+        /// obstacle loses one step, anything else is untouched (docs/MECHANICS.md §2, §6). Returns true if it did something.
+        /// </summary>
+        public bool HitCell(GridPos p, MoveOutcome o)
+        {
+            if (!Board.InBounds(p)) return false;
+            var t = Board[p];
+            if (TileRules.HasObstacle(t)) return HitObstacle(p, HitCause.Area, o);
+            if (!TileRules.IsFree(t)) return false;
+            RemoveTile(p, o);
+            return true;
+        }
+
+        /// <summary>Tile Breaker: removes a free colour tile or a stone; strips every layer or link from an obstacle (the tile stays).</summary>
+        public bool StrongHit(GridPos p, MoveOutcome o)
+        {
+            if (!Board.InBounds(p)) return false;
+            var t = Board[p];
+            if (TileRules.HasObstacle(t)) return HitObstacle(p, HitCause.Strong, o);
+            if (!TileRules.IsFree(t) && t.Type != CellType.Stone) return false;
+            RemoveTile(p, o);
+            return true;
+        }
+
         public void RemoveTile(GridPos p, MoveOutcome o)
         {
             var t = Board[p];
@@ -293,7 +336,7 @@ namespace ColourCascade.Core
         public void RecolourTile(GridPos p, int colour, MoveOutcome o)
         {
             var t = Board[p];
-            if (t.Type != CellType.Colour || t.Colour == colour) return;
+            if (!TileRules.CanRecolour(t) || t.Colour == colour) return;
             o.Recolours.Add(new Recolour { TileId = t.Id, Pos = p, From = t.Colour, To = colour });
             t.Colour = colour;
             Board[p] = t;
@@ -316,9 +359,68 @@ namespace ColourCascade.Core
 
         // ---- Internals ----
 
-        void Settle(MoveOutcome o)
+        void BeginAction()
         {
-            Gravity.Apply(Board, source, o.Falls, o.Spawns);
+            hitThisAction.Clear();
+            actionObstaclePoints = 0;
+        }
+
+        /// <summary>
+        /// Takes strength off the obstacle at p: one step, or all of it for a strong hit. At most one step per
+        /// obstacle per action (a strong hit is a whole action on its own). Scores the steps removed.
+        /// </summary>
+        bool HitObstacle(GridPos p, HitCause cause, MoveOutcome o)
+        {
+            var t = Board[p];
+            if (!TileRules.HasObstacle(t) || !hitThisAction.Add(t.Id)) return false;
+            int before = t.Strength;
+            int after = cause == HitCause.Strong ? 0 : Math.Max(0, before - 1);
+            o.ObstacleHits.Add(new ObstacleHit
+            {
+                TileId = t.Id, Pos = p, Kind = t.Obstacle, Colour = t.Colour, StrengthBefore = before, StrengthAfter = after, Cause = cause,
+            });
+            actionObstaclePoints += Scoring.ObstacleStepPoints(t.Obstacle) * (before - after);
+            t.Strength = after;
+            if (after <= 0) t.Obstacle = ObstacleKind.None;
+            Board[p] = t;
+            return true;
+        }
+
+        /// <summary>Every obstacle next to a removed tile that reacts to adjacent clears loses one step (§2.1).</summary>
+        void ApplyAdjacentHits(MoveOutcome o)
+        {
+            for (int i = 0; i < o.Cleared.Count; i++)
+            {
+                var c = o.Cleared[i].Pos;
+                for (int d = 0; d < 4; d++)
+                {
+                    var n = new GridPos(c.Col + Board.DCol[d], c.Row + Board.DRow[d]);
+                    if (Board.InBounds(n) && TileRules.HitByAdjacentClear(Board[n])) HitObstacle(n, HitCause.AdjacentClear, o);
+                }
+            }
+        }
+
+        /// <summary>
+        /// The shared tail of every action (docs/MECHANICS.md §3.1): obstacle reactions, obstacle points, gravity
+        /// and refill, goal progress, no-move recovery and the end check.
+        /// </summary>
+        void Resolve(MoveOutcome o, bool boardChanged)
+        {
+            if (boardChanged) ApplyAdjacentHits(o);
+            if (actionObstaclePoints > 0)
+            {
+                Score += actionObstaclePoints;
+                o.ScoreGained += actionObstaclePoints;
+                actionObstaclePoints = 0;
+            }
+            if (boardChanged) Gravity.Apply(Board, source, o.Falls, o.Spawns);
+            if (Goals != null) o.GoalsChanged = Goals.Record(o, Score);
+            if (boardChanged) Recover(o);
+            EvaluateEnd(o);
+        }
+
+        void Recover(MoveOutcome o)
+        {
             var result = BoardRecovery.EnsurePlayable(Board, recoveryRng, o.ShuffleMoves);
             if (result == RecoveryResult.Shuffled)
             {
@@ -350,7 +452,7 @@ namespace ColourCascade.Core
                 switch (Mode)
                 {
                     case GameMode.Campaign:
-                        if (Score >= Level.Target)
+                        if (Goals.AllComplete)
                         {
                             LeftoverBonus = Math.Max(0, MovesLeft) * Level.LeftoverBonusPerMove;
                             State = SessionState.Won;

@@ -40,6 +40,33 @@ namespace ColourCascade.Core
         public bool WasStone;
     }
 
+    /// <summary>Why an obstacle lost strength (docs/MECHANICS.md §2).</summary>
+    public enum HitCause
+    {
+        /// <summary>A tile next to it was removed.</summary>
+        AdjacentClear = 1,
+        /// <summary>A group it belongs to was cleared (chains).</summary>
+        GroupClear = 2,
+        /// <summary>An area effect reached it (Blast, Colour Burst, specials).</summary>
+        Area = 3,
+        /// <summary>Tile Breaker: all of its strength at once.</summary>
+        Strong = 4,
+    }
+
+    /// <summary>An obstacle that lost strength during an action. The tile stays in its cell.</summary>
+    public struct ObstacleHit
+    {
+        public int TileId;
+        public GridPos Pos;
+        public ObstacleKind Kind;
+        public int Colour;
+        public int StrengthBefore;
+        public int StrengthAfter;
+        public HitCause Cause;
+        /// <summary>The obstacle is gone: the tile is now a free colour tile.</summary>
+        public bool Freed => StrengthAfter <= 0;
+    }
+
     public struct Recolour
     {
         public int TileId;
@@ -49,8 +76,9 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Everything that happened as the result of one player action, in order:
-    /// Cleared/Recolours/SwapMoves, then Falls + Spawns (gravity and refill), then ShuffleMoves (dead-board recovery).
+    /// Everything that happened as the result of one player action, in order (docs/MECHANICS.md §3.1):
+    /// Cleared/Recolours/SwapMoves and ObstacleHits, then Falls + Spawns (gravity and refill), then ShuffleMoves
+    /// (dead-board recovery).
     /// The view animates from this; the session's board already holds the final state.
     /// The lists are reused between moves.
     /// </summary>
@@ -73,8 +101,11 @@ namespace ColourCascade.Core
         public bool Ended;
         public EndReason EndReason;
         public bool UsedTrial;
+        /// <summary>Some goal's progress changed during this action.</summary>
+        public bool GoalsChanged;
 
         public readonly List<ClearedTile> Cleared = new List<ClearedTile>();
+        public readonly List<ObstacleHit> ObstacleHits = new List<ObstacleHit>();
         public readonly List<Recolour> Recolours = new List<Recolour>();
         public readonly List<TileMove> SwapMoves = new List<TileMove>();
         public readonly List<TileMove> Falls = new List<TileMove>();
@@ -100,7 +131,9 @@ namespace ColourCascade.Core
             Ended = false;
             EndReason = EndReason.None;
             UsedTrial = false;
+            GoalsChanged = false;
             Cleared.Clear();
+            ObstacleHits.Clear();
             Recolours.Clear();
             SwapMoves.Clear();
             Falls.Clear();

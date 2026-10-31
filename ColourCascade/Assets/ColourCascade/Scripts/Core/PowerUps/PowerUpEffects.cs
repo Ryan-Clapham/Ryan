@@ -60,11 +60,17 @@ namespace ColourCascade.Core
             return effects.TryGetValue(id, out e) ? e : null;
         }
 
+        /// <summary>Any colour tile, free or under an obstacle.</summary>
         internal static bool IsColour(PuzzleSession s, GridPos p) => s.Board.InBounds(p) && s.Board[p].Type == CellType.Colour;
+
+        internal static bool CanSwap(PuzzleSession s, GridPos p) => s.Board.InBounds(p) && TileRules.CanSwap(s.Board[p]);
+
+        internal static bool CanRecolour(PuzzleSession s, GridPos p) => s.Board.InBounds(p) && TileRules.CanRecolour(s.Board[p]);
     }
 
-    /// <summary>Clears every colour tile in the 3×3 square centred on the target (clipped to the board).
-    /// Stones and voids inside the area are untouched. The area must contain at least one colour tile.</summary>
+    /// <summary>Hits every cell in the 3×3 square centred on the target (clipped to the board): free colour tiles are
+    /// removed, ice and chains lose one step, stones and voids are untouched (docs/MECHANICS.md §6). The area must
+    /// contain at least one colour tile.</summary>
     public sealed class BlastEffect : IPowerUpEffect
     {
         public const int Radius = 1;
@@ -96,7 +102,7 @@ namespace ColourCascade.Core
                 for (int dc = -Radius; dc <= Radius; dc++)
                 {
                     var p = new GridPos(r.A.Col + dc, r.A.Row + dr);
-                    if (s.Board.IsColourAt(p.Col, p.Row)) s.RemoveTile(p, o);
+                    if (s.Board.IsColourAt(p.Col, p.Row)) s.HitCell(p, o);
                 }
         }
 
@@ -109,7 +115,8 @@ namespace ColourCascade.Core
         }
     }
 
-    /// <summary>Swaps two orthogonally adjacent colour tiles of different colours. Nothing is cleared.</summary>
+    /// <summary>Swaps two orthogonally adjacent free colour tiles of different colours. Nothing is cleared.
+    /// Tiles under an obstacle cannot be moved.</summary>
     public sealed class SwapEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.Swap;
@@ -117,7 +124,7 @@ namespace ColourCascade.Core
 
         public bool Validate(PuzzleSession s, PowerUpRequest r, out PowerUpFailure failure)
         {
-            if (!PowerUpEffects.IsColour(s, r.A) || !PowerUpEffects.IsColour(s, r.B))
+            if (!PowerUpEffects.CanSwap(s, r.A) || !PowerUpEffects.CanSwap(s, r.B))
             {
                 failure = PowerUpFailure.InvalidTarget;
                 return false;
@@ -141,17 +148,18 @@ namespace ColourCascade.Core
         public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells)
         {
             cells.Clear();
-            if (!PowerUpEffects.IsColour(s, r.A)) return;
+            if (!PowerUpEffects.CanSwap(s, r.A)) return;
             int colour = s.Board[r.A].Colour;
             for (int d = 0; d < 4; d++)
             {
                 var n = new GridPos(r.A.Col + Board.DCol[d], r.A.Row + Board.DRow[d]);
-                if (PowerUpEffects.IsColour(s, n) && s.Board[n].Colour != colour) cells.Add(n);
+                if (PowerUpEffects.CanSwap(s, n) && s.Board[n].Colour != colour) cells.Add(n);
             }
         }
     }
 
-    /// <summary>Repaints one colour tile with another colour currently in play.</summary>
+    /// <summary>Repaints one colour tile with another colour currently in play. Chained tiles can be repainted
+    /// (the chain stays); frozen tiles cannot (TileRules.CanRecolour).</summary>
     public sealed class ColourShiftEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.ColourShift;
@@ -159,7 +167,7 @@ namespace ColourCascade.Core
 
         public bool Validate(PuzzleSession s, PowerUpRequest r, out PowerUpFailure failure)
         {
-            if (!PowerUpEffects.IsColour(s, r.A) || r.Colour < 0 || r.Colour >= s.ColourCount)
+            if (!PowerUpEffects.CanRecolour(s, r.A) || r.Colour < 0 || r.Colour >= s.ColourCount)
             {
                 failure = PowerUpFailure.InvalidTarget;
                 return false;
@@ -178,11 +186,12 @@ namespace ColourCascade.Core
         public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells)
         {
             cells.Clear();
-            if (PowerUpEffects.IsColour(s, r.A)) cells.Add(r.A);
+            if (PowerUpEffects.CanRecolour(s, r.A)) cells.Add(r.A);
         }
     }
 
-    /// <summary>Removes a single colour tile or a single stone barrier. Voids cannot be broken.</summary>
+    /// <summary>Removes a single colour tile or a single stone barrier, or strips every layer of ice or every chain
+    /// link from one tile (the tile stays). Voids cannot be broken.</summary>
     public sealed class TileBreakerEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.TileBreaker;
@@ -200,7 +209,7 @@ namespace ColourCascade.Core
             return true;
         }
 
-        public void Apply(PuzzleSession s, PowerUpRequest r, MoveOutcome o) => s.RemoveTile(r.A, o);
+        public void Apply(PuzzleSession s, PowerUpRequest r, MoveOutcome o) => s.StrongHit(r.A, o);
 
         public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells)
         {
@@ -233,7 +242,8 @@ namespace ColourCascade.Core
         public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells) => cells.Clear();
     }
 
-    /// <summary>Removes every tile of the target tile's colour.</summary>
+    /// <summary>Hits every tile of the target tile's colour: free tiles are removed, ice and chains of that colour
+    /// lose one step. The target may be any colour tile; it picks the colour.</summary>
     public sealed class ColourBurstEffect : IPowerUpEffect
     {
         public PowerUpId Id => PowerUpId.ColourBurst;
@@ -259,7 +269,7 @@ namespace ColourCascade.Core
                 for (int col = 0; col < b.Width; col++)
                 {
                     var t = b[col, row];
-                    if (t.Type == CellType.Colour && t.Colour == colour) s.RemoveTile(new GridPos(col, row), o);
+                    if (t.Type == CellType.Colour && t.Colour == colour) s.HitCell(new GridPos(col, row), o);
                 }
         }
 

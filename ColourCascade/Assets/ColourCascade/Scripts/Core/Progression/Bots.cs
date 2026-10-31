@@ -10,6 +10,8 @@ namespace ColourCascade.Core
         Casual,
         /// <summary>Greedy 75% of the time, casual otherwise.</summary>
         Mixed,
+        /// <summary>Goal-aware planner with one move of lookahead (PlannerBot). Models a thoughtful player.</summary>
+        Planner,
     }
 
     /// <summary>Automated players. Used to calibrate level targets and by the balance simulation.</summary>
@@ -18,6 +20,7 @@ namespace ColourCascade.Core
         public static bool Choose(Board board, BotKind kind, Rng rng, GroupFinder finder, List<GroupInfo> groups, out GridPos pick)
         {
             pick = default;
+            if (kind == BotKind.Planner) throw new System.ArgumentException("The planner needs the session: use PlannerBot.Choose or Bots.PlayOut.");
             if (finder.FindAllGroups(board, groups) == 0) return false;
             if (kind == BotKind.Mixed) kind = rng.ChancePermille(750) ? BotKind.Greedy : BotKind.Casual;
             if (kind == BotKind.Greedy)
@@ -50,11 +53,13 @@ namespace ColourCascade.Core
             var finder = new GroupFinder();
             var groups = new List<GroupInfo>();
             var outcome = new MoveOutcome();
+            var planner = kind == BotKind.Planner ? new PlannerBot() : null;
             int moves = 0;
             while (session.AcceptsMoves && moves < maxMoves)
             {
                 GridPos pick;
-                if (!Choose(session.Board, kind, rng, finder, groups, out pick)) break;
+                bool found = planner != null ? planner.Choose(session, out pick) : Choose(session.Board, kind, rng, finder, groups, out pick);
+                if (!found) break;
                 if (!session.TryPlay(pick, outcome)) break;
                 moves++;
             }

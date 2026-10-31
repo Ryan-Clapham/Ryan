@@ -30,8 +30,9 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Gravity and refill. Each column is divided into independent sections by barriers (stones or voids).
-    /// Tiles fall to the bottom of their own section, and each section refills from its own top.
+    /// Gravity and refill. Each column is divided into independent sections by gravity barriers: stones, voids,
+    /// and tiles held in place by an obstacle (TileRules.IsGravityBarrier). Tiles fall to the bottom of their own
+    /// section, and each section refills from its own top.
     /// </summary>
     public static class Gravity
     {
@@ -43,20 +44,20 @@ namespace ColourCascade.Core
                 int r = 0;
                 while (r < h)
                 {
-                    if (board[c, r].IsBarrier)
+                    if (TileRules.IsGravityBarrier(board[c, r]))
                     {
                         r++;
                         continue;
                     }
                     int start = r;
                     int end = r;
-                    while (end + 1 < h && !board[c, end + 1].IsBarrier) end++;
+                    while (end + 1 < h && !TileRules.IsGravityBarrier(board[c, end + 1])) end++;
 
                     int write = start;
                     for (int i = start; i <= end; i++)
                     {
                         var t = board[c, i];
-                        if (t.Type != CellType.Colour) continue;
+                        if (!TileRules.Falls(t)) continue;
                         if (i != write)
                         {
                             board[c, write] = t;

@@ -30,6 +30,12 @@ namespace ColourCascade.Core
 
         public static bool ModeAllowsPowerUps(GameMode mode) => !IsChallengeMode(mode);
 
+        /// <summary>
+        /// Obstacles and goals other than the score are campaign-only (docs/MECHANICS.md §4). Endless, Daily
+        /// Challenge and Weekly Rush keep their own rules; a session refuses to start if one would get them.
+        /// </summary>
+        public static bool ModeAllowsCampaignMechanics(GameMode mode) => mode == GameMode.Campaign;
+
         public static bool IsPowerUpAllowed(PowerUpDefinition def, GameMode mode)
         {
             return def != null && ModeAllowsPowerUps(mode) && def.allowedModes.Has(mode);

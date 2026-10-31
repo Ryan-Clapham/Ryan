@@ -109,6 +109,7 @@ namespace ColourCascade.Core
                 try
                 {
                     layout = LevelLayout.Parse(ov.layout);
+                    if (ov.obstacles != null && ov.obstacles.Length > 0) layout.ApplyObstacleRows(ov.obstacles);
                     string error;
                     if (!layout.Validate(out error)) layout = null;
                 }
@@ -151,6 +152,11 @@ namespace ColourCascade.Core
                 target = NumberFormat.RoundNice((int)((long)median * TargetPermille(n) / 1000));
             }
             spec.Target = target;
+            if (ov != null && ov.goals != null && ov.goals.Length > 0)
+            {
+                spec.Goals = new GoalSpec[ov.goals.Length];
+                for (int i = 0; i < ov.goals.Length; i++) spec.Goals[i] = ov.goals[i].Clone();
+            }
             spec.Star2 = ov != null && ov.star2 > target ? ov.star2 : NumberFormat.RoundNice((int)((long)target * cfg.star2Permille / 1000));
             spec.Star3 = ov != null && ov.star3 > spec.Star2 ? ov.star3 : NumberFormat.RoundNice((int)((long)target * cfg.star3Permille / 1000));
             if (spec.Star3 <= spec.Star2) spec.Star3 = spec.Star2 + 50;

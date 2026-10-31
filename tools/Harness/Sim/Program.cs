@@ -31,8 +31,8 @@ static class Program
         var cfg = GameConfigData.CreateDefault();
         var catalog = new CampaignCatalog(cfg.Campaign, cfg.Scoring);
         var sw = Stopwatch.StartNew();
-        Console.WriteLine("CAMPAIGN (pass% = share of 40 attempts that reach the target; stars shown for greedy wins)");
-        Console.WriteLine("Lvl  Size  Col Mov Stn  Target  Star2  Star3 Bonus | Greedy%  Mixed%  Casual% | G-stars(1/2/3)  avgLeft");
+        Console.WriteLine("CAMPAIGN (pass% = share of 40 attempts that complete the level; stars and moves left shown for greedy and planner wins)");
+        Console.WriteLine("Lvl  Size  Col Mov Stn  Target  Star2  Star3 Bonus | Greedy%  Mixed%  Casual% Planner% | G-stars(1/2/3)  avgLeft | P-stars(1/2/3)  avgLeft");
         for (int n = 1; n <= maxLevel; n++)
         {
             var t0 = sw.ElapsedMilliseconds;
@@ -41,7 +41,8 @@ static class Program
             var g = Attempts(spec, cfg, BotKind.Greedy, 40, n);
             var m = Attempts(spec, cfg, BotKind.Mixed, 40, n);
             var c = Attempts(spec, cfg, BotKind.Casual, 40, n);
-            Console.WriteLine($"{n,3}  {spec.Width}x{spec.Height}  {spec.Colours,2} {spec.Moves,3} {spec.StoneCount,3} {spec.Target,7} {spec.Star2,6} {spec.Star3,6} {spec.LeftoverBonusPerMove,5} | {g.PassPct,6:0}% {m.PassPct,6:0}% {c.PassPct,7:0}% | {g.S1,3}/{g.S2,3}/{g.S3,3}  {g.AvgLeft,6:0.0}   ({calibMs}ms) {spec.Note}");
+            var p = Attempts(spec, cfg, BotKind.Planner, 40, n);
+            Console.WriteLine($"{n,3}  {spec.Width}x{spec.Height}  {spec.Colours,2} {spec.Moves,3} {spec.StoneCount,3} {spec.Target,7} {spec.Star2,6} {spec.Star3,6} {spec.LeftoverBonusPerMove,5} | {g.PassPct,6:0}% {m.PassPct,6:0}% {c.PassPct,7:0}% {p.PassPct,7:0}% | {g.S1,3}/{g.S2,3}/{g.S3,3}  {g.AvgLeft,6:0.0} | {p.S1,3}/{p.S2,3}/{p.S3,3}  {p.AvgLeft,6:0.0}   ({calibMs}ms) {spec.Note}");
         }
 
         Console.WriteLine();

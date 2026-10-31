@@ -13,7 +13,7 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **149 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **202 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Economy: a simulated player earns coins for 30 days through the real reward code | `Sim -- economy` | See DESIGN.md §8 |
@@ -23,7 +23,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (149 tests)
+### Automated test coverage (202 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -41,6 +41,15 @@ real Android builds provide it.
 | Procedural assets | 6 | Atlas has every referenced sprite with no overlaps, cache round trip, **symbols measurably distinct**, valid audio |
 | Regression checklist | 13 | One test per logic item in the brief's §21 list |
 | Project setup | 2 | `Packages/manifest.json` declares every package and module the assemblies need |
+| Golden gameplay | 4 | Fingerprints recorded before the progression overhaul: campaign levels 1–60, seeded bot games, Endless/Daily/Rush, scripted power-ups. Refactors must reproduce them exactly (a deliberate gameplay change was confirmed to break them) |
+| Ice | 12 | Frozen tiles join no group and can't be tapped; several cleared neighbours take one layer; thick ice needs two actions; the freed tile falls in the same action; it holds up the tiles above and the gap below refills from beneath; no Swap or Colour Shift; Tile Breaker strips all layers; Blast and Colour Burst take one layer even with neighbours removed |
+| Chains | 7 | Chained tiles join their colour's group, stay and lose a link; a group of only chained tiles is a legal move; adjacent clears do nothing; no Swap, but Colour Shift recolours (chain stays); Tile Breaker strips all links; Blast/Colour Burst take one |
+| Obstacle boards and layouts | 6 | Recovery reshuffles only free tiles (40 seeds); obstacle notation round trips; validation; obstacles don't change generated colours; obstacle points configurable; `TileRules` matches the definitions |
+| Campaign-only mechanics | 7 | Endless, Daily, Weekly and Practice have no obstacles or goals and refuse to start with them; built-in levels 1–300 unchanged; a hand-made level can list obstacles and goals |
+| Goals | 8 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; win the moment every goal is met (with spare-move bonus and at least one star); fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
+| Planner bot | 6 | Picks goal progress over the biggest group; breaks the ice/chains a goal needs; looks one move ahead; deterministic; beats Casual on levels 1–40 (120/120 vs 93/120) and on an ice level (29/30 vs 10/30) |
+| Save compatibility | 2 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte, and the same play on the new code produces exactly the same save (progress, stars, coins, ledger, records) |
+| Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
 ### Defects found and fixed during verification
 
@@ -98,6 +107,10 @@ real Android builds provide it.
 * The new Input System path (Active Input Handling set to "Input System Package (New)") has been compile-checked
   and checked against the Input System's source (module, keyboard and Back key names), but not run. The old
   Input Manager path is the one seen working in the editor.
+* **Campaign progression overhaul, phase 1** (obstacles, goals, the new move order, the Planner bot) is engine
+  code tested only in the .NET harness. No level uses obstacles or goals yet, and the board view has no art for
+  ice or chains and no goals panel (phase 3), so there is nothing new to see in Unity. The Unity scripts were
+  compile-checked against the changed engine, but the game has not been opened in Unity since these changes.
 
 ## Manual test checklist (please run in Unity, then on a phone)
 
