@@ -536,14 +536,15 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void BuiltInCampaignLevelsDoNotUseTheNewMechanicsYet()
+        public void TheOpeningLevelsHaveNoMechanics()
         {
             var ctx = TestUtil.Context();
-            for (int n = 1; n <= 300; n++)
+            for (int n = 1; n < ctx.Catalog.Schedule.iceFromLevel; n++)
             {
                 var spec = ctx.Catalog.Get(n);
-                Assert.IsFalse(spec.Layout.HasObstacles, "level " + n);
+                Assert.IsFalse(spec.Layout.HasObstacles || spec.Layout.HasPieces, "level " + n);
                 Assert.IsNull(spec.Goals, "level " + n);
+                Assert.AreEqual(SpecialTier.None, spec.Specials, "level " + n);
             }
         }
 

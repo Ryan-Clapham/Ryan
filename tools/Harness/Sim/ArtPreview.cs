@@ -26,6 +26,8 @@ static class ArtPreview
         foreach (var snd in sfx) foreach (var v in snd.Samples) if (float.IsNaN(v) || Math.Abs(v) > 1f) throw new Exception("Bad sample in " + snd.Name);
         WritePng(Path.Combine(dir, "mock_board.png"), BoardMock.Render(false), null);
         WritePng(Path.Combine(dir, "mock_board_symbols.png"), BoardMock.Render(true), null);
+        WritePng(Path.Combine(dir, "mock_mechanics.png"), BoardMock.RenderMechanics(false), null);
+        WritePng(Path.Combine(dir, "mock_mechanics_symbols.png"), BoardMock.RenderMechanics(true), null);
     }
 
     /// <summary>Writes RGBA (row 0 = bottom) as PNG, optionally composited over a background colour.</summary>

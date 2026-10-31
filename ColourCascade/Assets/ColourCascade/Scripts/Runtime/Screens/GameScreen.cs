@@ -51,6 +51,11 @@ namespace ColourCascade.App
         RectTransform targetingBanner;
         Text targetingText;
         RectTransform colourPicker;
+        GoalsPanel goalsPanel;
+        bool goalsMode;
+        // A prism was tapped: the player is choosing its colour (swatches, or tap any tile of that colour).
+        bool prismPending;
+        GridPos prismCell;
         RectTransform previewBubble;
         Text previewText;
         RectTransform banner;
@@ -109,6 +114,10 @@ namespace ColourCascade.App
             targetText.rectTransform.Fill(320, 130, 270, 44);
             progress = ProgressBar.Create(card, Theme.Gold, 36);
             ((RectTransform)progress.transform).BottomStrip(60, 28, 40, 270);
+            // Goal levels show their goals here instead of the target and bar.
+            goalsPanel = GoalsPanel.Create(card);
+            ((RectTransform)goalsPanel.transform).Fill(300, 14, 236, 14);
+            goalsPanel.gameObject.SetActive(false);
 
             badge = UI.Rect("Badge", card);
             badge.Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-28, 0), new Vector2(196, 196));
@@ -254,6 +263,11 @@ namespace ColourCascade.App
             {
                 board.SetSymbols(Ctx.Settings.Symbols);
                 RefreshSymbolsButton();
+                if (goalsMode && session != null)
+                {
+                    goalsPanel.Configure(session.Goals, Ctx.Settings.Symbols);
+                    goalsPanel.Refresh(session.Goals, false);
+                }
             }
         }
 
@@ -378,6 +392,11 @@ namespace ColourCascade.App
             }
             badgeFill.gameObject.SetActive(session.IsTimed);
             badgeRing.gameObject.SetActive(true);
+            goalsMode = session.Mode == GameMode.Campaign && level.Goals != null && level.Goals.Length > 0;
+            goalsPanel.gameObject.SetActive(goalsMode);
+            targetText.gameObject.SetActive(!goalsMode);
+            progress.gameObject.SetActive(!goalsMode);
+            if (goalsMode) goalsPanel.Configure(session.Goals, Ctx.Settings.Symbols);
         }
 
         void RefreshHud(bool animate)
@@ -400,6 +419,16 @@ namespace ColourCascade.App
             switch (session.Mode)
             {
                 case GameMode.Campaign:
+                    if (goalsMode)
+                    {
+                        var done = goalsPanel.Refresh(session.Goals, animate);
+                        if (done.HasValue)
+                        {
+                            AudioService.Sfx(SfxNames.Star(1), 0.7f);
+                            board.Fx.Sparkle(board.Fx.ToLocal(done.Value), Theme.Success, 14, 70f);
+                        }
+                        break;
+                    }
                     targetText.text = "Target " + NumberFormat.Thousands(level.Target);
                     progress.SetFraction(score / (float)Mathf.Max(1, level.Target), animate);
                     progress.SetColour(score >= level.Target ? Theme.Success : Theme.Gold);
@@ -485,6 +514,32 @@ namespace ColourCascade.App
         {
             cells.Clear();
             if (session == null || !session.AcceptsMoves) return 0;
+            if (prismPending)
+            {
+                // Choosing the prism's colour: pressing a tile shows every tile of its colour.
+                var pt = session.Board[cell];
+                if (pt.Type != CellType.Colour) return 0;
+                var b = session.Board;
+                for (int i = 0; i < b.CellCount; i++)
+                    if (b.GetByIndex(i).Type == CellType.Colour && b.GetByIndex(i).Colour == pt.Colour) cells.Add(b.PosOf(i));
+                return cells.Count;
+            }
+            if (targeting == null && session.IsSpecialAt(cell))
+            {
+                // A special tile: show what it would reach (just the prism while its colour is still to be picked).
+                GridPos partner;
+                bool combo;
+                if (session.NeedsColourChoice(cell))
+                {
+                    cells.Add(cell);
+                    if (SpecialEffects.FindPartner(session.Board, cell, out partner)) cells.Add(partner);
+                    return cells.Count;
+                }
+                session.PreviewSpecial(cell, -1, cells, out partner, out combo);
+                cells.Add(cell);
+                if (combo) cells.Add(partner);
+                return cells.Count;
+            }
             if (targeting == null)
             {
                 int n = session.PreviewGroup(cell, cells);
@@ -531,13 +586,25 @@ namespace ColourCascade.App
 
         void OnPreviewShown(GridPos cell, List<GridPos> cells, int n)
         {
-            if (targeting != null)
+            if (targeting != null || prismPending)
             {
                 previewBubble.gameObject.SetActive(false);
                 return;
             }
-            previewText.text = "+" + NumberFormat.Thousands(session.PointsForGroup(n));
-            previewText.color = n >= Ctx.Config.Scoring.praiseGoodSize ? Theme.Gold : Theme.Text;
+            if (session.IsSpecialAt(cell))
+            {
+                GridPos partner;
+                bool combo = SpecialEffects.FindPartner(session.Board, cell, out partner);
+                previewText.text = combo ? "Combo!" : SpecialName(session.Board[cell].Special) + "!";
+                previewText.color = Theme.Gold;
+            }
+            else
+            {
+                previewText.text = "+" + NumberFormat.Thousands(session.PointsForGroup(n));
+                var special = Ctx.Config.Scoring.specials.KindFor(n, session.Level.Specials, false);
+                if (special != SpecialKind.None) previewText.text += "  " + SpecialName(special);
+                previewText.color = n >= Ctx.Config.Scoring.praiseGoodSize ? Theme.Gold : Theme.Text;
+            }
             // Place the bubble above the highest tile of the group.
             var top = cells[0];
             foreach (var c in cells) if (c.Row > top.Row) top = c;
@@ -553,12 +620,64 @@ namespace ColourCascade.App
         void OnCommitted(GridPos cell)
         {
             if (session == null || endScheduled) return;
+            if (prismPending)
+            {
+                var t = session.Board[cell];
+                if (t.Type == CellType.Colour) PickPrismColour(t.Colour);
+                return;
+            }
             if (targeting != null)
             {
                 HandleTarget(cell);
                 return;
             }
-            PlayGroup(cell);
+            if (session.NeedsColourChoice(cell))
+            {
+                ShowPrismPicker(cell);
+                return;
+            }
+            PlayGroup(cell, -1);
+        }
+
+        static string SpecialName(SpecialKind kind)
+        {
+            switch (kind)
+            {
+                case SpecialKind.RocketRow:
+                case SpecialKind.RocketColumn: return "Rocket";
+                case SpecialKind.Bomb: return "Bomb";
+                case SpecialKind.Prism: return "Prism";
+                default: return "";
+            }
+        }
+
+        /// <summary>A prism was tapped: the player picks the colour it clears (a swatch, or any tile of that colour).</summary>
+        void ShowPrismPicker(GridPos cell)
+        {
+            CancelTargeting();
+            prismPending = true;
+            prismCell = cell;
+            targetingText.text = "Pick a colour: the prism clears every tile of it";
+            targetingBanner.gameObject.SetActive(true);
+            targetingBanner.localScale = Vector3.one * 0.9f;
+            Tw.Scale(targetingBanner, 1f, 0.2f, Ease.OutBack);
+            scratch.Clear();
+            scratch.Add(cell);
+            GridPos partner;
+            if (SpecialEffects.FindPartner(session.Board, cell, out partner)) scratch.Add(partner);
+            board.Mark(scratch, Theme.Gold);
+            var present = new List<int>();
+            for (int c = 0; c < TileColours.Max; c++)
+                if (session.Board.CountColour(c) > 0) present.Add(c);
+            ShowSwatches(present, PickPrismColour);
+            AudioService.Sfx(SfxNames.Select, 0.6f, 1.2f);
+        }
+
+        void PickPrismColour(int colour)
+        {
+            var cell = prismCell;
+            CancelTargeting();
+            PlayGroup(cell, colour);
         }
 
         void OnInvalidPress(GridPos cell)
@@ -575,6 +694,23 @@ namespace ColourCascade.App
             {
                 Toast.Show("Stones can't be cleared by matching", Icon.Info);
             }
+            else if (t.Type == CellType.Treasure)
+            {
+                board.Shake(cell);
+                Toast.Show("Clear the tiles under the treasure to bring it down", Icon.Info);
+            }
+            else if (t.Type == CellType.Colour && t.Obstacle == ObstacleKind.Ice)
+            {
+                board.Shake(cell);
+                AudioService.Sfx(SfxNames.Invalid, 0.6f);
+                Toast.Show("Frozen tiles can't be tapped. Clear the tiles next to them to crack the ice.", Icon.Info);
+            }
+            else if (t.Type == CellType.Colour && t.Obstacle == ObstacleKind.Chain)
+            {
+                board.Shake(cell);
+                AudioService.Sfx(SfxNames.Invalid, 0.6f);
+                Toast.Show("A chained tile needs a matching neighbour: clear its group to break a link", Icon.Info);
+            }
             else if (t.Type == CellType.Colour)
             {
                 board.Shake(cell);
@@ -588,18 +724,27 @@ namespace ColourCascade.App
             }
         }
 
-        void PlayGroup(GridPos cell)
+        /// <summary>Plays a tap: clears a group or fires a special tile (prismColour is the colour a prism clears).</summary>
+        void PlayGroup(GridPos cell, int prismColour)
         {
-            if (!session.TryPlay(cell, outcome))
+            if (!session.TryPlay(cell, outcome, prismColour))
             {
                 board.Shake(cell);
                 return;
             }
             float duration = board.Animate(outcome);
             CoachMark.Hide();
-            if (AudioService.Instance != null) AudioService.Instance.PlayPop(outcome.GroupSize);
-            if (outcome.GroupSize >= 8) Haptics.Medium();
-            else Haptics.Light();
+            if (outcome.Kind == OutcomeKind.Special)
+            {
+                Haptics.Heavy();
+                ShakeBoard(outcome.SpecialsFired.Count > 1 || outcome.SpecialsFired[0].ComboWith != SpecialKind.None ? 20f : 12f);
+            }
+            else
+            {
+                if (AudioService.Instance != null) AudioService.Instance.PlayPop(outcome.GroupSize);
+                if (outcome.GroupSize >= 8) Haptics.Medium();
+                else Haptics.Light();
+            }
             ShowMoveFeedback(outcome);
             RefreshHud(true);
             AfterMoveTutorials();
@@ -814,6 +959,7 @@ namespace ColourCascade.App
         {
             targeting = null;
             hasFirstPick = false;
+            prismPending = false;
             if (targetingBanner != null) targetingBanner.gameObject.SetActive(false);
             if (colourPicker != null) colourPicker.gameObject.SetActive(false);
             if (powerBar != null) powerBar.gameObject.SetActive(true);
@@ -860,18 +1006,26 @@ namespace ColourCascade.App
 
         void ShowColourPicker(GridPos cell)
         {
-            UI.ClearChildren(colourPicker);
             targetingText.text = "Pick the new colour";
+            int current = session.Board[cell].Colour;
+            var colours = new List<int>();
+            for (int c = 0; c < session.ColourCount; c++)
+                if (c != current) colours.Add(c);
+            ShowSwatches(colours, colour => ApplyPowerUp(PowerUpRequest.CellColour(PowerUpId.ColourShift, cell, colour)));
+        }
+
+        /// <summary>A row of colour swatches in place of the power-up bar (Colour Shift and prisms).</summary>
+        void ShowSwatches(List<int> colours, System.Action<int> picked)
+        {
+            UI.ClearChildren(colourPicker);
             var bg = UI.Card(colourPicker, "Card", Theme.SurfaceHigh, 50);
             var row = UI.Rect("Row", bg);
             row.Fill(20, 20, 20, 20);
             var h = UI.HStack(row, 16, null, TextAnchor.MiddleCenter, false);
             h.childControlWidth = false;
             h.childControlHeight = false;
-            int current = session.Board[cell].Colour;
-            for (int c = 0; c < session.ColourCount; c++)
+            foreach (int c in colours)
             {
-                if (c == current) continue;
                 int colour = c;
                 var swatch = UI.Rect("Swatch" + c, row);
                 swatch.sizeDelta = new Vector2(132, 132);
@@ -880,7 +1034,7 @@ namespace ColourCascade.App
                 img.raycastTarget = true;
                 if (Ctx.Settings.Symbols) UI.Image(img.rectTransform, ArtLibrary.Instance.Symbol(c), Color.white, "Symbol").rectTransform.Centre(70, 70);
                 var b = swatch.gameObject.AddComponent<CCButton>();
-                b.OnClick = () => ApplyPowerUp(PowerUpRequest.CellColour(PowerUpId.ColourShift, cell, colour));
+                b.OnClick = () => picked(colour);
                 b.Configure(ButtonStyle.Ghost, 0);
             }
             powerBar.gameObject.SetActive(false);
@@ -1016,7 +1170,59 @@ namespace ColourCascade.App
                         CoachMark.Show("Stones never move. Tiles can't fall through them, so each section refills on its own.", stone, OverlayYAbove(board.Frame, 110f), 7f);
                         return;
                     }
+                default:
+                    {
+                        // Campaign mechanics: a card that explains it, then a pointer at the first one on the board.
+                        var tip = MechanicTips.For(key, Ctx.Config.Scoring);
+                        if (tip == null) return;
+                        Ctx.Tutorials.MarkSeen(key);
+                        board.CancelPress();
+                        var popup = Nav.Open<MechanicIntroPopup>();
+                        popup.Setup(tip);
+                        popup.Closed += () => PointAtMechanic(key, tip);
+                        return;
+                    }
             }
+        }
+
+        void PointAtMechanic(string key, MechanicTips.Tip tip)
+        {
+            if (session == null || session.IsOver) return;
+            Vector3? at = null;
+            if (key == TutorialKeys.ColourGoal) at = goalsPanel.PositionOf(session.Goals, GoalKind.CollectColour);
+            else
+            {
+                var cellPos = FindMechanicCell(key);
+                if (cellPos.HasValue) at = board.CellWorld(cellPos.Value);
+            }
+            CoachMark.Show(tip.Pointer, at, OverlayYAbove(board.Frame, 110f), 6.5f);
+        }
+
+        /// <summary>The first cell on the board showing the mechanic a tutorial is about.</summary>
+        GridPos? FindMechanicCell(string key)
+        {
+            var b = session.Board;
+            for (int r = b.Height - 1; r >= 0; r--)
+                for (int c = 0; c < b.Width; c++)
+                {
+                    var t = b[c, r];
+                    bool match;
+                    switch (key)
+                    {
+                        case TutorialKeys.Ice: match = t.Obstacle == ObstacleKind.Ice; break;
+                        case TutorialKeys.ThickIce: match = t.Obstacle == ObstacleKind.Ice && t.Strength >= 2; break;
+                        case TutorialKeys.Chains: match = t.Obstacle == ObstacleKind.Chain; break;
+                        case TutorialKeys.Moss: match = t.Obstacle == ObstacleKind.Moss; break;
+                        case TutorialKeys.Treasure: match = t.Type == CellType.Treasure; break;
+                        case TutorialKeys.Rockets: match = t.Type == CellType.Special && (t.Special == SpecialKind.RocketRow || t.Special == SpecialKind.RocketColumn); break;
+                        case TutorialKeys.Bombs: match = t.Type == CellType.Special && t.Special == SpecialKind.Bomb; break;
+                        case TutorialKeys.Prisms: match = t.Type == CellType.Special && t.Special == SpecialKind.Prism; break;
+                        case TutorialKeys.Combos: match = t.Type == CellType.Special; break;
+                        default: match = false; break;
+                    }
+                    if (match) return new GridPos(c, r);
+                }
+            return null;
         }
 
         void ShowModeTutorial()
@@ -1038,6 +1244,22 @@ namespace ColourCascade.App
         void AfterMoveTutorials()
         {
             if (session.Mode != GameMode.Campaign) return;
+            if (outcome.HasCreated && Ctx.Tutorials.MarkSeen(TutorialKeys.FirstSpecial))
+            {
+                int id = outcome.Created.TileId;
+                string name = SpecialName(outcome.Created.Kind).ToLowerInvariant();
+                Tw.Delay(1.0f, () =>
+                {
+                    if (session == null || session.IsOver) return;
+                    var b = session.Board;
+                    for (int i = 0; i < b.CellCount; i++)
+                        if (b.GetByIndex(i).Id == id && b.GetByIndex(i).Type == CellType.Special)
+                        {
+                            CoachMark.Show("You made a " + name + "! Tap it to fire it.", board.CellWorld(b.PosOf(i)), OverlayYAbove(board.Frame, 110f), 5f);
+                            return;
+                        }
+                }, this);
+            }
             if (session.Level.TutorialKey == TutorialKeys.TapGroup && session.MovesMade == 1 && Ctx.Tutorials.MarkSeen(TutorialKeys.TapGroup))
             {
                 Ctx.Tutorials.MarkSeen(TutorialKeys.BiggerGroups);
@@ -1057,7 +1279,9 @@ namespace ColourCascade.App
             string text;
             switch (session.Mode)
             {
-                case GameMode.Campaign: text = "Score " + NumberFormat.Thousands(l.Target) + " in " + l.Moves + " moves"; break;
+                case GameMode.Campaign:
+                    text = l.Goals != null && l.Goals.Length > 0 ? GoalVisuals.IntroLine(l) : "Score " + NumberFormat.Thousands(l.Target) + " in " + l.Moves + " moves";
+                    break;
                 case GameMode.Daily: text = l.Moves + " moves  ·  target " + NumberFormat.Thousands(l.Target); break;
                 case GameMode.Endless: text = l.Moves + " moves  ·  big groups add more"; break;
                 default: text = l.Title; break;

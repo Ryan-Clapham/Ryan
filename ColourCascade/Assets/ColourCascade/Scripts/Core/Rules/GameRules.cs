@@ -153,6 +153,10 @@ namespace ColourCascade.Core
         /// <summary>Leftover moves are converted to bonus points: each one is worth target / moves × this permille.</summary>
         public int leftoverBonusPermille = 1000;
         public int calibrationRuns = 16;
+        /// <summary>Bot games used to size a goal level's moves and stars (more is steadier but slower to generate).</summary>
+        public int goalCalibrationRuns = 10;
+        /// <summary>When each mechanic joins the campaign. Its introduction levels are built in (CampaignDesign).</summary>
+        public MechanicSchedule mechanics = new MechanicSchedule();
         public LevelOverride[] overrides = new LevelOverride[0];
     }
 

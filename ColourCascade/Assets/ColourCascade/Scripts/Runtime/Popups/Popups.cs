@@ -139,11 +139,33 @@ namespace ColourCascade.App
             region.text = reg.Name.ToUpperInvariant() + (spec.IsMilestone ? "  ·  MILESTONE" : "");
             stars.Set(Ctx.Campaign.StarsFor(level));
             UI.ClearChildren(info);
-            InfoRow(info, Icon.Target, "Target score", NumberFormat.Thousands(spec.Target));
+            // Four rows fit: the goals (or the target), the moves, then the board and a note while there is room.
+            int rows = 0;
+            if (spec.Goals != null && spec.Goals.Length > 0)
+            {
+                foreach (var g in spec.Goals)
+                {
+                    InfoRow(info, Icon.Target, GoalVisuals.Describe(g), "");
+                    rows++;
+                }
+            }
+            else
+            {
+                InfoRow(info, Icon.Target, "Target score", NumberFormat.Thousands(spec.Target));
+                rows++;
+            }
             InfoRow(info, Icon.Restart, "Moves", spec.Moves.ToString());
-            InfoRow(info, Icon.Map, "Board", spec.Width + " × " + spec.Height + "  ·  " + spec.Colours + " colours" + (spec.StoneCount > 0 ? "  ·  stones" : ""));
-            if (Ctx.Campaign.IsCompleted(level)) InfoRow(info, Icon.Trophy, "Your best", NumberFormat.Thousands(Ctx.Campaign.BestScore(level)));
-            else if (!string.IsNullOrEmpty(spec.Note)) InfoRow(info, Icon.Info, spec.Note, "");
+            rows++;
+            if (rows < 4)
+            {
+                InfoRow(info, Icon.Map, "Board", spec.Width + " × " + spec.Height + "  ·  " + spec.Colours + " colours" + (spec.StoneCount > 0 ? "  ·  stones" : ""));
+                rows++;
+            }
+            if (rows < 4)
+            {
+                if (Ctx.Campaign.IsCompleted(level)) InfoRow(info, Icon.Trophy, "Your best", NumberFormat.Thousands(Ctx.Campaign.BestScore(level)));
+                else if (!string.IsNullOrEmpty(spec.Note)) InfoRow(info, Icon.Info, spec.Note, "");
+            }
             int coins = Ctx.Rewards.FirstClearPreview(spec);
             reward.text = coins > 0 ? "First clear:  +" + coins + " coins" : "Replay to beat your best and earn new stars";
             reward.color = coins > 0 ? Theme.Gold : Theme.TextSecondary;
@@ -299,6 +321,51 @@ namespace ColourCascade.App
             AudioService.Sfx(SfxNames.Unlock);
             circle.transform.localScale = Vector3.zero;
             Tw.Scale(circle.transform, 1f, 0.5f, Ease.OutBackStrong, 0.15f);
+        }
+    }
+
+    /// <summary>Introduces a campaign mechanic on its first level: a picture, a name and how it works.</summary>
+    public sealed class MechanicIntroPopup : PopupBase
+    {
+        protected override float PanelHeight => 1080f;
+        RectTransform artHolder;
+        Text nameText;
+        Text desc;
+
+        protected override void Build()
+        {
+            Title("Something new!", false, 46);
+            var glow = UI.Image(Content, ArtLibrary.Instance.Get(ArtNames.Glow), new Color(1, 1, 1, 0.35f), "Glow");
+            glow.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -120), new Vector2(330, 330));
+            artHolder = UI.Rect("Art", Content);
+            artHolder.Place(new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -170), new Vector2(230, 230));
+            nameText = UI.Text(Content, "", Theme.FontHeading, Theme.Text, TextAnchor.MiddleCenter, true, "Name");
+            nameText.rectTransform.TopStrip(80, 420, 60, 60);
+            desc = UI.Text(Content, "", Theme.FontBody, Theme.TextSecondary, TextAnchor.UpperCenter, false, "Description");
+            desc.rectTransform.TopStrip(330, 515, 70, 70);
+            FooterButton("Got it!", ButtonStyle.Primary, Close, null, 60, 150);
+        }
+
+        public void Setup(MechanicTips.Tip tip)
+        {
+            UI.ClearChildren(artHolder);
+            Image art;
+            if (!string.IsNullOrEmpty(tip.ArtTile))
+            {
+                art = UI.Image(artHolder, ArtLibrary.Instance.Get(tip.ArtTile), Color.white, "Piece");
+                art.rectTransform.Fill();
+            }
+            else
+            {
+                art = UI.Image(artHolder, ArtLibrary.Instance.Tile(tip.ArtColour), Color.white, "Tile");
+                art.rectTransform.Fill();
+                if (!string.IsNullOrEmpty(tip.ArtOverlay)) UI.Image(art.rectTransform, ArtLibrary.Instance.Get(tip.ArtOverlay), Color.white, "Overlay").rectTransform.Fill();
+            }
+            nameText.text = tip.Title;
+            desc.text = tip.Body;
+            AudioService.Sfx(SfxNames.Unlock);
+            artHolder.localScale = Vector3.zero;
+            Tw.Scale(artHolder, 1f, 0.5f, Ease.OutBackStrong, 0.15f);
         }
     }
 

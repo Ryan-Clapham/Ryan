@@ -39,12 +39,12 @@ namespace ColourCascade.Tests
 
         static int ColourTiles(Board b, IEnumerable<GridPos> cells) => cells.Count(p => b.InBounds(p) && b[p].Type == CellType.Colour);
 
-        [TestCase(6, SpecialKind.None)]
-        [TestCase(7, SpecialKind.RocketRow)]
-        [TestCase(9, SpecialKind.RocketRow)]
-        [TestCase(10, SpecialKind.Bomb)]
-        [TestCase(13, SpecialKind.Bomb)]
-        [TestCase(14, SpecialKind.Prism)]
+        [TestCase(5, SpecialKind.None)]
+        [TestCase(6, SpecialKind.RocketRow)]
+        [TestCase(8, SpecialKind.RocketRow)]
+        [TestCase(9, SpecialKind.Bomb)]
+        [TestCase(11, SpecialKind.Bomb)]
+        [TestCase(12, SpecialKind.Prism)]
         [TestCase(16, SpecialKind.Prism)]
         public void BigGroupsEarnSpecialsAtTheConfiguredSizes(int size, SpecialKind expected)
         {
@@ -89,6 +89,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SpecialKind.RocketRow, Play.Tap(s, 0, 0).Created.Kind);
             var rules = new SpecialRules();
             Assert.AreEqual(SpecialKind.RocketColumn, rules.KindFor(7, SpecialTier.Prisms, false), "taller than wide: a column rocket");
+            Assert.AreEqual(new[] { 6, 9, 12 }, new[] { rules.rocketGroupSize, rules.bombGroupSize, rules.prismGroupSize }, "the defaults the campaign was balanced with");
         }
 
         [Test]

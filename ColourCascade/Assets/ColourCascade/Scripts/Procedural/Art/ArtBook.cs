@@ -1,4 +1,5 @@
 using System;
+using ColourCascade.Core;
 using System.Collections.Generic;
 
 namespace ColourCascade.Procedural
@@ -49,6 +50,43 @@ namespace ColourCascade.Procedural
         public const float ShadowRadiusPx = 48f;
 
         public static string Tile(int colour) => "tile." + colour;
+
+        // Campaign mechanics (docs/MECHANICS.md). Overlays sit on a colour tile; pieces replace it.
+        public const string Ice1 = "tile.ice1";
+        public const string Ice2 = "tile.ice2";
+        public const string Chain1 = "tile.chain1";
+        public const string Chain2 = "tile.chain2";
+        public const string Chain3 = "tile.chain3";
+        public const string Moss = "tile.moss";
+        public const string RocketRow = "tile.rocketrow";
+        public const string RocketColumn = "tile.rocketcol";
+        public const string Bomb = "tile.bomb";
+        public const string Prism = "tile.prism";
+        public const string Treasure = "tile.treasure";
+        public const string Beam = "fx.beam";
+
+        /// <summary>The overlay for an obstacle with this strength, or null for none.</summary>
+        public static string Obstacle(ObstacleKind kind, int strength)
+        {
+            switch (kind)
+            {
+                case ObstacleKind.Ice: return strength >= 2 ? Ice2 : Ice1;
+                case ObstacleKind.Chain: return strength >= 3 ? Chain3 : strength == 2 ? Chain2 : Chain1;
+                case ObstacleKind.Moss: return Moss;
+                default: return null;
+            }
+        }
+
+        public static string Special(SpecialKind kind)
+        {
+            switch (kind)
+            {
+                case SpecialKind.RocketRow: return RocketRow;
+                case SpecialKind.RocketColumn: return RocketColumn;
+                case SpecialKind.Bomb: return Bomb;
+                default: return Prism;
+            }
+        }
         public static string Symbol(int colour) => "sym." + colour;
         public static string IconName(Icon icon) => "icon." + icon;
         public static string PowerUp(int id) => "pu." + id;
@@ -62,7 +100,7 @@ namespace ColourCascade.Procedural
     public static class ArtBook
     {
         /// <summary>Bump whenever any recipe changes, so cached atlases on devices are regenerated.</summary>
-        public const int Version = 3;
+        public const int Version = 4;
 
         static readonly Rgba W = Rgba.White;
         static Rgba WA(float a) => new Rgba(1, 1, 1, a);
@@ -80,6 +118,16 @@ namespace ColourCascade.Procedural
             list.Add(StoneTile());
             list.Add(TileGlow());
             list.Add(TileFlash());
+            list.Add(IceOverlay(1));
+            list.Add(IceOverlay(2));
+            for (int links = 1; links <= 3; links++) list.Add(ChainOverlay(links));
+            list.Add(MossOverlay());
+            list.Add(RocketTile(false));
+            list.Add(RocketTile(true));
+            list.Add(BombTile());
+            list.Add(PrismTile());
+            list.Add(TreasureTile());
+            list.Add(BeamImage());
             foreach (Icon icon in Enum.GetValues(typeof(Icon))) list.Add(IconImage(icon));
             for (int id = 0; id < 6; id++) list.Add(PowerUpIcon(id));
             foreach (Decor d in Enum.GetValues(typeof(Decor))) list.Add(DecorImage(d));
@@ -226,6 +274,194 @@ namespace ColourCascade.Procedural
             cv.Fill(face.Outline(1f).Intersect(face).Intersect(HalfPlane.Above(64)), WA(0.3f));
             cv.Fill(new Ellipse(36, 82, 16, 5), WA(0.18f));
             return cv.ToImage(ArtNames.Stone);
+        }
+
+        // ------------------------------------------------------------------ Obstacles and pieces (campaign mechanics)
+
+        /// <summary>Ice over a tile: a pale translucent sheet with glints; thick ice is denser with a second rim.</summary>
+        static ImageData IceOverlay(int layers)
+        {
+            var cv = new PixelCanvas(160, 160);
+            var box = new RoundBox(50, 50, 48.5f, 48.5f, 21);
+            bool thick = layers >= 2;
+            var frost = new Rgba(0.78f, 0.93f, 1f);
+            cv.Fill(box, LinearPaint.Vertical(0, frost.WithAlpha(thick ? 0.62f : 0.42f), 100, new Rgba(0.93f, 0.98f, 1f, thick ? 0.78f : 0.56f)));
+            cv.Fill(box.Outline(thick ? 3.4f : 2.2f).Intersect(box), new Rgba(0.95f, 0.99f, 1f, 0.95f));
+            if (thick)
+            {
+                var inner = new RoundBox(50, 50, 39, 39, 15);
+                cv.Fill(inner.Outline(1.8f), new Rgba(1f, 1f, 1f, 0.75f));
+                // Frost cracks in the corners of thick ice.
+                cv.Fill(new Capsule(12, 30, 24, 22, 1.1f).Union(new Capsule(24, 22, 30, 12, 1.1f), new Capsule(76, 88, 88, 74, 1.1f), new Capsule(80, 82, 70, 72, 0.9f)), WA(0.85f));
+            }
+            cv.Fill(new Capsule(18, 66, 40, 90, 3.2f).Intersect(box), WA(0.6f));
+            cv.Fill(new Capsule(28, 60, 44, 76, 1.6f).Intersect(box), WA(0.5f));
+            cv.Fill(new Capsule(64, 18, 84, 38, 2.2f).Intersect(box), WA(0.35f));
+            // A small snowflake so frozen tiles read as ice even in greyscale.
+            var flake = new Capsule(78, 74, 78, 88, 1.3f).Union(new Capsule(72, 77.5f, 84, 84.5f, 1.3f), new Capsule(72, 84.5f, 84, 77.5f, 1.3f));
+            cv.Fill(flake.Inflate(1.2f), new Rgba(0.35f, 0.55f, 0.75f, 0.45f));
+            cv.Fill(flake, W);
+            return cv.ToImage(layers >= 2 ? ArtNames.Ice2 : ArtNames.Ice1);
+        }
+
+        /// <summary>Chains across a tile with a padlock: one diagonal for one link, an X for two, an X and a bar for three.</summary>
+        static ImageData ChainOverlay(int links)
+        {
+            var cv = new PixelCanvas(160, 160);
+            var metal = LinearPaint.Vertical(0, Rgba.Hex("#8A8FA8"), 100, Rgba.Hex("#E8ECF8"));
+            var dark = Ink(0.55f);
+            void Line(float x0, float y0, float x1, float y1)
+            {
+                float angle = (float)(Math.Atan2(y1 - y0, x1 - x0) * 180 / Math.PI);
+                const int n = 7;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = (i + 0.5f) / n;
+                    float x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
+                    Shape link = i % 2 == 0
+                        ? new Ellipse(x, y, 8.6f, 5.4f).Outline(1.9f)
+                        : (Shape)new Capsule(x - 5.2f, y, x + 5.2f, y, 1.9f);
+                    link = link.Rotate(angle, x, y);
+                    cv.Fill(link.Inflate(1.3f).Move(0.8f, -1.2f), dark);
+                    cv.Fill(link, metal);
+                }
+            }
+            Line(6, 6, 94, 94);
+            if (links >= 2) Line(6, 94, 94, 6);
+            if (links >= 3) Line(2, 50, 98, 50);
+            // Padlock at the bottom edge, clear of the colour symbol in the middle.
+            var shackle = new Circle(50, 22, 7f).Outline(2.2f).Intersect(HalfPlane.Above(20));
+            var body = new RoundBox(50, 12.5f, 9.5f, 8f, 2.5f);
+            cv.Fill(shackle.Union(body).Inflate(1.6f).Move(0.6f, -1.4f), dark);
+            cv.Fill(shackle, metal);
+            cv.Fill(body, LinearPaint.Vertical(5, Palette.GoldLip, 21, Palette.Gold.Lighten(0.2f)));
+            cv.Fill(new Circle(50, 14, 1.9f).Union(new RoundBox(50, 10.5f, 0.9f, 2.6f, 0.7f)), Ink(0.7f));
+            return cv.ToImage(links >= 3 ? ArtNames.Chain3 : links == 2 ? ArtNames.Chain2 : ArtNames.Chain1);
+        }
+
+        /// <summary>Moss creeping over a tile from its edges, leaving the middle (and the colour) visible.</summary>
+        static ImageData MossOverlay()
+        {
+            var cv = new PixelCanvas(160, 160);
+            var box = new RoundBox(50, 50, 48.5f, 48.5f, 21);
+            var deep = Rgba.Hex("#1F7A3A");
+            var light = Rgba.Hex("#7BE07F");
+            float[] blobs =
+            {
+                8, 10, 13, 26, 6, 11, 44, 5, 10, 62, 7, 12, 82, 9, 13, 93, 26, 11, 6, 32, 11, 7, 56, 9, 94, 52, 9,
+                90, 78, 11, 10, 84, 10, 30, 93, 9, 66, 94, 8, 50, 96, 6,
+            };
+            Shape moss = null;
+            for (int i = 0; i < blobs.Length; i += 3)
+            {
+                var c = new Circle(blobs[i], blobs[i + 1], blobs[i + 2]);
+                moss = moss == null ? (Shape)c : moss.Union(c);
+            }
+            moss = moss.Intersect(box);
+            cv.Fill(moss.Inflate(1.5f), deep.WithAlpha(0.65f), 1f, 2f);
+            cv.Fill(moss, LinearPaint.Vertical(0, deep.WithAlpha(0.92f), 100, light.WithAlpha(0.92f)));
+            float[] dots = { 14, 14, 30, 8, 70, 10, 88, 22, 8, 46, 92, 62, 16, 86, 82, 88, 52, 94 };
+            for (int i = 0; i < dots.Length; i += 2) cv.Fill(new Circle(dots[i], dots[i + 1], 2.2f), light.Lighten(0.4f));
+            // Two small leaves.
+            cv.Fill(new Ellipse(22, 22, 7, 3.4f).Rotate(40, 22, 22), light.Lighten(0.2f));
+            cv.Fill(new Ellipse(78, 80, 7, 3.4f).Rotate(-35, 78, 80), light.Lighten(0.2f));
+            return cv.ToImage(ArtNames.Moss);
+        }
+
+        static void SpecialBack(PixelCanvas cv, Rgba from, Rgba to)
+        {
+            var outer = new RoundBox(50, 50, 48.5f, 48.5f, 21);
+            cv.Fill(outer, LinearPaint.Vertical(0, from.Darken(0.35f), 100, from.Darken(0.1f)));
+            var face = new RoundBox(50, 53.2f, 44.8f, 44.2f, 18);
+            cv.Fill(face, new RadialPaint(50, 56, 50, to, from));
+            cv.Fill(face.Outline(0.9f).Intersect(face).Intersect(HalfPlane.Above(62)), WA(0.35f));
+        }
+
+        /// <summary>A double-ended rocket with arrows at both ends; the column version is the same turned upright.</summary>
+        static ImageData RocketTile(bool vertical)
+        {
+            var cv = new PixelCanvas(160, 160);
+            SpecialBack(cv, Rgba.Hex("#3B2B8F"), Rgba.Hex("#8C7BFF"));
+            float rot = vertical ? 90 : 0;
+            var hull = new Capsule(30, 52, 70, 52, 9.5f).Rotate(rot, 50, 52);
+            var noseL = new Polygon(30, 61.5f, 16, 52, 30, 42.5f).Inflate(1).Rotate(rot, 50, 52);
+            var noseR = new Polygon(70, 61.5f, 84, 52, 70, 42.5f).Inflate(1).Rotate(rot, 50, 52);
+            var band = new RoundBox(50, 52, 3, 10.5f, 1).Rotate(rot, 50, 52);
+            var window = new Circle(50, 52, 4.2f);
+            var arrows = new Polygon(5, 52, 12, 59, 12, 45).Union(new Polygon(95, 52, 88, 59, 88, 45)).Rotate(rot, 50, 52);
+            cv.Fill(hull.Union(noseL, noseR).Inflate(2).Move(0, -2), Ink(0.4f), 1f, 2f);
+            cv.Fill(hull, LinearPaint.Vertical(40, Rgba.Hex("#C9CDE3"), 64, W));
+            cv.Fill(noseL.Union(noseR), LinearPaint.Vertical(40, Palette.Tiles[0].Darken(0.15f), 64, Palette.Tiles[0].Lighten(0.2f)));
+            cv.Fill(band, Palette.Tiles[1]);
+            cv.Fill(window.Inflate(1.4f), Ink(0.5f));
+            cv.Fill(window, Rgba.Hex("#7FD8FF"));
+            cv.Fill(arrows, Palette.Gold.Lighten(0.2f));
+            return cv.ToImage(vertical ? ArtNames.RocketColumn : ArtNames.RocketRow);
+        }
+
+        static ImageData BombTile()
+        {
+            var cv = new PixelCanvas(160, 160);
+            SpecialBack(cv, Rgba.Hex("#7A1F3A"), Rgba.Hex("#FF7A6B"));
+            var body = new Circle(47, 45, 25);
+            cv.Fill(body.Move(0, -2.5f), Ink(0.45f), 1f, 2f);
+            cv.Fill(body, LinearPaint.Vertical(20, Rgba.Hex("#1A1438"), 70, Rgba.Hex("#4A3F86")));
+            cv.Fill(new Ellipse(38, 56, 8, 5).Rotate(-35, 38, 56), WA(0.55f));
+            cv.Fill(new RoundBox(64, 64, 8, 6, 2).Rotate(45, 64, 64), Rgba.Hex("#6B63A8"));
+            cv.Fill(new Capsule(68, 69, 74, 77, 2.4f).Union(new Capsule(74, 77, 79, 80, 2.4f)), Rgba.Hex("#C9A27A"));
+            cv.Fill(Polygon.Star(81, 82, 12, 4.5f, 6), Rgba.Hex("#FFD54A"));
+            cv.Fill(Polygon.Star(81, 82, 6.5f, 2.6f, 6, 30), W);
+            return cv.ToImage(ArtNames.Bomb);
+        }
+
+        /// <summary>A hexagonal gem with a facet in every tile colour: "any colour".</summary>
+        static ImageData PrismTile()
+        {
+            var cv = new PixelCanvas(160, 160);
+            SpecialBack(cv, Rgba.Hex("#1E2A6E"), Rgba.Hex("#BFD4FF"));
+            var hex = Polygon.Regular(50, 51, 31, 6, 90);
+            cv.Fill(hex.Inflate(2.5f).Move(0, -2.5f), Ink(0.45f), 1f, 2f);
+            for (int i = 0; i < 6; i++)
+            {
+                double a0 = (90 + i * 60) * Math.PI / 180, a1 = (90 + (i + 1) * 60) * Math.PI / 180;
+                var facet = new Polygon(50, 51, 50 + (float)Math.Cos(a0) * 31, 51 + (float)Math.Sin(a0) * 31, 50 + (float)Math.Cos(a1) * 31, 51 + (float)Math.Sin(a1) * 31);
+                cv.Fill(facet, LinearPaint.Vertical(20, Palette.Tiles[i].Darken(0.1f), 82, Palette.Tiles[i].Lighten(0.3f)));
+            }
+            cv.Fill(Polygon.Regular(50, 51, 13, 6, 90), WA(0.85f));
+            cv.Fill(hex.Outline(1.1f), WA(0.7f));
+            cv.Fill(Polygon.Star(76, 80, 7, 2.4f, 4), W);
+            cv.Fill(Polygon.Star(22, 24, 5, 1.8f, 4), WA(0.9f));
+            return cv.ToImage(ArtNames.Prism);
+        }
+
+        /// <summary>A small treasure chest on a soft glow (treasure is not a tile, so it has no tile frame).</summary>
+        static ImageData TreasureTile()
+        {
+            var cv = new PixelCanvas(160, 160);
+            cv.Fill(new Circle(50, 48, 44), new RadialPaint(50, 48, 44, Palette.Gold.WithAlpha(0.55f), Palette.Gold.WithAlpha(0f)));
+            var wood = Rgba.Hex("#8A4B22");
+            var chest = new RoundBox(50, 38, 30, 17, 4);
+            var lid = new RoundBox(50, 60, 30, 9, 4).Union(new Ellipse(50, 66, 30, 9));
+            cv.Fill(chest.Union(lid).Inflate(2.2f).Move(0, -2.5f), Ink(0.5f), 1f, 2f);
+            cv.Fill(chest, LinearPaint.Vertical(21, wood.Darken(0.2f), 55, wood.Lighten(0.15f)));
+            cv.Fill(lid, LinearPaint.Vertical(52, wood, 75, wood.Lighten(0.3f)));
+            var trim = Palette.Gold;
+            cv.Fill(new RoundBox(50, 53, 31, 2.2f, 1), trim);
+            cv.Fill(new RoundBox(26, 46, 2.4f, 25, 1).Union(new RoundBox(74, 46, 2.4f, 25, 1)), trim.Darken(0.1f));
+            cv.Fill(new RoundBox(50, 46, 6, 7.5f, 2), LinearPaint.Vertical(38, Palette.GoldLip, 54, trim.Lighten(0.3f)));
+            cv.Fill(new Circle(50, 47, 1.8f), Ink(0.7f));
+            cv.Fill(new Ellipse(36, 66, 9, 3).Rotate(-10, 36, 66), WA(0.45f));
+            cv.Fill(Polygon.Star(78, 74, 6, 2, 4), W);
+            return cv.ToImage(ArtNames.Treasure);
+        }
+
+        /// <summary>A soft horizontal streak, stretched along a row or column when a rocket fires.</summary>
+        static ImageData BeamImage()
+        {
+            var cv = new PixelCanvas(256, 64); // 100 × 25 units
+            cv.Fill(new Capsule(8, 12.5f, 92, 12.5f, 8), W, 0.4f, 4f);
+            cv.Fill(new Capsule(10, 12.5f, 90, 12.5f, 3.5f), W, 1f, 2.5f);
+            return cv.ToImage(ArtNames.Beam);
         }
 
         static ImageData TileGlow()

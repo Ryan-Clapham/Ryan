@@ -10,7 +10,7 @@ namespace ColourCascade.Core
         Ice = 1,
         /// <summary>Chained tile: 1-3 links, broken off when its own colour's group clears.</summary>
         Chain = 2,
-        /// <summary>Mossy tile: joins its colour's groups and leaves with them; spreads when a move clears none.</summary>
+        /// <summary>Mossy tile: joins its colour's groups and leaves with them, falls like any tile; spreads when a move clears none.</summary>
         Moss = 3,
     }
 
@@ -59,8 +59,10 @@ namespace ColourCascade.Core
             });
             Register(new ObstacleDefinition
             {
+                // Moss grows on a tile; it does not pin it, so mossy tiles fall like any other. A clear next to it scrapes
+                // the moss off (the tile stays); clearing the tile itself takes the moss with it.
                 Kind = ObstacleKind.Moss, Name = "Moss", MaxStrength = 1,
-                HoldsInPlace = true, JoinsGroups = true, HitWhenItsGroupClears = false, HitByAdjacentClear = false, CanBeRecoloured = false,
+                HoldsInPlace = false, JoinsGroups = true, HitWhenItsGroupClears = false, HitByAdjacentClear = true, CanBeRecoloured = false,
                 AreaHitRemovesTile = true, Spreads = true,
             });
         }

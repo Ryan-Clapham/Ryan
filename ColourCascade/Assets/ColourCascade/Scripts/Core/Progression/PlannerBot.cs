@@ -7,7 +7,8 @@ namespace ColourCascade.Core
     /// special tile) it weighs: progress towards the level's unfinished goals, the points the move scores, special
     /// tiles it earns, and what is left once the tiles fall (one move ahead: the best next group and any treasure
     /// that would be collected). It does not peek at refills, since a player cannot know them either.
-    /// Deterministic: the same board always gives the same choice.
+    /// Deterministic: the same board always gives the same choice, on every platform (integer arithmetic only, in
+    /// half-points, so level calibration gives the same numbers on every device).
     /// </summary>
     public sealed class PlannerBot
     {
@@ -15,8 +16,7 @@ namespace ColourCascade.Core
         public const int GoalUnitValue = 400;
         /// <summary>Value of one step towards freeing an obstacle that a goal needs.</summary>
         public const int ObstacleStepValue = 150;
-        /// <summary>Weight of the best follow-up group's points.</summary>
-        public const double LookaheadWeight = 0.5;
+        // Values are kept in half-points (×2) so the lookahead's weight of one half stays an integer.
         /// <summary>Value of earning a rocket, bomb or prism (roughly what firing it later is worth).</summary>
         public const int RocketValue = 350, BombValue = 500, PrismValue = 800;
         /// <summary>Cost of letting moss grow (a move that clears none while moss must be cleared).</summary>
@@ -46,14 +46,14 @@ namespace ColourCascade.Core
             var board = session.Board;
             if (board == null) return false;
             finder.FindAllGroups(board, groups);
-            double best = double.MinValue;
+            long best = long.MinValue;
             int bestSize = -1;
             bool any = false;
             for (int i = 0; i < groups.Count; i++)
             {
                 var g = groups[i];
                 finder.FindGroup(board, g.Anchor, cells);
-                double v = EvaluateGroup(session, g);
+                long v = EvaluateGroup(session, g);
                 if (v > best || (v == best && g.Size > bestSize))
                 {
                     best = v;
@@ -71,7 +71,7 @@ namespace ColourCascade.Core
                 GridPos partner;
                 bool combo;
                 session.PreviewSpecial(p, prismColour, cells, out partner, out combo);
-                double v = EvaluateSpecial(session, combo);
+                long v = EvaluateSpecial(session, combo);
                 if (v > best)
                 {
                     best = v;
@@ -85,7 +85,7 @@ namespace ColourCascade.Core
         }
 
         /// <summary>The colour a prism should clear: an unfinished collect goal's colour if any is on the board, else the most common.</summary>
-        static int PrismColour(PuzzleSession s)
+        public static int PrismColour(PuzzleSession s)
         {
             var goals = s.Goals;
             if (goals != null)
@@ -96,10 +96,10 @@ namespace ColourCascade.Core
         }
 
         /// <summary>The value of clearing the group whose cells are in <c>cells</c>.</summary>
-        double EvaluateGroup(PuzzleSession s, GroupInfo g)
+        long EvaluateGroup(PuzzleSession s, GroupInfo g)
         {
             var board = s.Board;
-            double value = s.Scoring.GroupPoints(g.Size);
+            long value = 2L * s.Scoring.GroupPoints(g.Size);
             removed.Clear();
             for (int k = 0; k < cells.Count; k++)
                 if (!TileRules.StaysWhenItsGroupClears(board[cells[k]])) removed.Add(cells[k]);
@@ -109,15 +109,15 @@ namespace ColourCascade.Core
             if (tier != SpecialTier.None)
             {
                 var kind = s.Scoring.specials.KindFor(g.Size, tier, false);
-                if (kind == SpecialKind.Prism) value += PrismValue;
-                else if (kind == SpecialKind.Bomb) value += BombValue;
-                else if (kind != SpecialKind.None) value += RocketValue;
+                if (kind == SpecialKind.Prism) value += 2L * PrismValue;
+                else if (kind == SpecialKind.Bomb) value += 2L * BombValue;
+                else if (kind != SpecialKind.None) value += 2L * RocketValue;
             }
             return value + Lookahead(s);
         }
 
         /// <summary>The value of firing the special whose reach is in <c>cells</c>.</summary>
-        double EvaluateSpecial(PuzzleSession s, bool combo)
+        long EvaluateSpecial(PuzzleSession s, bool combo)
         {
             var board = s.Board;
             removed.Clear();
@@ -131,7 +131,7 @@ namespace ColourCascade.Core
                     tiles++;
                 }
             }
-            double value = tiles * (combo ? s.Scoring.specials.comboPointsPerTile : s.Scoring.specials.pointsPerTile);
+            long value = 2L * tiles * (combo ? s.Scoring.specials.comboPointsPerTile : s.Scoring.specials.pointsPerTile);
             value += GoalValue(s, false);
             return value + Lookahead(s);
         }
@@ -140,12 +140,12 @@ namespace ColourCascade.Core
         /// Goal progress from removing the tiles in <c>removed</c>. For a group, <c>cells</c> also holds chained
         /// tiles that lose a link; for a special, every reached obstacle takes one step.
         /// </summary>
-        double GoalValue(PuzzleSession s, bool isGroup)
+        long GoalValue(PuzzleSession s, bool isGroup)
         {
             var goals = s.Goals;
             if (goals == null) return 0;
             var board = s.Board;
-            double value = 0;
+            long value = 0;
             for (int i = 0; i < goals.Count; i++)
             {
                 if (goals.IsComplete(i)) continue;
@@ -158,7 +158,7 @@ namespace ColourCascade.Core
                             int n = 0;
                             foreach (var p in removed)
                                 if (board[p].Colour == goal.colour) n++;
-                            value += System.Math.Min(n, remaining) * GoalUnitValue;
+                            value += 2L * System.Math.Min(n, remaining) * GoalUnitValue;
                             break;
                         }
                     case GoalKind.BreakChains:
@@ -171,7 +171,7 @@ namespace ColourCascade.Core
                                 if (t.Strength <= 1) freed++;
                                 else steps++;
                             }
-                            value += System.Math.Min(freed, remaining) * GoalUnitValue + steps * ObstacleStepValue;
+                            value += 2L * (System.Math.Min(freed, remaining) * GoalUnitValue + steps * ObstacleStepValue);
                             break;
                         }
                     case GoalKind.FreeIce:
@@ -192,16 +192,27 @@ namespace ColourCascade.Core
                                 if (board[p].Strength <= 1) freed++;
                                 else steps++;
                             }
-                            value += System.Math.Min(freed, remaining) * GoalUnitValue + steps * ObstacleStepValue;
+                            value += 2L * (System.Math.Min(freed, remaining) * GoalUnitValue + steps * ObstacleStepValue);
                             break;
                         }
                     case GoalKind.ClearMoss:
                         {
-                            int moss = 0;
+                            // Mossy tiles cleared, plus moss scraped off next to anything removed.
+                            iceTouched.Clear();
                             foreach (var p in removed)
-                                if (board[p].Obstacle == ObstacleKind.Moss) moss++;
-                            value += moss * GoalUnitValue;
-                            if (moss == 0) value -= MossGrowthCost;
+                            {
+                                if (board[p].Obstacle == ObstacleKind.Moss) iceTouched.Add(p);
+                                for (int d = 0; d < 4; d++)
+                                {
+                                    var n = new GridPos(p.Col + Board.DCol[d], p.Row + Board.DRow[d]);
+                                    if (board.InBounds(n) && board[n].Type == CellType.Colour && board[n].Obstacle == ObstacleKind.Moss) iceTouched.Add(n);
+                                }
+                            }
+                            if (!isGroup)
+                                for (int k = 0; k < cells.Count; k++)
+                                    if (board[cells[k]].Type == CellType.Colour && board[cells[k]].Obstacle == ObstacleKind.Moss) iceTouched.Add(cells[k]);
+                            value += 2L * iceTouched.Count * GoalUnitValue;
+                            if (iceTouched.Count == 0) value -= 2L * MossGrowthCost;
                             break;
                         }
                     case GoalKind.CollectTreasure:
@@ -219,7 +230,7 @@ namespace ColourCascade.Core
                                     }
                                     if (TileRules.IsGravityBarrier(t)) break;
                                 }
-                            value += under * ObstacleStepValue;
+                            value += 2L * under * GoalUnitValue;
                             break;
                         }
                 }
@@ -231,7 +242,7 @@ namespace ColourCascade.Core
         /// Drops the tiles once the cells in <c>removed</c> are gone (no refill): the best group left, plus any
         /// treasure that reaches the floor when a treasure goal is unfinished.
         /// </summary>
-        double Lookahead(PuzzleSession s)
+        long Lookahead(PuzzleSession s)
         {
             var board = s.Board;
             if (scratch == null || scratch.Width != board.Width || scratch.Height != board.Height) scratch = board.Clone();
@@ -243,13 +254,26 @@ namespace ColourCascade.Core
             int best = 0;
             lookFinder.FindAllGroups(scratch, lookGroups);
             for (int i = 0; i < lookGroups.Count; i++) if (lookGroups[i].Size > best) best = lookGroups[i].Size;
-            double value = LookaheadWeight * s.Scoring.GroupPoints(best);
+            long value = s.Scoring.GroupPoints(best); // half weight, in half-points
+            var goals = s.Goals;
+            int idx = goals != null ? goals.IndexOf(GoalKind.CollectTreasure) : -1;
+            bool wantTreasure = idx >= 0 && !goals.IsComplete(idx);
             if (collected > 0)
             {
-                var goals = s.Goals;
-                int idx = goals != null ? goals.IndexOf(GoalKind.CollectTreasure) : -1;
-                if (idx >= 0 && !goals.IsComplete(idx)) value += System.Math.Min(collected, goals.Remaining(idx)) * GoalUnitValue;
-                value += collected * s.Scoring.treasurePoints;
+                if (wantTreasure) value += 2L * System.Math.Min(collected, goals.Remaining(idx)) * GoalUnitValue;
+                value += 2L * collected * s.Scoring.treasurePoints;
+            }
+            if (wantTreasure)
+            {
+                // Digging: after this move, can the tile under each treasure be cleared next turn?
+                for (int i = 0; i < scratch.CellCount; i++)
+                {
+                    if (scratch.GetByIndex(i).Type != CellType.Treasure) continue;
+                    var t = scratch.PosOf(i);
+                    if (t.Row == 0) continue;
+                    var under = new GridPos(t.Col, t.Row - 1);
+                    if (TileRules.JoinsGroups(scratch[under]) && lookFinder.GroupSize(scratch, under) >= 2) value += GoalUnitValue;
+                }
             }
             return value;
         }

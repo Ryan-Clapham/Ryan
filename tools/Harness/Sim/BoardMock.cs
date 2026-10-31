@@ -29,6 +29,43 @@ static class BoardMock
         return outImg;
     }
 
+    /// <summary>Every new mechanic on one board: ice (1 and 2 layers), chains (1-3 links), moss, specials and treasure.</summary>
+    public static ImageData RenderMechanics(bool symbols, int cell = 140)
+    {
+        var board = ColourCascade.Core.Board.FromRows(
+            new[] { "0-1|2*3@", "1$203$41", "40123401", "23401234", "12340123" },
+            new[] { "........", "........", "iI.123..", ".mm..i..", "........" });
+        var images = new Dictionary<string, ImageData>();
+        foreach (var i in ArtBook.BuildAtlasImages()) images[i.Name] = i;
+        int cols = board.Width, rows = board.Height, pad = 40, W = cols * cell + pad * 2, H = rows * cell + pad * 2;
+        var outImg = new ImageData { Name = "mock_mechanics", Width = W, Height = H, Pixels = new byte[W * H * 4] };
+        Blit(outImg, ArtBook.Background(-1, 180, 320), 0, 0, W, H, 1f, Rgba.White);
+        Blit(outImg, images[ArtNames.Round], pad - 16, pad - 16, cols * cell + 32, rows * cell + 32, 0.55f, Palette.BoardBack);
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+            {
+                int x = pad + c * cell, y = pad + r * cell;
+                var t = board[c, r];
+                Blit(outImg, images[ArtNames.Round], x + 4, y + 4, cell - 8, cell - 8, 0.6f, Palette.Slot);
+                switch (t.Type)
+                {
+                    case ColourCascade.Core.CellType.Special:
+                        Blit(outImg, images[ArtNames.Special(t.Special)], x + 3, y + 3, cell - 6, cell - 6, 1f, Rgba.White);
+                        break;
+                    case ColourCascade.Core.CellType.Treasure:
+                        Blit(outImg, images[ArtNames.Treasure], x + 3, y + 3, cell - 6, cell - 6, 1f, Rgba.White);
+                        break;
+                    case ColourCascade.Core.CellType.Colour:
+                        Blit(outImg, images[ArtNames.Tile(t.Colour)], x + 3, y + 3, cell - 6, cell - 6, 1f, Rgba.White);
+                        var overlay = ArtNames.Obstacle(t.Obstacle, t.Strength);
+                        if (overlay != null) Blit(outImg, images[overlay], x + 3, y + 3, cell - 6, cell - 6, 1f, Rgba.White);
+                        if (symbols) { int sz = (int)(cell * 0.5f); Blit(outImg, images[ArtNames.Symbol(t.Colour)], x + (cell - sz) / 2, y + (cell - sz) / 2 + 2, sz, sz, 1f, Rgba.White); }
+                        break;
+                }
+            }
+        return outImg;
+    }
+
     // Bilinear scaled alpha-over with tint. Destination rows are bottom-up like the sources.
     static void Blit(ImageData dst, ImageData src, int dx, int dy, int dw, int dh, float opacity, Rgba tint)
     {

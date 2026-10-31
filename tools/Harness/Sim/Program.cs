@@ -5,7 +5,7 @@ using System.Linq;
 using ColourCascade.Core;
 
 // Balance simulation: automated players run the real game rules and report how hard each mode is.
-// Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>|economy [days] [levelsPerDay]]
+// Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>|economy [days] [levelsPerDay]|campaign [from] [to] [runs] [csv]]
 static class Program
 {
     static int Main(string[] args)
@@ -13,6 +13,13 @@ static class Program
         string mode = args.Length > 0 ? args[0] : "balance";
         if (mode == "balance" || mode == "all") Balance(args.Length > 2 ? int.Parse(args[2]) : 60);
         if (mode == "art" || mode == "all") ArtPreview.Export(args.Length > 1 ? args[1] : "art-preview");
+        if (mode == "campaign")
+        {
+            int from = args.Length > 1 ? int.Parse(args[1]) : 1, to = args.Length > 2 ? int.Parse(args[2]) : 120;
+            int runs = args.Length > 3 ? int.Parse(args[3]) : 30;
+            var rows = CampaignReport.Run(from, to, runs, Console.Out);
+            if (args.Length > 4) CampaignReport.WriteCsv(rows, args[4]);
+        }
         if (mode == "economy")
         {
             int days = args.Length > 1 ? int.Parse(args[1]) : 30, perDay = args.Length > 2 ? int.Parse(args[2]) : 5;

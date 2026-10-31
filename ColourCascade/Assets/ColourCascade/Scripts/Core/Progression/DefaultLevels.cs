@@ -15,6 +15,19 @@ namespace ColourCascade.Core
         public const string Daily = "daily_intro";
         public const string Rush = "rush_intro";
         public static string PowerUpIntro(PowerUpId id) => "pu_intro_" + (int)id;
+        // Campaign mechanics (each shown once, on the mechanic's introduction level).
+        public const string Ice = "mech_ice";
+        public const string ColourGoal = "mech_colour_goal";
+        public const string ThickIce = "mech_thick_ice";
+        public const string Rockets = "mech_rockets";
+        public const string Bombs = "mech_bombs";
+        public const string Combos = "mech_combos";
+        public const string Prisms = "mech_prisms";
+        public const string Chains = "mech_chains";
+        public const string Treasure = "mech_treasure";
+        public const string Moss = "mech_moss";
+        /// <summary>Shown after the player first makes a special tile of their own.</summary>
+        public const string FirstSpecial = "mech_first_special";
     }
 
     /// <summary>The hand-authored opening levels. They teach the game one idea at a time.

@@ -31,6 +31,16 @@ namespace ColourCascade.Procedural
         public const string Break = "break";
         public const string Shimmer = "shimmer";
         public const string Music = "music";
+        // Campaign mechanics.
+        public const string IceCrack = "ice";
+        public const string ChainBreak = "chain";
+        public const string MossClear = "moss";
+        public const string MossGrow = "mossgrow";
+        public const string Rocket = "rocket";
+        public const string Bomb = "bomb";
+        public const string Prism = "prism";
+        public const string Treasure = "treasure";
+        public const string SpecialMade = "special";
         public const int PopVariants = 8;
         public static string Pop(int index) => "pop" + Math.Max(0, Math.Min(PopVariants - 1, index));
         public static string Star(int index) => "star" + Math.Max(1, Math.Min(3, index));
@@ -117,6 +127,52 @@ namespace ColourCascade.Procedural
             {
                 double[] notes = { 1567.98, 1318.51, 2093.0, 1760.0, 2349.32 };
                 for (int i = 0; i < notes.Length; i++) Bell(b, i * 0.06, 0.4, notes[i], 0.14);
+            }));
+            // Campaign mechanics.
+            list.Add(Make(SfxNames.IceCrack, 0.3, b =>
+            {
+                Noise(b, 0, 0.05, 0.5, 0.15);
+                Bell(b, 0, 0.22, 2637.0, 0.22);
+                Bell(b, 0.03, 0.18, 3520.0, 0.14);
+            }));
+            list.Add(Make(SfxNames.ChainBreak, 0.35, b =>
+            {
+                Bell(b, 0, 0.25, 1760.0, 0.28);
+                Bell(b, 0.05, 0.25, 1567.98, 0.22);
+                Tone(b, 0, 0.04, 900, 0.25, Env.Click);
+                Noise(b, 0.04, 0.05, 0.25, 0.25);
+            }));
+            list.Add(Make(SfxNames.MossClear, 0.3, b => { Noise(b, 0, 0.18, 0.3, 0.6); Glide(b, 0, 0.12, 300, 520, 0.18); }));
+            list.Add(Make(SfxNames.MossGrow, 0.45, b => { Glide(b, 0, 0.35, 180, 120, 0.25, Env.Thud); Noise(b, 0, 0.3, 0.12, 0.8); }));
+            list.Add(Make(SfxNames.Rocket, 0.6, b =>
+            {
+                Sweep(b, 0, 0.45, 0.45);
+                Glide(b, 0, 0.4, 260, 900, 0.22);
+                Noise(b, 0.3, 0.25, 0.2, 0.3);
+            }));
+            list.Add(Make(SfxNames.Bomb, 0.8, b =>
+            {
+                Glide(b, 0, 0.65, 130, 34, 0.7, Env.Boom);
+                Noise(b, 0, 0.45, 0.45, 0.1);
+                Noise(b, 0, 0.06, 0.3, 0.7);
+            }));
+            list.Add(Make(SfxNames.Prism, 1.0, b =>
+            {
+                double[] notes = { 1046.5, 1318.51, 1567.98, 2093.0, 2637.0, 3135.96 };
+                for (int i = 0; i < notes.Length; i++) Bell(b, i * 0.05, 0.5, notes[i], 0.16);
+                Sweep(b, 0, 0.6, 0.12);
+            }));
+            list.Add(Make(SfxNames.Treasure, 0.9, b =>
+            {
+                double[] notes = { 783.99, 987.77, 1174.66, 1567.98 };
+                for (int i = 0; i < notes.Length; i++) Marimba(b, i * 0.07, 0.35, notes[i], 0.3);
+                Bell(b, 0.3, 0.5, 2349.32, 0.18);
+            }));
+            list.Add(Make(SfxNames.SpecialMade, 0.55, b =>
+            {
+                Glide(b, 0, 0.18, 520, 1040, 0.25);
+                Bell(b, 0.12, 0.4, 1567.98, 0.24);
+                Bell(b, 0.16, 0.38, 2093.0, 0.16);
             }));
             foreach (var s in list) Normalise(s.Samples, 0.9f);
             return list;

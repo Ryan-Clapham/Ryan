@@ -31,11 +31,11 @@ namespace ColourCascade.Core
     public class SpecialRules
     {
         /// <summary>Smallest group that creates a rocket.</summary>
-        public int rocketGroupSize = 7;
+        public int rocketGroupSize = 6;
         /// <summary>Smallest group that creates a bomb.</summary>
-        public int bombGroupSize = 10;
+        public int bombGroupSize = 9;
         /// <summary>Smallest group that creates a prism.</summary>
-        public int prismGroupSize = 14;
+        public int prismGroupSize = 12;
         /// <summary>Points for each colour tile a special removes.</summary>
         public int pointsPerTile = 20;
         /// <summary>Points for each colour tile removed by two specials fired together.</summary>

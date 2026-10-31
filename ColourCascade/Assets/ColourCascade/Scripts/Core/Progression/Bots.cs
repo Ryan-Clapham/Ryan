@@ -79,6 +79,8 @@ namespace ColourCascade.Core
                 int colour = -1;
                 bool found = planner != null ? planner.Choose(session, out pick, out colour) : Choose(session.Board, kind, rng, finder, groups, out pick);
                 if (!found) break;
+                // Anyone firing a prism picks the colour their goal needs (or the most common one).
+                if (planner == null && session.NeedsColourChoice(pick)) colour = PlannerBot.PrismColour(session);
                 if (!session.TryPlay(pick, outcome, colour)) break;
                 moves++;
             }
@@ -92,6 +94,13 @@ namespace ColourCascade.Core
         /// <summary>Median score over several attempts when every move is played (the target is ignored).</summary>
         public static int MedianFullScore(LevelSpec spec, ScoringRules scoring, int runs, BotKind kind)
         {
+            var scores = FullScores(spec, scoring, runs, kind);
+            return scores[scores.Length / 2];
+        }
+
+        /// <summary>Scores of several attempts when every move is played (the target is ignored), sorted.</summary>
+        public static int[] FullScores(LevelSpec spec, ScoringRules scoring, int runs, BotKind kind)
+        {
             if (runs < 1) runs = 1;
             var scores = new int[runs];
             for (int i = 0; i < runs; i++)
@@ -103,7 +112,7 @@ namespace ColourCascade.Core
                 scores[i] = Bots.PlayOut(session, kind, new Rng(StableHash.Combine(spec.Seed, (ulong)(1000 + i))));
             }
             System.Array.Sort(scores);
-            return scores[runs / 2];
+            return scores;
         }
 
         static LevelSpec CloneForProbe(LevelSpec s)
@@ -112,8 +121,61 @@ namespace ColourCascade.Core
             {
                 Id = s.Id, Mode = GameMode.Campaign, Number = s.Number, Layout = s.Layout, Colours = s.Colours,
                 ColourWeights = s.ColourWeights, AssistPermille = s.AssistPermille, Moves = s.Moves > 0 ? s.Moves : 20,
-                Target = int.MaxValue, Seed = s.Seed, FixedSeed = s.FixedSeed,
+                Target = int.MaxValue, Seed = s.Seed, FixedSeed = s.FixedSeed, Specials = s.Specials, MossCap = s.MossCap,
             };
+        }
+
+        /// <summary>A copy of a goal level for bot games: same board, goals and specials, with the given move budget.</summary>
+        static LevelSpec CloneGoalProbe(LevelSpec s, int moves)
+        {
+            var c = CloneForProbe(s);
+            c.Moves = moves;
+            c.Target = s.Target;
+            c.Goals = s.Goals;
+            return c;
+        }
+
+        static ulong BoardSeedFor(LevelSpec spec, int i) => spec.FixedSeed ? spec.Seed : StableHash.Combine(spec.Seed, (ulong)(i + 1));
+
+        /// <summary>
+        /// Median number of moves a bot needs to complete every goal, given a generous budget. Games that run out
+        /// (or get stuck) count as budget + 10, so a level the bot can't finish reads as needing more than the budget.
+        /// </summary>
+        public static int MedianMovesNeeded(LevelSpec spec, ScoringRules scoring, int runs, int budget, BotKind kind)
+        {
+            if (runs < 1) runs = 1;
+            var needed = new int[runs];
+            for (int i = 0; i < runs; i++)
+            {
+                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, budget), Scoring = scoring, BoardSeed = BoardSeedFor(spec, i) });
+                session.Start();
+                Bots.PlayOut(session, kind, new Rng(StableHash.Combine(spec.Seed, (ulong)(2000 + i))));
+                needed[i] = session.State == SessionState.Won ? session.MovesMade : budget + 10;
+            }
+            System.Array.Sort(needed);
+            return needed[runs / 2];
+        }
+
+        public struct GameResult
+        {
+            /// <summary>Score when the level was completed (before the spare-move bonus).</summary>
+            public int Score;
+            public int MovesLeft;
+        }
+
+        /// <summary>Completed games by the Planner bot with the level's own moves, sorted by score.</summary>
+        public static List<GameResult> PlannerResults(LevelSpec spec, ScoringRules scoring, int runs)
+        {
+            var results = new List<GameResult>();
+            for (int i = 0; i < runs; i++)
+            {
+                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, spec.Moves), Scoring = scoring, BoardSeed = BoardSeedFor(spec, 100 + i) });
+                session.Start();
+                Bots.PlayOut(session, BotKind.Planner, null);
+                if (session.State == SessionState.Won) results.Add(new GameResult { Score = session.Score, MovesLeft = session.MovesLeft });
+            }
+            results.Sort((a, b) => a.Score.CompareTo(b.Score));
+            return results;
         }
     }
 }

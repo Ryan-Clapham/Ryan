@@ -94,9 +94,31 @@ namespace ColourCascade.App
         {
             var level = result.Level;
             Title("Out of Moves", false, 46);
-            float ratio = result.Score / (float)Mathf.Max(1, level.Target);
-            Para(ratio >= 0.8f ? "So close! Just " + NumberFormat.Thousands(level.Target - result.Score) + " points short." : "Keep going — bigger groups score far more points.");
-            ScoreBlock(result.Score, "Target " + NumberFormat.Thousands(level.Target), 0.1f);
+            float ratio;
+            var goals = session != null ? session.Goals : null;
+            if (level.Goals != null && level.Goals.Length > 0 && goals != null)
+            {
+                // Goal levels: what is still to do, and how far along the goals are.
+                var left = new System.Collections.Generic.List<string>();
+                long done = 0, total = 0;
+                for (int i = 0; i < goals.Count; i++)
+                {
+                    var g = goals.Goal(i);
+                    int amount = Mathf.Max(1, g.amount);
+                    total += amount;
+                    done += Mathf.Min(amount, goals.Progress(i));
+                    if (!goals.IsComplete(i)) left.Add(GoalVisuals.Describe(new GoalSpec { kind = g.kind, colour = g.colour, amount = goals.Remaining(i) }).ToLowerInvariant());
+                }
+                ratio = done / (float)Mathf.Max(1, total);
+                Para((ratio >= 0.8f ? "So close! " : "") + "Still to do: " + string.Join(", ", left) + ".");
+                ScoreBlock(result.Score, "Goals " + Mathf.RoundToInt(ratio * 100) + "% done", 0.1f);
+            }
+            else
+            {
+                ratio = result.Score / (float)Mathf.Max(1, level.Target);
+                Para(ratio >= 0.8f ? "So close! Just " + NumberFormat.Thousands(level.Target - result.Score) + " points short." : "Keep going — bigger groups score far more points.");
+                ScoreBlock(result.Score, "Target " + NumberFormat.Thousands(level.Target), 0.1f);
+            }
             var bar = ProgressBar.Create(body, ratio >= 0.8f ? Theme.Gold : Theme.Primary, 40);
             bar.Layout(preferredHeight: 60);
             bar.SetFraction(0, false);

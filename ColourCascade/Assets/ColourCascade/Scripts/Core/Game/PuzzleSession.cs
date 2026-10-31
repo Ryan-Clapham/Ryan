@@ -48,7 +48,11 @@ namespace ColourCascade.Core
         readonly List<GridPos> effectCells = new List<GridPos>();
         int actionSpecialPoints;
         int nextWave;
+        // Wave of the special firing right now (0 outside special effects); stamped on obstacle hits.
+        int hitWave;
         bool mossRemovedThisAction;
+        // Moss never grows on two moves in a row (docs/MECHANICS.md §2.5).
+        bool mossGrewLastMove;
         int startingMoss;
         readonly List<MossGrowth> mossCandidates = new List<MossGrowth>();
         readonly HashSet<GridPos> mossSeen = new HashSet<GridPos>();
@@ -375,15 +379,17 @@ namespace ColourCascade.Core
             o.SpecialsFired.Add(new SpecialFired
             {
                 TileId = t.Id, Pos = p, Kind = t.Special, ComboWith = combo ? partner.Special : SpecialKind.None,
-                ComboPos = partnerPos, Colour = colour, Wave = wave,
+                ComboPos = partnerPos, ComboTileId = combo ? partner.Id : 0, Colour = colour, Wave = wave,
             });
             if (tapped && prism) o.GroupColour = colour;
             effectCells.Clear();
             AreaFor(p, t.Special, combo, partnerPos, combo ? partner.Special : SpecialKind.None, colour, effectCells);
             int rate = combo ? Scoring.specials.comboPointsPerTile : Scoring.specials.pointsPerTile;
             int before = o.Cleared.Count;
+            hitWave = wave;
             // Copy: hitting cells can queue more specials but never changes this list.
             for (int i = 0; i < effectCells.Count; i++) HitCell(effectCells[i], o);
+            hitWave = 0;
             for (int i = before; i < o.Cleared.Count; i++)
             {
                 var c = o.Cleared[i];
@@ -576,6 +582,7 @@ namespace ColourCascade.Core
             specialQueue.Clear();
             firedThisAction.Clear();
             nextWave = 0;
+            hitWave = 0;
             mossRemovedThisAction = false;
         }
 
@@ -585,7 +592,7 @@ namespace ColourCascade.Core
             if (!hitThisAction.Add(t.Id)) return;
             o.ObstacleHits.Add(new ObstacleHit
             {
-                TileId = t.Id, Pos = p, Kind = t.Obstacle, Colour = t.Colour, StrengthBefore = t.Strength, StrengthAfter = 0, Cause = cause,
+                TileId = t.Id, Pos = p, Kind = t.Obstacle, Colour = t.Colour, StrengthBefore = t.Strength, StrengthAfter = 0, Cause = cause, Wave = hitWave,
             });
             actionObstaclePoints += Scoring.ObstacleStepPoints(t.Obstacle) * Math.Max(1, t.Strength);
             if (t.Obstacle == ObstacleKind.Moss) mossRemovedThisAction = true;
@@ -593,14 +600,16 @@ namespace ColourCascade.Core
 
         /// <summary>
         /// After a move that removed no moss, moss grows onto one free tile next to it, chosen with the session's own
-        /// seeded generator; it stops at the level's cap (docs/MECHANICS.md §2.5).
+        /// seeded generator. It rests on the move after it grew, and stops at the level's cap (docs/MECHANICS.md §2.5).
         /// </summary>
         void SpreadMoss(MoveOutcome o)
         {
-            if (mossRemovedThisAction || startingMoss == 0) return;
+            bool rested = mossGrewLastMove;
+            mossGrewLastMove = false;
+            if (mossRemovedThisAction || startingMoss == 0 || rested) return;
             int moss = Board.CountObstacle(ObstacleKind.Moss);
             if (moss == 0) return;
-            int cap = Level.MossCap > 0 ? Level.MossCap : startingMoss * 2;
+            int cap = Level.MossCap > 0 ? Level.MossCap : startingMoss + 2;
             if (moss >= cap) return;
             mossCandidates.Clear();
             mossSeen.Clear();
@@ -623,6 +632,7 @@ namespace ColourCascade.Core
             tile.Strength = 1;
             Board[g.Pos] = tile;
             o.MossGrowth.Add(g);
+            mossGrewLastMove = true;
         }
 
         /// <summary>
@@ -637,27 +647,30 @@ namespace ColourCascade.Core
             int after = cause == HitCause.Strong ? 0 : Math.Max(0, before - 1);
             o.ObstacleHits.Add(new ObstacleHit
             {
-                TileId = t.Id, Pos = p, Kind = t.Obstacle, Colour = t.Colour, StrengthBefore = before, StrengthAfter = after, Cause = cause,
+                TileId = t.Id, Pos = p, Kind = t.Obstacle, Colour = t.Colour, StrengthBefore = before, StrengthAfter = after, Cause = cause, Wave = hitWave,
             });
             actionObstaclePoints += Scoring.ObstacleStepPoints(t.Obstacle) * (before - after);
+            if (t.Obstacle == ObstacleKind.Moss && after <= 0) mossRemovedThisAction = true;
             t.Strength = after;
             if (after <= 0) t.Obstacle = ObstacleKind.None;
             Board[p] = t;
             return true;
         }
 
-        /// <summary>Every obstacle next to a removed tile that reacts to adjacent clears loses one step (§2.1).</summary>
+        /// <summary>Every obstacle next to a removed tile that reacts to adjacent clears (ice, moss) loses one step (§2.1, §2.5).</summary>
         void ApplyAdjacentHits(MoveOutcome o)
         {
             for (int i = 0; i < o.Cleared.Count; i++)
             {
                 var c = o.Cleared[i].Pos;
+                hitWave = o.Cleared[i].Wave;
                 for (int d = 0; d < 4; d++)
                 {
                     var n = new GridPos(c.Col + Board.DCol[d], c.Row + Board.DRow[d]);
                     if (Board.InBounds(n) && TileRules.HitByAdjacentClear(Board[n])) HitObstacle(n, HitCause.AdjacentClear, o);
                 }
             }
+            hitWave = 0;
         }
 
         /// <summary>

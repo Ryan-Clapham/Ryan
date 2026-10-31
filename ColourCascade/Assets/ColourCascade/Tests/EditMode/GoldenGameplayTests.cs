@@ -12,8 +12,14 @@ namespace ColourCascade.Tests
     /// </summary>
     public class GoldenGameplayTests
     {
-        const ulong ExpectedCampaignLevels = 16043548939747815137UL;
-        const ulong ExpectedSeededPlay = 15566285578730975039UL;
+        // Levels 1-20 (before the first mechanic): recorded on the pre-mechanics build (backup/before-phase2-mechanics)
+        // and unchanged since. They must never change: players have already played them.
+        const ulong ExpectedOpeningLevels = 6328615708927920260UL;
+        const ulong ExpectedOpeningPlay = 8421993498075673067UL;
+        // Levels 1-60 and seeded games on 1-40: re-recorded when the campaign mechanics arrived (phase 2), which
+        // deliberately changed levels 21 and up. The pre-overhaul values were 16043548939747815137 and 15566285578730975039.
+        const ulong ExpectedCampaignLevels = 12182320859475582901UL;
+        const ulong ExpectedSeededPlay = 2883777929054136064UL;
         const ulong ExpectedChallengeModes = 318364672465816974UL;
         const ulong ExpectedScriptedPowerUps = 2022348128171972134UL;
 
@@ -49,12 +55,12 @@ namespace ColourCascade.Tests
             return Mix(h, o.Ended ? 1 : 0);
         }
 
-        static ulong CampaignLevels()
+        static ulong CampaignLevels(int upTo = 60)
         {
             var cfg = GameConfigData.CreateDefault();
             var catalog = new CampaignCatalog(cfg.Campaign, cfg.Scoring);
             ulong h = 17;
-            for (int n = 1; n <= 60; n++)
+            for (int n = 1; n <= upTo; n++)
             {
                 var s = catalog.Get(n);
                 h = Mix(h, s.Target);
@@ -70,13 +76,13 @@ namespace ColourCascade.Tests
             return h;
         }
 
-        static ulong SeededPlay()
+        static ulong SeededPlay(int upTo = 40)
         {
             var cfg = GameConfigData.CreateDefault();
             var catalog = new CampaignCatalog(cfg.Campaign, cfg.Scoring);
             ulong h = 31;
             foreach (var kind in new[] { BotKind.Greedy, BotKind.Mixed, BotKind.Casual })
-                for (int n = 1; n <= 40; n++)
+                for (int n = 1; n <= upTo; n++)
                     for (int seed = 1; seed <= 2; seed++)
                     {
                         var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = catalog.Get(n), Scoring = cfg.Scoring, BoardSeed = (ulong)(n * 1000 + seed) });
@@ -160,6 +166,20 @@ namespace ColourCascade.Tests
                 h = Fingerprint(h, s);
             }
             return h;
+        }
+
+        [Test, Explicit("prints the current fingerprints for re-recording")]
+        public void PrintFingerprints()
+        {
+            System.IO.File.WriteAllText(System.Environment.GetEnvironmentVariable("OUT"),
+                CampaignLevels(20) + " " + SeededPlay(20) + " " + CampaignLevels() + " " + SeededPlay() + " " + ChallengeModes() + " " + ScriptedPowerUps());
+        }
+
+        [Test]
+        public void OpeningLevelsAreExactlyAsBeforeTheMechanics()
+        {
+            Assert.AreEqual(ExpectedOpeningLevels, CampaignLevels(20), "levels 1-20");
+            Assert.AreEqual(ExpectedOpeningPlay, SeededPlay(20), "seeded games on levels 1-20");
         }
 
         [Test]

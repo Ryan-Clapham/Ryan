@@ -62,6 +62,7 @@ namespace ColourCascade.Core
         /// <summary>The special it fired together with (tapped next to it), or None.</summary>
         public SpecialKind ComboWith;
         public GridPos ComboPos;
+        public int ComboTileId;
         /// <summary>Colour a prism cleared; -1 otherwise.</summary>
         public int Colour;
         /// <summary>Matches ClearedTile.Wave for the tiles it removed.</summary>
@@ -100,6 +101,8 @@ namespace ColourCascade.Core
         public int StrengthBefore;
         public int StrengthAfter;
         public HitCause Cause;
+        /// <summary>Same as ClearedTile.Wave: when in the action it happened (for the view's timing).</summary>
+        public int Wave;
         /// <summary>The obstacle is gone: the tile is now a free colour tile.</summary>
         public bool Freed => StrengthAfter <= 0;
     }

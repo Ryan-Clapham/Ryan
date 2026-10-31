@@ -144,18 +144,72 @@ namespace ColourCascade.Tests
         [Test]
         public void AMoveThatClearsNoMossLetsItGrowByOneTile()
         {
-            var s = Play.Moss(new[] { "001", "223" }, new[] { "..m", "..." }, 0, 20, 12345, GoalSpec.ClearMoss());
+            // The 0s are cleared well away from the mossy 2 at (3,1).
+            var s = Play.Moss(new[] { "0012", "3445" }, new[] { "...m", "...." }, 0, 20, 12345, GoalSpec.ClearMoss());
             var o = Play.Tap(s, 0, 1);
-            Assert.AreEqual(0, o.ObstacleHits.Count, "adjacent clears do nothing to moss");
+            Assert.AreEqual(0, o.ObstacleHits.Count);
             Assert.AreEqual(1, o.MossGrowth.Count);
             var g = o.MossGrowth[0];
-            Assert.AreEqual(new GridPos(2, 1), g.From);
+            Assert.AreEqual(new GridPos(3, 1), g.From);
             Assert.IsTrue(g.Pos.IsAdjacentTo(g.From));
             Assert.AreEqual(ObstacleKind.Moss, s.Board[g.Pos].Obstacle);
             Assert.AreEqual(g.TileId, s.Board[g.Pos].Id, "the tile stays; moss covers it");
             Assert.AreEqual(2, s.Board.CountObstacle(ObstacleKind.Moss));
             Assert.AreEqual(2, s.Goals.Remaining(0), "the goal shows the moss that grew");
             Assert.AreEqual(0, s.Goals.Progress(0));
+        }
+
+        [Test]
+        public void MossNeverGrowsTwoMovesInARow()
+        {
+            // Moves are chosen away from the mossy 4, so none of them clears moss.
+            var t = Play.Moss(new[] { "002200", "331133", "002200", "33m133" }.Select(r => r.Replace('m', '4')).ToArray(), new[] { "......", "......", "......", "..m..." }, 10);
+            var grew = new List<bool>();
+            for (int i = 0; i < 4 && t.AcceptsMoves; i++)
+            {
+                var o = new MoveOutcome();
+                var groups = new List<GroupInfo>();
+                new GroupFinder().FindAllGroups(t.Board, groups);
+                GridPos pick = default;
+                bool found = false;
+                foreach (var gr in groups)
+                {
+                    var cells = new List<GridPos>();
+                    new GroupFinder().FindGroup(t.Board, gr.Anchor, cells);
+                    bool nearMoss = cells.Any(c => t.Board[c].Obstacle == ObstacleKind.Moss || NeighbourMossy(t.Board, c));
+                    if (!nearMoss) { pick = gr.Anchor; found = true; break; }
+                }
+                if (!found) break;
+                Assert.IsTrue(t.TryPlay(pick, o));
+                grew.Add(o.MossGrowth.Count > 0);
+            }
+            for (int i = 1; i < grew.Count; i++) Assert.IsFalse(grew[i] && grew[i - 1], "grew on two moves in a row");
+            Assert.IsTrue(grew.Count >= 2 && grew[0], "it grew after the first move");
+        }
+
+        static bool NeighbourMossy(Board b, GridPos p)
+        {
+            for (int d = 0; d < 4; d++)
+            {
+                var n = new GridPos(p.Col + Board.DCol[d], p.Row + Board.DRow[d]);
+                if (b.InBounds(n) && b[n].Type == CellType.Colour && b[n].Obstacle == ObstacleKind.Moss) return true;
+            }
+            return false;
+        }
+
+        [Test]
+        public void AClearNextToMossScrapesItOff()
+        {
+            var s = Play.Moss(new[] { "001", "223" }, new[] { "..m", "..." }, 0, 20, 12345, GoalSpec.ClearMoss());
+            int id = s.Board[2, 1].Id;
+            var o = Play.Tap(s, 0, 1);
+            Assert.AreEqual(1, o.ObstacleHits.Count);
+            Assert.AreEqual(HitCause.AdjacentClear, o.ObstacleHits[0].Cause);
+            Assert.IsTrue(o.ObstacleHits[0].Freed);
+            Assert.AreEqual(0, o.MossGrowth.Count, "moss was cleared this move, so it does not grow");
+            Assert.AreEqual(ObstacleKind.None, s.Board[Play.Find(s.Board, id)].Obstacle, "the tile stays, free of moss");
+            Assert.AreEqual(s.Scoring.GroupPoints(2) + 100, o.ScoreGained);
+            Assert.AreEqual(SessionState.Won, s.State);
         }
 
         [Test]
@@ -196,7 +250,7 @@ namespace ColourCascade.Tests
         [Test]
         public void MossStopsAtItsCap()
         {
-            var s = Play.Moss(new[] { "001", "223" }, new[] { "..m", "..." }, 1);
+            var s = Play.Moss(new[] { "0012", "3445" }, new[] { "...m", "...." }, 1);
             var o = Play.Tap(s, 0, 1);
             Assert.AreEqual(0, o.MossGrowth.Count);
             Assert.AreEqual(1, s.Board.CountObstacle(ObstacleKind.Moss));
@@ -213,15 +267,17 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void MossyTilesHoldTheirPlace()
+        public void MossyTilesFallLikeAnyTileButCannotBeMovedOtherwise()
         {
+            // The mossy 4 at (1,1) sits on the 0s; clearing them drops it (and scrapes its moss off).
             var s = Play.Moss(new[] { "212", "141", "003" }, new[] { "...", ".m.", "..." });
-            int above = s.Board[1, 2].Id;
-            Play.Tap(s, 0, 0);
-            Assert.AreEqual(above, s.Board[1, 2].Id, "tiles above moss stay up");
+            int mossy = s.Board[1, 1].Id;
+            Assert.IsTrue(TileRules.Falls(s.Board[1, 1]));
+            Assert.IsFalse(TileRules.CanShuffle(s.Board[1, 1]));
             Assert.AreEqual(PowerUpFailure.InvalidTarget, Play.Refused(s, Play.Swap(1, 1, 1, 2)));
             Assert.AreEqual(PowerUpFailure.InvalidTarget, Play.Refused(s, Play.Shift(1, 1, 4)));
-            Assert.IsFalse(TileRules.CanShuffle(s.Board[1, 1]));
+            var o = Play.Tap(s, 0, 0);
+            Assert.IsTrue(o.Falls.Any(f => f.TileId == mossy && f.To == new GridPos(1, 0)));
         }
 
         [Test]

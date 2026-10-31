@@ -8,8 +8,9 @@ using UnityEngine.UI;
 namespace ColourCascade.App
 {
     /// <summary>
-    /// Six short pages. Pages 1 and 3 contain real, playable practice boards running on the same engine as the
-    /// game (Practice mode: no score target, no moves, no rewards, nothing saved).
+    /// Eight short pages. Pages 1 and 3 contain real, playable practice boards running on the same engine as the
+    /// game (Practice mode: no score target, no moves, no rewards, nothing saved). Pages 4 and 5 show the campaign
+    /// mechanics (goals and obstacles, special tiles).
     /// </summary>
     public sealed class HowToPlayScreen : ScreenBase
     {
@@ -29,7 +30,8 @@ namespace ColourCascade.App
 
         static readonly string[] Titles =
         {
-            "Match colours", "Bigger is better", "Falling tiles & stones", "Levels and stars", "Coins and power-ups", "Game modes",
+            "Match colours", "Bigger is better", "Falling tiles & stones", "Goals and obstacles", "Special tiles", "Levels and stars",
+            "Coins and power-ups", "Game modes",
         };
 
         protected override void Build()
@@ -97,8 +99,10 @@ namespace ColourCascade.App
                 case 0: PageMatch(); break;
                 case 1: PageScoring(); break;
                 case 2: PageGravity(); break;
-                case 3: PageLevels(); break;
-                case 4: PageEconomy(); break;
+                case 3: PageObstacles(); break;
+                case 4: PageSpecials(); break;
+                case 5: PageLevels(); break;
+                case 6: PageEconomy(); break;
                 default: PageModes(); break;
             }
             stage.localScale = Vector3.one * 0.95f;
@@ -158,6 +162,50 @@ namespace ColourCascade.App
             pageBody.text = "Tiles above a gap fall down and new tiles drop in. <b>Stones</b> never move: tiles can't fall through them, so each section refills on its own. If no group is left, the board reshuffles for free.";
             var layout = LevelLayout.Parse(new[] { ".....", "#...#", ".....", "..#..", "....." });
             StartPractice(layout, 3);
+        }
+
+        /// <summary>A row of pictures with a caption under each.</summary>
+        void PictureRow(float y, params (string tile, string overlay, int colour, string caption)[] items)
+        {
+            var row = UI.Rect("Row", stage);
+            row.Centre(900, 300, 0, y);
+            var h = UI.HStack(row, 26, null, TextAnchor.MiddleCenter, false);
+            h.childControlWidth = false;
+            h.childControlHeight = false;
+            int i = 0;
+            foreach (var it in items)
+            {
+                var cell = UI.Rect("Item" + i, row);
+                cell.sizeDelta = new Vector2(200, 290);
+                Image art;
+                if (it.tile != null) art = UI.Image(cell, ArtLibrary.Instance.Get(it.tile), Color.white, "Piece");
+                else
+                {
+                    art = UI.Image(cell, ArtLibrary.Instance.Tile(it.colour), Color.white, "Tile");
+                    if (it.overlay != null) UI.Image(art.rectTransform, ArtLibrary.Instance.Get(it.overlay), Color.white, "Overlay").rectTransform.Fill();
+                }
+                art.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0.5f, 1), Vector2.zero, new Vector2(170, 170));
+                var caption = UI.Text(cell, it.caption, Theme.FontSmall - 2, Theme.Text, TextAnchor.UpperCenter, true, "Caption");
+                caption.rectTransform.Fill(0, 0, 0, 182);
+                art.rectTransform.localScale = Vector3.zero;
+                Tw.Scale(art.rectTransform, 1f, 0.4f, Ease.OutBack, 0.08f * i);
+                i++;
+            }
+        }
+
+        void PageObstacles()
+        {
+            pageBody.text = "Later levels have <b>goals</b> instead of a target, shown at the top: free the <b>ice</b> by clearing next to it, break <b>chains</b> by clearing their colour, remove <b>moss</b> before it spreads, and bring <b>treasure</b> down to the bottom.";
+            PictureRow(60, (null, ArtNames.Ice1, TileColours.Blue, "Ice"), (null, ArtNames.Chain2, TileColours.Purple, "Chains"),
+                (null, ArtNames.Moss, TileColours.Yellow, "Moss"), (ArtNames.Treasure, null, 0, "Treasure"));
+        }
+
+        void PageSpecials()
+        {
+            var sp = Ctx.Config.Scoring.specials;
+            pageBody.text = "Clear a big group to earn a <b>special tile</b>, then tap it to fire: <b>rockets</b> clear a line, <b>bombs</b> clear around them and <b>prisms</b> clear a colour you pick. Fire two that touch for a <b>combo</b>!";
+            PictureRow(60, (ArtNames.RocketRow, null, 0, sp.rocketGroupSize + "+ tiles"), (ArtNames.Bomb, null, 0, sp.bombGroupSize + "+ tiles"),
+                (ArtNames.Prism, null, 0, sp.prismGroupSize + "+ tiles"));
         }
 
         void PageLevels()

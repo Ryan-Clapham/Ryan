@@ -127,6 +127,23 @@ namespace ColourCascade.App
             });
         }
 
+        /// <summary>A bright streak between two points (a rocket's path) that shoots out, then fades.</summary>
+        public void Beam(Vector2 from, Vector2 to, Color colour, float width, float delay = 0f)
+        {
+            var img = UI.Image(rt, ArtLibrary.Instance.Get(ArtNames.Beam), colour, "Beam");
+            var r = img.rectTransform;
+            var d = to - from;
+            r.anchoredPosition = (from + to) * 0.5f;
+            r.sizeDelta = new Vector2(Mathf.Max(1f, d.magnitude), width);
+            r.localEulerAngles = new Vector3(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+            r.localScale = new Vector3(0.04f, 1f, 1f);
+            Tw.Scale(r, Vector3.one, 0.16f, Ease.OutCubic, delay);
+            Tw.Fade(img, 0f, 0.32f, Ease.InQuad, delay + 0.16f).OnComplete(() =>
+            {
+                if (img != null) Destroy(img.gameObject);
+            });
+        }
+
         /// <summary>Text that rises and fades ("+90", "Great!").</summary>
         public Text FloatText(Vector2 pos, string text, Color colour, int size, float rise = 120f, float duration = 0.85f, float delay = 0f, float popScale = 1.3f)
         {

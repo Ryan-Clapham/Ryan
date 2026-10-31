@@ -35,8 +35,10 @@ namespace ColourCascade.Procedural
         {
             var order = new List<ImageData>(images);
             order.Sort((a, b) => b.Height != a.Height ? b.Height.CompareTo(a.Height) : b.Width.CompareTo(a.Width));
-            int[] widths = { 1024, 2048, 2048, 4096 };
-            int[] heights = { 1024, 1024, 2048, 4096 };
+            // 2048 × 1536 is not a power of two; that is fine for an uncompressed texture without mipmaps, on every
+            // platform Unity 6 supports, and saves a quarter of the memory of 2048 × 2048.
+            int[] widths = { 1024, 2048, 2048, 2048, 4096 };
+            int[] heights = { 1024, 1024, 1536, 2048, 4096 };
             for (int attempt = 0; attempt < widths.Length; attempt++)
             {
                 int w = widths[attempt], h = heights[attempt];
