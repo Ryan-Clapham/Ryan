@@ -66,8 +66,8 @@ namespace ColourCascade.App
             var list = UI.Rect("Options", Content);
             list.TopStrip(390, 180, 70, 70);
             UI.VStack(list, 18);
-            ToggleRow(list, Icon.SoundOn, "Sound effects", Ctx.Settings.SfxVolume > 0.01f, on => Ctx.Settings.SfxVolume = on ? 0.8f : 0f);
-            ToggleRow(list, Icon.Music, "Music", Ctx.Settings.MusicVolume > 0.01f, on => Ctx.Settings.MusicVolume = on ? 0.5f : 0f);
+            ToggleRow(list, Icon.SoundOn, "Sound effects", Ctx.Settings.SfxOn, on => Ctx.Settings.SfxOn = on);
+            ToggleRow(list, Icon.Music, "Music", Ctx.Settings.MusicOn, on => Ctx.Settings.MusicOn = on);
             ToggleRow(list, Icon.Eye, "Symbols on tiles", Ctx.Settings.Symbols, on => Ctx.Settings.Symbols = on);
             FooterButton("Resume", ButtonStyle.Primary, Close, Icon.Play, 400, 150);
             FooterButton("Restart", ButtonStyle.Secondary, () => { Close(); if (game != null) game.RestartRun(); }, Icon.Restart, 226, 140);

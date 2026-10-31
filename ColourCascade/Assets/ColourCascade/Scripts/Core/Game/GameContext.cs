@@ -44,16 +44,50 @@ namespace ColourCascade.Core
 
         SettingsData S => data().Settings;
 
+        /// <summary>Volumes at or below this count as switched off.</summary>
+        public const float Silent = 0.01f;
+
         public float SfxVolume
         {
             get => S.SfxVolume;
-            set { S.SfxVolume = Clamp(value); Changed?.Invoke(SettingKind.SfxVolume); }
+            set
+            {
+                S.SfxVolume = Clamp(value);
+                if (S.SfxVolume > Silent) S.SfxVolumeWhenOn = S.SfxVolume;
+                Changed?.Invoke(SettingKind.SfxVolume);
+            }
         }
 
         public float MusicVolume
         {
             get => S.MusicVolume;
-            set { S.MusicVolume = Clamp(value); Changed?.Invoke(SettingKind.MusicVolume); }
+            set
+            {
+                S.MusicVolume = Clamp(value);
+                if (S.MusicVolume > Silent) S.MusicVolumeWhenOn = S.MusicVolume;
+                Changed?.Invoke(SettingKind.MusicVolume);
+            }
+        }
+
+        /// <summary>On/off switch (the pause menu): off silences, on restores the last audible volume chosen.</summary>
+        public bool SfxOn
+        {
+            get => S.SfxVolume > Silent;
+            set
+            {
+                if (value == SfxOn) return;
+                SfxVolume = value ? (S.SfxVolumeWhenOn > Silent ? S.SfxVolumeWhenOn : new SettingsData().SfxVolume) : 0f;
+            }
+        }
+
+        public bool MusicOn
+        {
+            get => S.MusicVolume > Silent;
+            set
+            {
+                if (value == MusicOn) return;
+                MusicVolume = value ? (S.MusicVolumeWhenOn > Silent ? S.MusicVolumeWhenOn : new SettingsData().MusicVolume) : 0f;
+            }
         }
 
         public bool Haptics

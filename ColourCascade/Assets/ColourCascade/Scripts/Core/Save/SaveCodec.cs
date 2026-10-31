@@ -67,6 +67,7 @@ namespace ColourCascade.Core
             root["settings"] = new Dictionary<string, object>
             {
                 ["sfx"] = d.Settings.SfxVolume, ["music"] = d.Settings.MusicVolume, ["haptics"] = d.Settings.Haptics,
+                ["sfxWhenOn"] = d.Settings.SfxVolumeWhenOn, ["musicWhenOn"] = d.Settings.MusicVolumeWhenOn,
                 ["symbols"] = d.Settings.Symbols, ["reducedMotion"] = d.Settings.ReducedMotion,
             };
 
@@ -138,10 +139,14 @@ namespace ColourCascade.Core
 
             var settings = JsonRead.Obj(root, "settings");
             var defaults = new SettingsData();
+            float sfx = JsonRead.Float(settings, "sfx", defaults.SfxVolume), music = JsonRead.Float(settings, "music", defaults.MusicVolume);
             d.Settings = new SettingsData
             {
-                SfxVolume = JsonRead.Float(settings, "sfx", defaults.SfxVolume),
-                MusicVolume = JsonRead.Float(settings, "music", defaults.MusicVolume),
+                SfxVolume = sfx,
+                MusicVolume = music,
+                // Saves from before these fields existed: the saved volume, if audible, is the one to come back to.
+                SfxVolumeWhenOn = JsonRead.Float(settings, "sfxWhenOn", sfx > GameSettings.Silent ? sfx : defaults.SfxVolume),
+                MusicVolumeWhenOn = JsonRead.Float(settings, "musicWhenOn", music > GameSettings.Silent ? music : defaults.MusicVolume),
                 Haptics = JsonRead.Bool(settings, "haptics", defaults.Haptics),
                 Symbols = JsonRead.Bool(settings, "symbols", defaults.Symbols),
                 ReducedMotion = JsonRead.Bool(settings, "reducedMotion", defaults.ReducedMotion),

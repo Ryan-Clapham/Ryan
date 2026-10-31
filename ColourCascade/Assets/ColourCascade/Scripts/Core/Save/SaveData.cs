@@ -211,6 +211,9 @@ namespace ColourCascade.Core
     {
         public float SfxVolume = 0.8f;
         public float MusicVolume = 0.5f;
+        /// <summary>The last audible volume chosen, restored when a sound toggle is switched back on.</summary>
+        public float SfxVolumeWhenOn = 0.8f;
+        public float MusicVolumeWhenOn = 0.5f;
         public bool Haptics = true;
         public bool Symbols;
         public bool ReducedMotion;
@@ -219,6 +222,8 @@ namespace ColourCascade.Core
         {
             SfxVolume = Clamp01(SfxVolume);
             MusicVolume = Clamp01(MusicVolume);
+            SfxVolumeWhenOn = Clamp01(SfxVolumeWhenOn);
+            MusicVolumeWhenOn = Clamp01(MusicVolumeWhenOn);
         }
 
         static float Clamp01(float v) => float.IsNaN(v) ? 0.5f : v < 0 ? 0 : v > 1 ? 1 : v;

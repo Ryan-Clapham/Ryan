@@ -346,6 +346,59 @@ namespace ColourCascade.Tests
         }
     }
 
+    public class SettingsTests
+    {
+        [Test]
+        public void SwitchingSoundOffAndOnKeepsTheChosenVolume()
+        {
+            var s = TestUtil.Context().Settings;
+            s.SfxVolume = 0.3f;
+            s.MusicVolume = 0.2f;
+            s.SfxOn = false;
+            s.MusicOn = false;
+            Assert.AreEqual(0f, s.SfxVolume);
+            Assert.AreEqual(0f, s.MusicVolume);
+            s.SfxOn = true;
+            s.MusicOn = true;
+            Assert.AreEqual(0.3f, s.SfxVolume, 1e-5, "not reset to the default 0.8");
+            Assert.AreEqual(0.2f, s.MusicVolume, 1e-5, "not reset to the default 0.5");
+        }
+
+        [Test]
+        public void SwitchingOnAfterTheSliderReachedZeroRestoresTheLastAudibleVolume()
+        {
+            var s = TestUtil.Context().Settings;
+            s.SfxVolume = 0.4f;
+            s.SfxVolume = 0f; // slider dragged to the bottom
+            Assert.IsFalse(s.SfxOn);
+            s.SfxOn = true;
+            Assert.AreEqual(0.4f, s.SfxVolume, 1e-5);
+        }
+
+        [Test]
+        public void TheVolumeToRestoreSurvivesARestart()
+        {
+            var storage = new MemorySaveStorage();
+            var ctx = TestUtil.Context(storage: storage);
+            ctx.Settings.MusicVolume = 0.25f;
+            ctx.Settings.MusicOn = false;
+            ctx.Save();
+            var reloaded = TestUtil.Context(storage: storage);
+            Assert.IsFalse(reloaded.Settings.MusicOn);
+            reloaded.Settings.MusicOn = true;
+            Assert.AreEqual(0.25f, reloaded.Settings.MusicVolume, 1e-5);
+        }
+
+        [Test]
+        public void OlderSavesRestoreTheirSavedVolume()
+        {
+            var json = "{\"format\":\"colour-cascade-save\",\"version\":1,\"settings\":{\"sfx\":0.35,\"music\":0}}";
+            var d = SaveCodec.Decode(json);
+            Assert.AreEqual(0.35f, d.Settings.SfxVolumeWhenOn, 1e-5);
+            Assert.AreEqual(new SettingsData().MusicVolumeWhenOn, d.Settings.MusicVolumeWhenOn, 1e-5, "a muted old save comes back at the default");
+        }
+    }
+
     public class NavigationTests
     {
         enum S { Home, Map, Game, Shop, Settings }
