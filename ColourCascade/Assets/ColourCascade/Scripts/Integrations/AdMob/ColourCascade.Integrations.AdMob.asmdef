@@ -1,0 +1,26 @@
+{
+    "name": "ColourCascade.Integrations.AdMob",
+    "rootNamespace": "ColourCascade.Integrations",
+    "references": [
+        "ColourCascade.Core",
+        "ColourCascade.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "CC_ADMOB",
+        "COLOURCASCADE_UGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "",
+            "define": "COLOURCASCADE_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

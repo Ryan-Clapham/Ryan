@@ -1,0 +1,28 @@
+{
+    "name": "ColourCascade.Integrations.UnityIAP",
+    "rootNamespace": "ColourCascade.Integrations",
+    "references": [
+        "ColourCascade.Core",
+        "ColourCascade.Runtime",
+        "UnityEngine.Purchasing",
+        "UnityEngine.Purchasing.Stores"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "CC_UNITY_IAP",
+        "COLOURCASCADE_UGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "",
+            "define": "COLOURCASCADE_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -11,7 +11,8 @@ places to confirm them.
 | 1. Finish and test on real phones | Play through on 2–3 Android phones, fix what you find | 1–3 weeks |
 | 2. Prepare the release in Unity | App icon, version, signing key, Android App Bundle | A day |
 | 3. Google Play developer account | Pay the fee, verify your identity | A few days |
-| 4. Store listing and policy forms | Text, graphics, privacy policy, content rating, Data safety | A day |
+| 4. Store listing and policy forms | Text, graphics, privacy policy, content rating, Data safety, ads and purchases | A day |
+| 4a. Adverts and purchases (update 3.0) | AdMob account and ad units, consent message, in-app products, license testers (docs/MONETISATION.md §8) | A day or two |
 | 5. Internal testing | Upload, install from the Play Store yourself | A day |
 | 6. Closed testing (new personal accounts) | **At least 12 testers opted in for 14 days in a row** | 2+ weeks |
 | 7. Production access and launch | Apply, Google reviews, release (optionally staged) | About a week |
@@ -69,15 +70,18 @@ Play Console walks you through these on the app's **Dashboard**:
   1080 × 1920 work.
 * **Name check:** search Google Play for "Colour Cascade" and "Color Cascade" first, to avoid a clash with an
   existing app or trademark.
-* **Privacy policy:** Play Console asks for a link. This game collects nothing itself, but a short public
-  page must still say so (and mention anything Unity's engine collects; see Unity's privacy documentation).
-* **Data safety form:** what data the app collects and shares. For this version: no ads, no accounts, no
-  analytics added by the game; everything is saved on the device.
+* **Privacy policy:** required (the game has adverts and purchases since update 3.0). The game's own code collects
+  nothing that leaves the device, but the Google Mobile Ads SDK does (advertising ID, approximate location from the IP
+  address, device and usage data); the policy must cover it, the consent choice, Google Play purchases and anything
+  Unity's engine collects. docs/MONETISATION.md §7 lists what to include and where the link goes.
+* **Data safety form:** declare what the Google Mobile Ads SDK collects and shares (Google publishes a "data
+  disclosure" page for it) and purchase history. No accounts; progress is saved on the device.
 * **Content rating:** a questionnaire (IARC). A puzzle game with no violence normally rates PEGI 3 /
-  Everyone.
-* **Target audience:** choosing ages under 13 brings Google's Families policy into play. The game already
-  fits it (no ads, no data collection), but if you add ads or purchases later, keep it in mind.
-* **Ads:** declare "no ads". **In-app purchases:** none in this version.
+  Everyone; answer yes to adverts and digital purchases.
+* **Target audience:** choosing ages under 13 brings Google's Families policy into play: Families-certified ad
+  networks, child-directed ad requests and a Families review (docs/MONETISATION.md §7). Decide this before launch.
+* **Ads:** declare "Yes, my app contains ads". **Advertising ID:** declare that the app uses it (the ads SDK does).
+  **In-app purchases:** coin packs and No Ads (the listing shows "In-app purchases").
 
 ## 5. Internal testing
 
@@ -108,19 +112,19 @@ review again, usually within a day or two.
 * Reply to reviews; they're the best source of what to fix next.
 * Keep up with the yearly target API rise (Google announces it each year and enforces it from about August).
 
-## Later: in-app purchases (coin packs)
+## Adverts and in-app purchases (update 3.0)
 
-Real-money purchases are deliberately not in this version (no fake or non-working buy buttons). Adding them is
-an update after launch, because purchases can only be tested against a live Play Console app:
+Rewarded adverts, interstitials between levels, coin packs and a permanent No Ads purchase are in the game since
+update 3.0. Everything needed outside Unity is in **docs/MONETISATION.md §8**:
 
-1. In Play Console, set up a **payments profile** (bank and tax details) and create the products (for example
-   consumable coin packs) with prices.
-2. In Unity, add the **In-App Purchasing** package (Google Play Billing). Digital goods on Google Play must use
-   Google Play Billing.
-3. Add a "Coin packs" tab to the shop (the shop's tabs are data, see `docs/ARCHITECTURE.md`), grant coins
-   only after Google confirms the purchase, handle pending and refunded purchases, and verify receipts.
-4. Test with Play Console **license testers** (purchases aren't charged), then update the Data safety form,
-   the "Contains in-app purchases" listing label and, if children are in your audience, check the Families rules.
+* **AdMob:** account, app, ad units and the consent message.
+* **Play Console:**
+  * one-time products with the exact product IDs;
+  * a **payments profile** (bank and tax details) to sell anything;
+  * license testers.
 
-Selling coins also changes how the coin economy should feel, so revisit the reward tuning (`docs/DESIGN.md` §8)
-at the same time: generous enough to stay fun without paying, and never a paywall.
+Purchases can only be tested on a build installed from a Play Console testing track. Test them in **internal
+testing** before the closed test, so testers see working purchases and adverts.
+
+Selling coins changes how the coin economy feels, so watch the reward tuning (`docs/DESIGN.md` §8) with real data:
+generous enough to stay fun without paying, and never a paywall.

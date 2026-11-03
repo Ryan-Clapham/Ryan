@@ -77,7 +77,57 @@ namespace ColourCascade.Core
                 ["games"] = d.Stats.GamesPlayed, ["biggestGroup"] = d.Stats.BiggestGroup, ["shuffles"] = d.Stats.Shuffles,
             };
 
+            root["monetisation"] = EncodeMonetisation(d.Monetisation);
+
             return Json.Write(root);
+        }
+
+        static Dictionary<string, object> EncodeMonetisation(MonetisationRecord m)
+        {
+            var today = new Dictionary<string, object>();
+            foreach (var kv in m.AdsToday) today[kv.Key] = kv.Value;
+            var last = new Dictionary<string, object>();
+            foreach (var kv in m.LastAdTicks) last[kv.Key] = kv.Value;
+            var events = new Dictionary<string, object>();
+            foreach (var kv in m.EventCounts) events[kv.Key] = kv.Value;
+            return new Dictionary<string, object>
+            {
+                ["completions"] = m.CompletionsSinceInterstitial,
+                ["lastInterstitial"] = m.LastInterstitialTicks,
+                ["lastQuiet"] = m.LastQuietTicks,
+                ["adDay"] = m.AdDay ?? "",
+                ["adsToday"] = today,
+                ["lastAd"] = last,
+                ["transactions"] = new List<string>(m.Transactions),
+                ["noAds"] = m.NoAds,
+                ["noAdsTransaction"] = m.NoAdsTransaction ?? "",
+                ["noAdsChecked"] = m.NoAdsCheckedTicks,
+                ["noAdsMissing"] = m.NoAdsMissingChecks,
+                ["events"] = events,
+            };
+        }
+
+        static MonetisationRecord DecodeMonetisation(Dictionary<string, object> o)
+        {
+            var m = new MonetisationRecord();
+            if (o == null) return m;
+            m.CompletionsSinceInterstitial = JsonRead.Int(o, "completions");
+            m.LastInterstitialTicks = JsonRead.Long(o, "lastInterstitial");
+            m.LastQuietTicks = JsonRead.Long(o, "lastQuiet");
+            m.AdDay = JsonRead.Str(o, "adDay");
+            var today = JsonRead.Obj(o, "adsToday");
+            if (today != null) foreach (var kv in today) m.AdsToday[kv.Key] = (int)JsonRead.Long(today, kv.Key);
+            var last = JsonRead.Obj(o, "lastAd");
+            if (last != null) foreach (var kv in last) m.LastAdTicks[kv.Key] = JsonRead.Long(last, kv.Key);
+            var tx = JsonRead.Arr(o, "transactions");
+            if (tx != null) foreach (var t in tx) if (t is string s && s.Length > 0) m.AddTransaction(s);
+            m.NoAds = JsonRead.Bool(o, "noAds");
+            m.NoAdsTransaction = JsonRead.Str(o, "noAdsTransaction");
+            m.NoAdsCheckedTicks = JsonRead.Long(o, "noAdsChecked");
+            m.NoAdsMissingChecks = JsonRead.Int(o, "noAdsMissing");
+            var events = JsonRead.Obj(o, "events");
+            if (events != null) foreach (var kv in events) m.EventCounts[kv.Key] = (int)JsonRead.Long(events, kv.Key);
+            return m;
         }
 
         /// <summary>Parses a save. Throws FormatException if the text is not a Colour Cascade save.</summary>
@@ -160,6 +210,9 @@ namespace ColourCascade.Core
                 TilesCleared = JsonRead.Long(stats, "tiles"), GroupsCleared = JsonRead.Int(stats, "groups"), PowerUpsUsed = JsonRead.Int(stats, "powerUps"),
                 GamesPlayed = JsonRead.Int(stats, "games"), BiggestGroup = JsonRead.Int(stats, "biggestGroup"), Shuffles = JsonRead.Int(stats, "shuffles"),
             };
+
+            // Saves from before update 3.0 have no monetisation record: everything starts at zero.
+            d.Monetisation = DecodeMonetisation(JsonRead.Obj(root, "monetisation"));
 
             d.Normalize();
             return d;

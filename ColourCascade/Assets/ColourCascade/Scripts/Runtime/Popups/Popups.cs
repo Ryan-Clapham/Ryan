@@ -419,10 +419,14 @@ namespace ColourCascade.App
         }
     }
 
-    /// <summary>Buy a power-up without leaving the level (Campaign and Endless only; the shop service enforces this).</summary>
+    /// <summary>
+    /// Buy a power-up with coins: from the level's power-up bar (Campaign and Endless only; the shop service enforces
+    /// this) and from the shop. With too few coins it offers an advert for the missing coins (docs/MONETISATION.md
+    /// §2.3); afterwards the player is back here and confirms the purchase themselves: nothing is bought automatically.
+    /// </summary>
     public sealed class QuickBuyPopup : PopupBase
     {
-        protected override float PanelHeight => 980f;
+        protected override float PanelHeight => 1130f;
         PowerUpDefinition def;
         Image circle;
         Image art;
@@ -430,7 +434,10 @@ namespace ColourCascade.App
         Text desc;
         Text status;
         CCButton buy;
+        CCButton watch;
         Action bought;
+        bool watching;
+        bool offerLogged;
 
         protected override void Build()
         {
@@ -443,11 +450,23 @@ namespace ColourCascade.App
             nameText.rectTransform.TopStrip(80, 370, 60, 60);
             desc = UI.Text(Content, "", Theme.FontBody - 2, Theme.TextSecondary, TextAnchor.UpperCenter, false, "Description");
             desc.rectTransform.TopStrip(120, 460, 80, 80);
-            status = UI.Text(Content, "", Theme.FontSmall, Theme.TextSecondary, TextAnchor.MiddleCenter, true, "Status");
-            status.rectTransform.BottomStrip(70, 230, 60, 60);
+            status = UI.Text(Content, "", Theme.FontSmall, Theme.TextSecondary, TextAnchor.MiddleCenter, false, "Status");
+            status.rectTransform.BottomStrip(130, 380, 60, 60);
+            watch = FooterButton("Watch an advert", ButtonStyle.Success, Watch, Icon.Play, 225, 140);
             buy = FooterButton("Buy", ButtonStyle.Gold, Buy, null, 60, 150);
             buy.OnDisabledClick = () => Toast.Show(Ctx.Shop.Check(def.id).Message, Icon.Info, Theme.Danger);
+            Ctx.Monetisation.Ads.Changed += Refresh;
+            App.CoinsChanged += OnCoins;
         }
+
+        void OnDestroy()
+        {
+            if (GameApp.Instance == null || GameApp.Instance.Ctx == null) return;
+            Ctx.Monetisation.Ads.Changed -= Refresh;
+            App.CoinsChanged -= OnCoins;
+        }
+
+        void OnCoins(int before, int after) => Refresh();
 
         public void Setup(PowerUpDefinition definition, Action onBought)
         {
@@ -462,17 +481,71 @@ namespace ColourCascade.App
 
         void Refresh()
         {
+            if (def == null || this == null) return;
             var check = Ctx.Shop.Check(def.id);
             buy.SetLabel("Buy for " + NumberFormat.Thousands(def.price));
-            buy.Interactable = check.Allowed;
-            status.text = check.Allowed
-                ? "You have " + NumberFormat.Thousands(Ctx.Wallet.Balance) + " coins"
-                : check.Message + (check.Block == PurchaseBlock.InsufficientFunds ? "\nEarn coins by clearing new levels and daily challenges." : "");
-            status.color = check.Allowed ? Theme.TextSecondary : Theme.Danger;
+            buy.Interactable = check.Allowed && !watching;
+            bool shortOfCoins = check.Block == PurchaseBlock.InsufficientFunds;
+            var offer = Ctx.Monetisation.Coins.ForPrice(def.price);
+            bool showAd = shortOfCoins && offer.AdCoins > 0 && offer.Ad.Status != OfferStatus.Disabled;
+            watch.gameObject.SetActive(showAd);
+            if (showAd)
+            {
+                watch.SetLabel("Watch an advert: +" + NumberFormat.Thousands(offer.AdCoins) + (offer.AdCoins == 1 ? " coin" : " coins"));
+                watch.Interactable = offer.Ad.CanShow && !watching;
+                watch.OnDisabledClick = () => Toast.Show(Ctx.Monetisation.Coins.ForPrice(def.price).Ad.Message, Icon.Info, Theme.TextSecondary);
+                if (!offerLogged)
+                {
+                    offerLogged = true;
+                    Ctx.Monetisation.Coins.NoteShortfallOffered(offer, def.id.ToString());
+                }
+            }
+            if (check.Allowed)
+            {
+                status.text = "You have " + NumberFormat.Thousands(Ctx.Wallet.Balance) + " coins";
+                status.color = Theme.TextSecondary;
+            }
+            else if (shortOfCoins)
+            {
+                status.text = "You have " + NumberFormat.Thousands(Ctx.Wallet.Balance) + " coins. " + offer.Explanation +
+                              (showAd && !offer.Ad.CanShow ? "\n" + offer.Ad.Message : "") +
+                              (showAd ? "" : "\nEarn coins by clearing new levels and daily challenges.");
+                status.color = Theme.Danger;
+            }
+            else
+            {
+                status.text = check.Message;
+                status.color = Theme.Danger;
+            }
+        }
+
+        void Watch()
+        {
+            if (watching || def == null) return;
+            bool started = Ctx.Monetisation.Coins.WatchForShortfall(def.price, def.id.ToString(), (outcome, coins) =>
+            {
+                watching = false;
+                if (outcome == AdOutcome.Rewarded && coins > 0)
+                {
+                    AudioService.Sfx(SfxNames.Purchase);
+                    bool enough = Ctx.Shop.Check(def.id).Allowed;
+                    Toast.Show("+" + NumberFormat.Thousands(coins) + " coins" + (enough ? ". You can buy " + def.displayName + " now." : ""), Icon.Gift, Theme.Gold);
+                }
+                else if (outcome == AdOutcome.ClosedEarly) Toast.Show("The advert ended early, so no coins were added.", Icon.Info, Theme.TextSecondary);
+                else if (outcome == AdOutcome.FailedToShow) Toast.Show("The advert couldn't be shown. Please try again later.", Icon.Info, Theme.Danger);
+                Refresh();
+            });
+            if (started)
+            {
+                watching = true;
+                Refresh();
+            }
+            else Toast.Show(Ctx.Monetisation.Coins.ForPrice(def.price).Ad.Message, Icon.Info, Theme.TextSecondary);
         }
 
         void Buy()
         {
+            if (watching) return;
             var result = Ctx.Shop.TryBuy(def.id);
             if (!result.Allowed)
             {

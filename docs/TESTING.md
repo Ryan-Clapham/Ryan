@@ -13,7 +13,8 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **379 passed, 0 failed** |
+| SDK integrations (AdMob + UMP, Unity IAP 5) compile against **API shims written from the SDKs' documentation**, not the real SDKs (which couldn't be downloaded here), Android and iOS paths | `dotnet build SdkCheck`, `-p:UnityPlatform=iOS` | 0 errors, 0 warnings (shims only: docs/MONETISATION.md §11) |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **447 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Campaign mechanics: Casual and Planner bots play every level 1–200 (12 games each, every move played) and flag levels that look too easy, too hard, unfair, trivial or short of three stars | `Sim -- campaign 1 200 12 <csv>` | See DESIGN.md §3.1–3.2 and docs/campaign-simulation.csv |
@@ -25,7 +26,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (379 tests)
+### Automated test coverage (447 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -51,7 +52,7 @@ real Android builds provide it.
 | Goals | 11 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; meeting every goal passes the level and play goes on; Finish ends a passed level with nothing added for unused moves and is refused before passing; a passed level that runs out of moves is won; fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
 | Stars and objectives (play on) | 13 | The level 67, 47 and 78 reports: the target passes without ending and stars rise with every move left (the HUD's stars are the stars awarded); the real level 67 keeps going after its goals; a high score with a treasure left fails, Extra Moves keep score and progress, a power-up finishes the goal, Finish and the saved result; the combinations tutorial is no longer a one-tap win; no level 21–60 is passed by move 2; three stars within reach on 21–60; make/set off/combination goals count only the kind asked, chain reactions, both halves of a combination and power-ups; all goals needed; the new goals round trip through level files; star requirements match the star rule on levels 1–60; the result says why the next star was missed; stars from playing on are saved |
 | Planner bot | 6 | Picks goal progress over the biggest group; breaks the ice/chains a goal needs; looks one move ahead; deterministic; beats Casual on levels 1–40 (120/120 vs 93/120) and on an ice level (29/30 vs 10/30) |
-| Save compatibility | 3 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte; the same play on the new code (every move played) makes exactly the same progress: levels unlocked and completed, plays and wins, first-clear and milestone rewards, Daily and Weekly plays, the purchase, inventory, tutorials and settings (scores, stars and star rewards differ, because levels are now played to the end and unused moves score nothing); and the whole save it writes matches a recorded fingerprint, which the build before the 2.1 clarifications also produced byte for byte (checked in a separate worktree) |
+| Save compatibility | 3 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte; the same play on the new code (every move played) makes exactly the same progress: levels unlocked and completed, plays and wins, first-clear and milestone rewards, Daily and Weekly plays, the purchase, inventory, tutorials and settings (scores, stars and star rewards differ, because levels are now played to the end and unused moves score nothing); and the whole save it writes matches a recorded fingerprint, which the build before the 2.1 clarifications also produced byte for byte (checked in a separate worktree); since 3.0 the save also has a monetisation record, which an old save gets empty, and the rest of the save still matches the 2.1 fingerprint exactly |
 | Special tiles | 29 | Creation at 6/9/12 tiles and only as taught; configurable thresholds; row vs column rockets; placement (tapped cell, or nearest cleared cell); they fall and stop at stones; rocket, bomb and prism hits on every tile type; every combination; chain reactions in order, each once; goals count their clears; Blast, Tile Breaker, Swap, Colour Shift and Colour Burst with specials; a special is always a legal move |
 | Treasure | 9 | Falls and is collected at the bottom edge and on stones, never through them; waits on ice, chains, moss and tiles; stacked treasure; untouched by power-ups and reshuffles; layout rules; the treasure goal wins the level |
 | Moss | 11 | Leaves with its group and with area hits; scraped off by a neighbouring clear; grows by one free tile after a move that clears none, repeatably, never two moves in a row, never past its cap, never onto ice, chains, specials or treasure; falls with its tile; can't block every move; the moss goal follows the board |
@@ -59,6 +60,7 @@ real Android builds provide it.
 | Mechanics in every mode | 24 | Each of the seven mechanics gives identical results (and points) in Campaign, Daily, Weekly Rush and Endless; power-up rules per mode unchanged; recovery keeps obstacles in every mode; campaign and Endless unlocks (milestones configurable); Daily uses only the day's plan and the player's unlocks, is identical for players with the same unlocks, stays keyed by date, needs its goals as well as the target, and its goals are reachable (planner 27/30 days); Weekly themes, more combinations than Daily, never treasure with chains, medal rewards follow the board played; players with nothing unlocked get the original challenges and Endless; Endless level saved and migrated from old saves; the Endless journey brings one thing per stage (stones, ice, a breather, chains, rockets and bombs, treasure, a breather, moss, prisms) then mixes, more kinds and denser, with breathers; waves arrive only with new stages, never more stones than columns; no specials before their stage; random play in every mode keeps every rule; the star checklist |
 | Scoring, stones and the finale (2.1) | 49 | Rocket scores on rows 5–10 wide and columns 6–12 tall; a rocket scores only what it reaches (holes nothing, stones and ice their points); **the bomb's 5 × 5 square is centred on the bomb in the middle, on all four edges and in all four corners (25 cells in the middle, 16 one step from a corner, 15 on an edge, 9 in a corner), never reaches off the board, and reaches 25 cells in the middle of boards from 5 × 5 to 10 × 12**; even-sized squares (config) still lean to the middle; bombs break stones and hit obstacles in their square, scoring each once; only specials and Tile Breaker break stones (not groups, Blast, Colour Burst or prisms), and a broken stone lets tiles fall through; every combination pays 75 a tile with the combo bonus as its own line; two prisms clear the board for a big score but don't pass a level with thick ice and chains; chain reactions score each tile once; specials left when the moves run out go off (no move charged, points and goal progress count, a goal they finish still passes), **adjacent ones together as a combination**, in Campaign, Daily and Endless but not Weekly Rush; a failed finish stays failed and Extra Moves restart it; **Finish sets the specials off and adds nothing for unused moves**; every power-up's points and goal progress; tutorial power-ups kept on the first win only, temporary on replays, gone on the next level, kept through a revivable failure, settled across a restart, nothing extra for players with older free trials; the tutorial hand's fingertip lands on its target on 9:16, 9:20, 3:4 and 9:19.5 screens and the hand stays on screen |
 | Groups of specials (2.1) | 17 | Three rockets (a cross three lines wide), four rockets (five wide), three bombs (9 × 9, clipped), a rocket and two bombs (a five-line band), two rockets and a bomb (a three-wide cross), prism + rocket + bomb (the colour, then the band), two prisms + a bomb (every colour tile, and the bomb's area breaks stones), a snake of five specials fires as one; only orthogonal neighbours join (a diagonal special fires later, alone); a blast that reaches a special outside the group sets it off once, alone, with no loop; power-ups that hit specials set them off singly and never combine them; ice, chains, moss and stones in a combination's area each take one step and score once; make/fire/combination goals count every member once; the preview shows exactly the cells the combination clears; a group of three left at the end goes off as one combination; Finish uses the same groups; 200 random boards full of specials: every special fires at most once, no tile scores twice, score = breakdown, the session always settles |
+| Monetisation (3.0) | 68 | **With scripted fakes in place of the ad, consent and store SDKs** (not the SDKs themselves): a rewarded advert grants its reward only on the SDK's reward callback, exactly once (duplicate callbacks ignored), with exactly +10 moves or +50 coins and the balance saved at once; closed early, no reward callback, failed to show, failed to load (retried with growing delays up to 5 minutes), never answered, still open after the player is back, callbacks arriving after the game resumes, a reward just after the close (counts) or long after (granted once, reported); daily limit, cooldown and per-attempt limit survive a restart and a clock wound back; one advert at a time; Google's test ad units used and no live IDs built in; new opportunities added without changing the service. Out of Moves: +10 moves by advert and +5 for exactly 100 coins keep every tile, obstacle, score, goal and power-up; nothing taken without enough coins; an interrupted advert leaves the choice open; campaign only. Shortfall: the exact shortfall up to 50, explained when not enough, never buys anything. Interstitials: none before 5 completed levels, then at the next level or map only after a win, never after a failure, retry, abandoning or during play; 5 minutes apart; the count kept when none is loaded or one fails and reset only when one is displayed; none within 2 minutes of a rewarded advert, a coin pack or a coin purchase; none (not even loaded) with No Ads, while rewarded adverts stay; the count survives a restart. Consent: no ad SDK before consent, an earlier session's consent starts it at once, no consent or a consent error means no adverts while coins and purchases still work, privacy options can start adverts, settings reach the SDKs. Purchases: prices only from the store; granted, saved and only then confirmed; never granted twice (duplicates, redelivery after a crash); left unconfirmed if the save fails; cancelled, failed and pending purchases change nothing until paid; purchases blocked when they should be; a store that never answers unlocks the shop; unknown products neither granted nor confirmed; No Ads survives a restart (also offline), is restored on a new device and by Restore Purchases (a restore the store never answers ends as failed after 30 s), and a refund is applied after two store checks. Saves: old saves load with empty monetisation data, the record round trips and is capped, a progress reset keeps purchases, starting monetisation changes no progress; ledger reasons readable; 300 rounds of random callback storms never pay more than once per rewarded advert |
 | Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 3,400 actions, 400 specials made, combos, treasure, moss growth, 47 finales): score bookkeeping, the score breakdown always equals the score, no tile removed twice, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
@@ -124,6 +126,13 @@ real Android builds provide it.
   against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
   watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
   how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
+* **Update 3.0 (adverts and purchases) has not been seen running, and no real SDK has been used.** The Google Mobile
+  Ads, consent and Unity IAP integrations have only been compiled against API shims written from the SDKs'
+  documentation (the real packages couldn't be downloaded in this environment); the first real compile is when the
+  project is opened with the SDKs installed. Not done: Google's test adverts on a device, the consent form, Google
+  Play Billing with license testers, real adverts or payments, and the screens themselves (Out of Moves offers,
+  Coins and Premium tabs, the buy screen's advert offer, Settings > Privacy options, the input blocker and paused
+  audio during adverts). The device test plan is in docs/MONETISATION.md §11.
 * Balance comes from bots, not people. 43 of levels 1–200 are flagged by the report, 13 of them *unfair?* (the
   Planner passes under 80%, most at 9 of 12 games) and 2 clearly hard for it, 99 and 151 (DESIGN.md §3.1). The bomb
   size decision (DESIGN.md §3.4) also rests on bot games.
@@ -147,6 +156,26 @@ real Android builds provide it.
 
 ## Manual test checklist (please run in Unity, then on a phone)
 
+### Update 3.0: adverts, purchases, consent
+
+Run on an Android phone with a development build (test adverts), and the purchases with a Play Console license
+tester; the full plan is docs/MONETISATION.md §11. In the editor, Google's placeholder adverts and Unity IAP's fake
+store only show that the screens react; they are not a test of the real flow.
+
+* First start: the consent form (with `privacy.debugGeographyEea` and your test device ID) appears over the home
+  screen; after answering, Settings shows Privacy options when required.
+* Out of Moves: "Watch an advert: +10 moves" plays a test advert; the level continues with the same board and 10
+  moves; closing it early adds nothing and the choices stay. "+5 moves for 100" works with enough coins and explains
+  the shortfall without. "Give Up" shows Try Again / Map / Home. The game's music pauses during the advert and taps
+  don't reach the board; the pause menu doesn't open.
+* Shop > Coins: the advert card (+50, adverts left today), four packs priced by Google Play ("..." while connecting),
+  balance updating at once. Shop > Premium: No Ads with its price, then "Owned"; Restore Purchases.
+* An unaffordable power-up (shop or in-level bar): the buy screen offers "Watch an advert: +N coins" for the exact
+  shortfall (at most 50); afterwards Buy is enabled and nothing was bought until it's tapped.
+* Interstitials: after 5 won levels, one test interstitial on Next Level or Map; none on Replay or after a loss;
+  none again for 5 minutes; none with No Ads.
+* Check the new texts and prices (with currency symbols) fit and render on a short phone.
+
 ### Update 2.1: scoring, stones, finale, tutorials, Endless
 
 * Fire a rocket across a full 8-wide row: about 350 points (7 tiles × 50), more on a longer row. A bomb in the
@@ -167,8 +196,8 @@ real Android builds provide it.
 * Groups of specials: put three or more specials side by side (a line or an L): holding one highlights the whole
   group and the preview reads "3x Combo!"; releasing fires them as one (one bomb sound, flashes on every hit cell).
   A special touching only diagonally is not part of the group. Inventory power-ups never fire together.
-* Out of Moves with Extra Moves offered: the coin balance shows at the top of the popup; buying moves shows a
-  "coins left" toast.
+* Out of Moves: the coin balance shows at the top of the popup with "Watch an advert: +10 moves", "+5 moves for 100"
+  and "Give Up" (update 3.0 checklist below).
 * Level 60 (Colour Burst): don't use the free one and win: the result says "Kept 1 free Colour Burst" and the shop
   shows it owned. Replay and win again: nothing more is kept. On level 61 the bar shows no "Free" badge unless the
   player owns one.
@@ -270,7 +299,7 @@ Use **Settings → Developer** (Editor/dev builds) to add coins, unlock levels a
 
 ### Power-ups in play
 - [ ] Each of the six works as described in DESIGN.md §7; Cancel and Back exit targeting without using anything.
-- [ ] Out of moves offers Extra Moves only as an explicit choice (once unlocked).
+- [ ] Out of moves offers an advert (+10 moves), coins (+5 for 100) and Give Up as explicit choices; an owned Extra Moves power-up is offered too.
 
 ### Modes (§21: timers)
 - [ ] Endless: no timer, a new board every run, bonus moves for groups of 6+, run summary with bests.

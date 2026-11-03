@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Compiles the SDK integrations (Scripts/Integrations) against API SHIMS written from the SDKs' documentation
+       (Shims/), NOT against the real Google Mobile Ads plugin or Unity IAP package, which this harness can't download.
+       It catches mistakes in the integration code against the documented API only; the real check is opening the
+       project in Unity with the SDKs installed (docs/MONETISATION.md §11). -p:UnityPlatform=iOS checks the iOS paths. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ColourCascade.Integrations</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>$(UnityCommonDefines);CC_ADMOB;CC_UNITY_IAP</DefineConstants>
+    <DefineConstants Condition="'$(UnityPlatform)'=='iOS'">$(DefineConstants);UNITY_IOS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(UnityAssets)/Scripts/Integrations/**/*.cs" />
+    <Compile Include="Shims/*.cs" />
+    <ProjectReference Include="../CoreLib/CoreLib.csproj" />
+    <ProjectReference Include="../ProceduralLib/ProceduralLib.csproj" />
+    <ProjectReference Include="../UnityCheck/UnityCheck.csproj" />
+    <Reference Include="$(UnityRefs)/engine/lib/net45/*.dll" Private="false" />
+    <Reference Include="$(UnityRefs)/ugui/lib/UnityEngine.UI.dll" Private="false" />
+  </ItemGroup>
+</Project>

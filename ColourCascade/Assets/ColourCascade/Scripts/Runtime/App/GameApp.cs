@@ -28,6 +28,8 @@ namespace ColourCascade.App
         public FxLayer GlobalFx { get; private set; }
         public DebugClock Clock { get; private set; }
         public bool Ready { get; private set; }
+        /// <summary>Adverts, consent and purchases (docs/MONETISATION.md).</summary>
+        public MonetisationHost Monetisation { get; private set; }
 
         /// <summary>(before, after) — always refers to the current wallet, even after a progress reset.</summary>
         public event Action<int, int> CoinsChanged;
@@ -187,6 +189,9 @@ namespace ColourCascade.App
             BuildLayers();
             Ready = true;
             Router.Show(ScreenId.Home);
+            // Consent, adverts and the store start once the game is on screen (a consent form appears over it).
+            Monetisation = gameObject.AddComponent<MonetisationHost>();
+            Monetisation.Begin();
             var splashGroup = splash.gameObject.AddComponent<CanvasGroup>();
             splash.SetAsLastSibling();
             Tw.Fade(splashGroup, 0f, 0.35f, Ease.OutQuad, 0.1f).OnComplete(() => Destroy(splash.gameObject));

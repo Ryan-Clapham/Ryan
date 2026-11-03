@@ -242,6 +242,8 @@ namespace ColourCascade.App
             App.AppPaused += OnAppPaused;
             Ctx.Settings.Changed -= OnSettingChanged;
             Ctx.Settings.Changed += OnSettingChanged;
+            Ctx.Monetisation.Ads.LateRewardGranted -= OnLateReward;
+            Ctx.Monetisation.Ads.LateRewardGranted += OnLateReward;
             StartRun();
         }
 
@@ -250,6 +252,7 @@ namespace ColourCascade.App
             CloseRun();
             App.AppPaused -= OnAppPaused;
             Ctx.Settings.Changed -= OnSettingChanged;
+            Ctx.Monetisation.Ads.LateRewardGranted -= OnLateReward;
             CoachMark.Hide();
             board.CancelPress();
             Tw.Kill(this);
@@ -269,6 +272,8 @@ namespace ColourCascade.App
 
         void OnAppPaused(bool isPaused)
         {
+            // A rewarded advert the player chose to watch also sends the app to the background: no pause menu for that.
+            if (Ctx.Monetisation.Ads.IsShowing) return;
             if (isPaused && session != null && !session.IsOver && !paused && !endScheduled) OpenPause();
         }
 
@@ -1701,6 +1706,30 @@ namespace ColourCascade.App
             RefreshPowerBar();
             RefreshFinishButton();
             return true;
+        }
+
+        /// <summary>
+        /// Back to the level after Out of Moves was answered with an advert or coins (docs/MONETISATION.md §2.1): the
+        /// same session, with its board, score, goals and power-ups, now has more moves.
+        /// </summary>
+        public void ResumeAfterContinue(string message)
+        {
+            if (session == null || session.State != SessionState.Playing) return;
+            endScheduled = false;
+            board.InputEnabled = true;
+            Ctx.BeginRun(session);
+            RefreshHud(true);
+            RefreshPowerBar();
+            RefreshFinishButton();
+            if (!string.IsNullOrEmpty(message)) Toast.Show(message, Icon.Plus, Theme.Success);
+        }
+
+        /// <summary>The SDK confirmed an Extra Moves reward after the advert had ended: carry on if the player is still deciding.</summary>
+        void OnLateReward(string placement)
+        {
+            if (placement != RewardedPlacements.ContinueMoves || session == null || session.State != SessionState.Playing || !endScheduled) return;
+            Nav.CloseAllPopups();
+            ResumeAfterContinue("Your advert reward arrived: +" + Ctx.Monetisation.Continue.AdMoves + " moves");
         }
 
         public void RestartRun()

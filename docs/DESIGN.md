@@ -348,8 +348,10 @@ move. A use is only consumed if the effect actually happens; an invalid target c
 
 ## 8. Coins and economy
 
-Coins are earned only by playing, and every grant has a one-time **claim key** stored in the save, so
-repeated taps, reloads and replays can never pay twice.
+Coins are earned by playing (below), and since update 3.0 also by watching adverts and buying coin packs
+(docs/MONETISATION.md: 50 coins per advert, 5 a day; packs of 500 / 1,200 / 2,750 / 6,000). Every play reward has a
+one-time **claim key** stored in the save, so repeated taps, reloads and replays can never pay twice; advert rewards
+are granted once per advert the SDK confirms, and purchases once per store transaction.
 
 | Source | Coins | Key |
 |---|---|---|
@@ -383,11 +385,18 @@ Every balance change goes through `Wallet`, the single source of truth, and is w
 
 * Reached from the home screen (Shop button and the **+** on the coin counter) and from the in-game bar.
 * **Power-ups tab:** icon, name, description, owned/free count, price. Locked items show their unlock level;
-  unaffordable ones explain the shortfall ("You need 35 more coins").
-* **Coins tab:** balance plus every way to earn coins, with shortcuts to play. It states plainly that coin
-  packs are not sold in this version: no fake or non-functional purchase buttons.
-* Tabs are data (`ShopTab` subclasses), so cosmetics or real coin packs can be added later as another tab.
-  Real-money purchases, if added, should use Google Play Billing (Unity IAP) with receipt validation.
+  an unaffordable one opens the buy screen, which explains the shortfall and offers an advert for the missing
+  coins (at most 50); the player then confirms the purchase themselves (update 3.0).
+* **Coins tab:** balance (updates live), an advert for 50 coins, four coin packs priced by Google Play, then every
+  way to earn coins by playing, with shortcuts.
+* **Premium tab (3.0):** the permanent No Ads purchase and Restore Purchases.
+* Tabs are data (`ShopTab` subclasses), so cosmetics or more premium items can be added as cards or tabs.
+  Real-money purchases use Google Play Billing through Unity IAP (docs/MONETISATION.md).
+
+**Adverts (3.0):** rewarded adverts only by the player's choice (Out of Moves: +10 moves; Coins tab; not enough
+coins), and an interstitial at most once every 5 completed campaign levels and 5 minutes, only when leaving a
+won level's results. Never during play, after a loss or a retry, or with No Ads. Out of Moves also offers +5
+moves for 100 coins. Details and every limit: docs/MONETISATION.md.
 
 ## 10. Accessibility and settings
 

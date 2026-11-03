@@ -12,6 +12,7 @@ namespace ColourCascade.Core
         public RushConfig Rush = new RushConfig();
         public EconomyConfig Economy = new EconomyConfig();
         public PowerUpDefinition[] PowerUps = PowerUpCatalog.CreateDefaults();
+        public MonetisationConfig Monetisation = new MonetisationConfig();
 
         public static GameConfigData CreateDefault()
         {
@@ -181,7 +182,8 @@ namespace ColourCascade.Core
         PuzzleSession statsSession;
         int statsTiles, statsGroups, statsPowerUps, statsShuffles;
 
-        public GameContext(GameConfigData config, ISaveStorage storage, IClock clock)
+        /// <param name="monotonicSeconds">Seconds from a clock that never jumps (advert and purchase timers); tests pass their own.</param>
+        public GameContext(GameConfigData config, ISaveStorage storage, IClock clock, Func<double> monotonicSeconds = null)
         {
             Config = config ?? GameConfigData.CreateDefault();
             this.storage = storage;
@@ -193,6 +195,7 @@ namespace ColourCascade.Core
             Challenges = new ChallengeFactory(Config.Daily, Config.Rush, Config.Scoring);
             Settings = new GameSettings(() => Saves.Data);
             Tutorials = new TutorialService(() => Saves.Data);
+            Monetisation = new MonetisationServices(Config.Monetisation, () => Saves.Data, () => Wallet, Clock, monotonicSeconds, Save, Activity);
             BindToData();
         }
 
@@ -206,6 +209,8 @@ namespace ColourCascade.Core
         public ChallengeFactory Challenges { get; }
         public GameSettings Settings { get; }
         public TutorialService Tutorials { get; }
+        /// <summary>Adverts, purchases and the No Ads entitlement (update 3.0; docs/MONETISATION.md).</summary>
+        public MonetisationServices Monetisation { get; }
 
         public Wallet Wallet { get; private set; }
         public Inventory Inventory { get; private set; }
@@ -242,6 +247,8 @@ namespace ColourCascade.Core
             Rewards = new RewardService(d, Wallet, Config.Economy, Config.Daily, Config.Rush, Config.Endless);
             Campaign = new CampaignProgress(d);
             Shop = new ShopService(PowerUps, Wallet, Inventory, () => Saves.Data.HighestUnlocked, Activity);
+            // Spending coins in the shop starts the interstitial quiet period like any other purchase.
+            if (Monetisation != null) Shop.Purchased += (id, n) => Monetisation.Interstitials.NoteRewardedOrPurchase();
             PowerUpUse = new PowerUpService(PowerUps, Inventory, () => Saves.Data.HighestUnlocked);
         }
 
@@ -380,6 +387,8 @@ namespace ColourCascade.Core
                     if (s.State == SessionState.Won)
                     {
                         var win = Campaign.RecordWin(level.Number, s.FinalScore, r.Stars);
+                        // One more successfully completed level towards the next interstitial (docs/MONETISATION.md §3).
+                        Monetisation.Interstitials.RecordLevelCompleted();
                         r.FirstClear = win.FirstClear;
                         r.PreviousStars = win.PreviousStars;
                         r.PreviousBest = win.PreviousBest;

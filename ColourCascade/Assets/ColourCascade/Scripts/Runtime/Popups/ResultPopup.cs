@@ -23,22 +23,51 @@ namespace ColourCascade.App
         GameScreen game;
         RectTransform body;
         CoinCounter coins;
+        bool offersDeclined;
+        bool transitioning;
+        bool watching;
+        CCButton adButton, coinButton;
 
         protected override void Build()
         {
         }
 
+        void OnDestroy()
+        {
+            if (GameApp.Instance != null && GameApp.Instance.Ctx != null) Ctx.Monetisation.Ads.Changed -= RefreshOffers;
+        }
+
         /// <summary>Android Back leaves the result screen the same way the "Map"/"Home" button does.</summary>
         public override void OnBack()
         {
-            if (game != null) game.LeaveAfterResult();
+            if (game == null) return;
+            if (result != null && result.Mode == GameMode.Campaign && result.State == SessionState.Won) AfterWin(AdTransition.LevelWonExit, game.LeaveAfterResult);
+            else game.LeaveAfterResult();
         }
 
-        public void Setup(RunResult r, PuzzleSession s, GameScreen screen)
+        /// <summary>
+        /// Leaving a won level's results (to the next level, the map or home) is the natural break where an interstitial
+        /// may appear (docs/MONETISATION.md §3); the advert service decides, and the action runs after it either way.
+        /// Retry and every other path never show one.
+        /// </summary>
+        void AfterWin(AdTransition transition, System.Action action)
+        {
+            if (transitioning) return;
+            transitioning = true;
+            Ctx.Monetisation.Ads.AtTransition(transition, () =>
+            {
+                transitioning = false;
+                action?.Invoke();
+            });
+        }
+
+        /// <param name="declinedOffers">Out of Moves: the player gave up on the extra-moves offers.</param>
+        public void Setup(RunResult r, PuzzleSession s, GameScreen screen, bool declinedOffers = false)
         {
             result = r;
             session = s;
             game = screen;
+            offersDeclined = declinedOffers;
             body = UI.Rect("Body", Content);
             body.Fill(60, BodyBottom, 60, BodyTop);
             UI.VStack(body, 16, null, TextAnchor.UpperCenter);
@@ -84,12 +113,12 @@ namespace ColourCascade.App
             if (why != null) Para(why, Theme.FontSmall);
             Rewards(t + 0.2f);
             bool hasNext = Ctx.Campaign.IsUnlocked(level.Number + 1);
-            var next = FooterButton(hasNext ? "Next Level" : "Continue", ButtonStyle.Primary, () =>
+            var next = FooterButton(hasNext ? "Next Level" : "Continue", ButtonStyle.Primary, () => AfterWin(AdTransition.LevelWonNext, () =>
             {
                 Close();
                 game.NextLevel();
-            }, Icon.Play, 210, 150);
-            SecondaryRow("Map", Icon.Map, () => game.ExitTo(ScreenId.Map, new MapArgs { Focus = level.Number + 1, JustCompleted = level.Number }), "Replay", Icon.Restart, () =>
+            }), Icon.Play, 210, 150);
+            SecondaryRow("Map", Icon.Map, () => AfterWin(AdTransition.LevelWonExit, () => game.ExitTo(ScreenId.Map, new MapArgs { Focus = level.Number + 1, JustCompleted = level.Number })), "Replay", Icon.Restart, () =>
             {
                 Close();
                 game.PlayAgain();
@@ -140,30 +169,52 @@ namespace ColourCascade.App
             bar.SetFraction(0, false);
             Tw.Delay(0.3f, () => bar.SetFraction(ratio), bar);
 
-            // Offer Extra Moves only as an explicit choice.
+            // Out of Moves choices (docs/MONETISATION.md §2.1): an advert for extra moves, coins for fewer, or give up.
+            // Every choice is explicit; nothing is spent or shown automatically. Both continue this same level.
+            var options = Ctx.Monetisation.Continue.Options(session);
             var def = Ctx.PowerUps.Get(PowerUpId.ExtraMoves);
-            var block = Ctx.PowerUpUse.CanSelect(session, PowerUpId.ExtraMoves);
-            if (def != null && (block == UseBlock.None || block == UseBlock.NoneOwned))
+            bool ownsExtraMoves = def != null && Ctx.PowerUpUse.CanSelect(session, PowerUpId.ExtraMoves) == UseBlock.None;
+            bool adOffer = options.AdMoves > 0 && options.Ad.Status != OfferStatus.Disabled;
+            bool anyOffer = adOffer || options.CoinMoves > 0 || ownsExtraMoves;
+            if (!offersDeclined && options.Available && anyOffer)
             {
                 // The player's coins, before they decide (the counter follows the wallet, so a purchase shows at once).
                 coins = CoinCounter.Create(Content, null, 80);
                 ((RectTransform)coins.transform).Place(new Vector2(0.5f, 1), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(250, 80));
                 coins.Show(Ctx.Wallet.Balance);
-                bool owned = block == UseBlock.None;
-                var check = Ctx.Shop.Check(PowerUpId.ExtraMoves);
-                string label = owned ? "Use Extra Moves (+" + def.amount + ")" : "+" + def.amount + " moves for " + NumberFormat.Thousands(def.price);
+                if (adOffer)
+                {
+                    adButton = OfferButton("Watch an advert: +" + options.AdMoves + " moves", ButtonStyle.Success, Icon.Play, WatchAdToContinue);
+                    Ctx.Monetisation.Ads.NoteOffered(RewardedPlacements.ContinueMoves, options.Ad);
+                }
+                if (options.CoinMoves > 0)
+                {
+                    coinButton = OfferButton("+" + options.CoinMoves + " moves for " + NumberFormat.Thousands(options.CoinCost), ButtonStyle.Gold, null, ContinueWithCoins);
+                    var coin = UI.Sprite(coinButton.FaceRect.Find("Content"), ArtNames.Coin, 52);
+                    coin.Layout(preferredWidth: 52);
+                    coin.transform.SetAsFirstSibling();
+                }
+                // An Extra Moves power-up the player already owns can still be used here, as before.
+                if (ownsExtraMoves)
+                    OfferButton("Use your Extra Moves (+" + def.amount + ")", ButtonStyle.Teal, Icon.Plus, () =>
+                    {
+                        if (game.TryRevive()) Close();
+                    });
+                Ctx.Monetisation.Ads.Changed -= RefreshOffers;
+                Ctx.Monetisation.Ads.Changed += RefreshOffers;
+                RefreshOffers();
+                FooterButton("Give Up", ButtonStyle.Ghost, GiveUp, null, 60, 150);
+                return;
+            }
+            if (!options.Available && ownsExtraMoves)
+            {
                 var holder = UI.Rect("Revive", body);
                 holder.Layout(preferredHeight: 150);
-                var revive = UI.Button(holder, label, owned ? ButtonStyle.Success : ButtonStyle.Gold, () =>
+                var revive = UI.Button(holder, "Use Extra Moves (+" + def.amount + ")", ButtonStyle.Success, () =>
                 {
                     if (game.TryRevive()) Close();
-                }, owned ? Icon.Plus : (Icon?)null, Theme.FontBody);
+                }, Icon.Plus, Theme.FontBody);
                 ((RectTransform)revive.transform).Fill(40, 10, 40, 10);
-                if (!owned && !check.Allowed)
-                {
-                    revive.Interactable = false;
-                    revive.OnDisabledClick = () => Toast.Show(check.Message, Icon.Info, Theme.Danger);
-                }
             }
             FooterButton("Try Again", ButtonStyle.Primary, () =>
             {
@@ -171,6 +222,95 @@ namespace ColourCascade.App
                 game.PlayAgain();
             }, Icon.Restart, 210, 150);
             SecondaryRow("Map", Icon.Map, () => game.ExitTo(ScreenId.Map, new MapArgs { Focus = level.Number }), "Home", Icon.Home, () => game.ExitTo(ScreenId.Home, null));
+        }
+
+        CCButton OfferButton(string label, ButtonStyle style, Icon? icon, System.Action onClick)
+        {
+            var holder = UI.Rect("Offer", body);
+            holder.Layout(preferredHeight: 140);
+            var b = UI.Button(holder, label, style, onClick, icon, Theme.FontBody - 2);
+            ((RectTransform)b.transform).Fill(30, 8, 30, 8);
+            return b;
+        }
+
+        /// <summary>Keeps the offer buttons honest: an advert still loading, a limit reached, too few coins.</summary>
+        void RefreshOffers()
+        {
+            if (session == null || this == null) return;
+            var options = Ctx.Monetisation.Continue.Options(session);
+            if (adButton != null)
+            {
+                var ad = options.Ad;
+                adButton.Interactable = ad.CanShow && !watching;
+                adButton.SetLabel(ad.CanShow || watching ? "Watch an advert: +" + options.AdMoves + " moves"
+                    : ad.Status == OfferStatus.Loading ? "Loading an advert..."
+                    : ad.Status == OfferStatus.LimitReached ? "No more adverts for this level"
+                    : "Advert not available");
+                adButton.OnDisabledClick = () => Toast.Show(Ctx.Monetisation.Continue.Options(session).Ad.Message, Icon.Info, Theme.TextSecondary);
+            }
+            if (coinButton != null)
+            {
+                coinButton.Interactable = options.CoinAffordable && !options.CoinLimitReached && !watching;
+                coinButton.OnDisabledClick = () =>
+                {
+                    var o = Ctx.Monetisation.Continue.Options(session);
+                    Toast.Show(o.CoinLimitReached ? "No more coin continues for this level." : "You need " + NumberFormat.Thousands(o.CoinShortfall) + " more coins.", Icon.Info, Theme.Danger);
+                };
+            }
+        }
+
+        void WatchAdToContinue()
+        {
+            if (watching) return;
+            var started = Ctx.Monetisation.Continue.WatchAd(session, outcome =>
+            {
+                watching = false;
+                if (outcome == AdOutcome.Rewarded && session.State == SessionState.Playing)
+                {
+                    Close();
+                    game.ResumeAfterContinue("+" + Ctx.Monetisation.Continue.AdMoves + " moves. Keep going!");
+                    return;
+                }
+                if (outcome == AdOutcome.ClosedEarly) Toast.Show("The advert ended early, so no moves were added. Your level is still here.", Icon.Info, Theme.TextSecondary);
+                else if (outcome == AdOutcome.FailedToShow) Toast.Show("The advert couldn't be shown. Your level is still here: try again or use coins.", Icon.Info, Theme.Danger);
+                RefreshOffers();
+            });
+            if (started)
+            {
+                watching = true;
+                RefreshOffers();
+            }
+            else Toast.Show(Ctx.Monetisation.Continue.Options(session).Ad.Message, Icon.Info, Theme.TextSecondary);
+        }
+
+        void ContinueWithCoins()
+        {
+            if (watching) return;
+            var r = Ctx.Monetisation.Continue.ContinueWithCoins(session);
+            if (r == CoinContinueResult.Done)
+            {
+                Ctx.Save();
+                AudioService.Sfx(SfxNames.Purchase);
+                Haptics.Medium();
+                Close();
+                game.ResumeAfterContinue("+" + Ctx.Monetisation.Continue.CoinMoves + " moves for " + NumberFormat.Thousands(Ctx.Monetisation.Continue.CoinCost) + " coins");
+                return;
+            }
+            var o = Ctx.Monetisation.Continue.Options(session);
+            Toast.Show(r == CoinContinueResult.InsufficientCoins ? "You need " + NumberFormat.Thousands(o.CoinShortfall) + " more coins."
+                : r == CoinContinueResult.LimitReached ? "No more coin continues for this level." : "This level can't be continued.", Icon.Info, Theme.Danger);
+            RefreshOffers();
+        }
+
+        /// <summary>"Give Up": the level ends as it is (already recorded as not passed); show the usual choices.</summary>
+        void GiveUp()
+        {
+            if (watching) return;
+            var r = result;
+            var s = session;
+            var g = game;
+            Close();
+            Nav.Open<ResultPopup>().Setup(r, s, g, true);
         }
 
         void Stuck()

@@ -184,7 +184,11 @@ namespace ColourCascade.Core
         /// <summary>Erases all progress and writes a fresh save.</summary>
         public void ResetAll()
         {
+            // Purchases are not progress: the No Ads entitlement, the record of processed purchases (so a purchase the
+            // store delivers again is not paid twice) and the advert limits survive a progress reset.
+            var monetisation = Data != null ? Data.Monetisation : null;
             Data = SaveData.CreateNew(clock.UtcNow, startingCoins);
+            if (monetisation != null) Data.Monetisation = monetisation;
             Save();
         }
     }

@@ -7,9 +7,17 @@ ColourCascade.Core        (no Unity references)   rules, data, services, saves
 ColourCascade.Procedural  (no Unity references)   sprite + sound generation      → Core
 ColourCascade.Runtime     (Unity + uGUI)          bootstrap, UI, screens, views  → Core, Procedural
 ColourCascade.Editor      (Editor only)           project setup, build menu      → Runtime
-ColourCascade.Setup       (Editor only)           installs missing packages       (no references)
+ColourCascade.Setup       (Editor only)           installs missing packages,      (no references)
+                                                  switches SDK integrations on
+ColourCascade.Integrations.AdMob    (needs CC_ADMOB)      Google Mobile Ads + UMP  → Core, Runtime
+ColourCascade.Integrations.UnityIAP (needs CC_UNITY_IAP)  Unity IAP 5             → Core, Runtime
 ColourCascade.Tests.EditMode                      NUnit tests                     → Core, Procedural
 ```
+
+The two integration assemblies compile only when their SDK is installed: `Setup` sets the `CC_ADMOB` /
+`CC_UNITY_IAP` scripting defines when it finds the Google Mobile Ads plugin or Unity IAP 5, and the menu
+**Colour Cascade > Monetisation** can switch either off. They register their implementations with
+`MonetisationBackends` before the first scene loads; nothing else depends on them (docs/MONETISATION.md).
 
 `Runtime` and `Editor` have a define constraint that is only met when Unity UI (`com.unity.ugui`) is installed,
 so a project without the package has no compile errors (and no Safe Mode); `Setup`, which always compiles,
@@ -39,6 +47,7 @@ Unity. That is what lets the same tests run in Unity's Test Runner and in plain 
 | | `GameContext` | Composition root: owns the save and every service; starts runs (`CreateCampaignRun`…), finishes them idempotently (`FinishRun`). |
 | Power-ups | `PowerUpDefinition`, `PowerUpCatalog`, `IPowerUpEffect`, `PowerUpEffects` | Data-driven definitions plus one effect class per power-up. |
 | Economy | `Wallet`, `Inventory`, `RewardService`, `ShopService`, `PowerUpService`, `ActionPolicy`, `ActivityTracker` | Coins (single source of truth + ledger), stock and trials, one-time claim keys, validated purchases, central eligibility rules. |
+| Monetisation (3.0) | `MonetisationServices`, `AdService`, `InterstitialPolicy`, `ContinueService`, `CoinOffers`, `PurchaseService`, `MonetisationAnalytics`, `MonetisationConfig`, `IAdNetwork`/`IConsentProvider`/`IStoreBackend` | The advertising manager (consent gate, loading, reward tickets granted exactly once, watchdogs, limits), interstitial timing, Out of Moves and shortfall offers, purchase processing (grant, save, then confirm) and the No Ads entitlement, the event log. SDKs only behind the three interfaces (docs/MONETISATION.md). |
 | Progression | `CampaignCatalog`, `CampaignDesign`, `MechanicSchedule`, `LayoutLibrary`, `LevelCalibrator`, `Bots`, `PlannerBot`, `LevelCodec`, `CampaignProgress`, `Regions`, `DefaultLevels` | Level generation and calibration, unlocks and stars. `CampaignDesign` holds the mechanic schedule, the built-in introduction levels, bands, rhythm and recipes that decorate generated boards. Bots: Greedy, Casual, Mixed (fire specials too) and Planner (goal-aware, one move of lookahead, integer-only so calibration is identical on every device). `LevelCodec` reads and writes levels as JSON. |
 | Challenges | `ChallengeCalendar`, `ChallengeFactory` | UTC day keys, ISO week keys, deterministic daily/weekly boards. |
 | Save | `SaveData`, `SaveCodec`, `Json`, `SaveSystem`, `ISaveStorage`, `FileSaveStorage` | Versioned JSON, atomic writes with backup, corruption recovery. |
@@ -71,6 +80,7 @@ the board and silently repairs any difference, so a visual glitch can never desy
 | Area | Key types | Notes |
 |---|---|---|
 | App | `GameApp` | `[RuntimeInitializeOnLoadMethod]` bootstrap. Creates camera, canvas (1080 × 1920 reference), event system, splash; generates art and audio on background threads (atlas cached on device per app version); loads config and save; handles Android Back, pause/focus and saving. |
+| Monetisation | `MonetisationHost`, `MonetisationBackends`, `MainThread` | Starts consent, adverts and the store after the home screen appears; runs SDK callbacks on the main thread; pauses audio and blocks input while an advert is on screen; tells the player about purchases anywhere (docs/MONETISATION.md). |
 | | `ColourCascadeConfig` | ScriptableObject wrapping all Core config classes. |
 | Services | `ArtLibrary`, `Fonts`, `AudioService`, `Haptics` | Sprites from one generated atlas; Fredoka fonts; pooled audio sources and music; Android vibration. |
 | UI kit | `Theme`, `UI`, `CCButton`, `Tw`/`TweenRunner`, `Widgets` (SafeArea, ScreenAdapter, ToggleSwitch, SliderControl, ProgressBar, StarRow, CoinCounter, TabBar, Toast, CoachMark), `FxLayer` | Everything is built in code from these. `CCButton` debounces taps. The tween engine is pooled and replaces conflicting tweens. `FxLayer` simulates pooled particles without per-frame allocations. |

@@ -35,6 +35,9 @@ namespace ColourCascade.App
         [Header("Power-ups (prices, unlock levels, free trial uses)")]
         public PowerUpDefinition[] powerUps = PowerUpCatalog.CreateDefaults();
 
+        [Header("Monetisation: adverts, interstitial frequency, store products, privacy (docs/MONETISATION.md)")]
+        public MonetisationConfig monetisation = new MonetisationConfig();
+
         // Deliberately 0 when the field is missing from an older asset; the editor setup then moves the asset's
         // rewards to the current tuning (see EconomyTuning) and records the version here.
         [Tooltip("Reward tuning version of this asset. Older assets are updated automatically when the project opens; values edited by hand are kept.")]
@@ -50,6 +53,7 @@ namespace ColourCascade.App
             if (rush != null) d.Rush = rush;
             if (economy != null) d.Economy = economy;
             if (powerUps != null && powerUps.Length > 0) d.PowerUps = powerUps;
+            if (monetisation != null) d.Monetisation = monetisation;
             return d;
         }
 
@@ -62,6 +66,7 @@ namespace ColourCascade.App
             rush = new RushConfig();
             economy = new EconomyConfig();
             powerUps = PowerUpCatalog.CreateDefaults();
+            monetisation = new MonetisationConfig();
             rewardTuningVersion = EconomyTuning.Current;
         }
 
@@ -77,6 +82,14 @@ namespace ColourCascade.App
             if (powerUps != null)
                 foreach (var p in powerUps)
                     if (p != null) p.price = Mathf.Max(0, p.price);
+            if (monetisation != null)
+            {
+                var ads = monetisation.ads;
+                ads.continueCoinCost = Mathf.Max(0, ads.continueCoinCost);
+                ads.continueCoinMoves = Mathf.Max(0, ads.continueCoinMoves);
+                monetisation.interstitials.everyCompletedLevels = Mathf.Max(1, monetisation.interstitials.everyCompletedLevels);
+                monetisation.interstitials.minSecondsBetween = Mathf.Max(0, monetisation.interstitials.minSecondsBetween);
+            }
         }
     }
 

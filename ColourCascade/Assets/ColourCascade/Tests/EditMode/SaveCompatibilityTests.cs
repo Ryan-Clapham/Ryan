@@ -70,14 +70,21 @@ namespace ColourCascade.Tests
         /// </summary>
         /// <summary>
         /// The save without what later updates deliberately changed: the Endless level (a new field); the claim
-        /// recorded when a power-up's tutorial level is first won (2.1); and, since Endless runs now walk the stage
+        /// recorded when a power-up's tutorial level is first won (2.1); since Endless runs now walk the stage
         /// journey (2.1), the Endless record and the lifetime group and tile counts its run adds to (checked for
-        /// presence only). Everything else (campaign progress, stars, coins, ledger, Daily and Weekly records,
-        /// inventory, settings) must match exactly.
+        /// presence only); and the monetisation record (3.0, a new field that an old save gets empty). Everything
+        /// else (campaign progress, stars, coins, ledger, Daily and Weekly records, inventory, settings) must match
+        /// exactly.
         /// </summary>
         static string WithoutNewFields(string json, out long endlessLevel)
         {
             var root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(json);
+            if (root.ContainsKey("monetisation"))
+            {
+                var fresh = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(SaveCodec.Encode(new SaveData()));
+                Assert.AreEqual(Json.Write(fresh["monetisation"]), Json.Write(root["monetisation"]), "an old save gets an empty monetisation record");
+                root.Remove("monetisation");
+            }
             var endless = (System.Collections.Generic.Dictionary<string, object>)root["endless"];
             endlessLevel = endless.ContainsKey("level") ? (long)endless["level"] : -1;
             endless.Remove("level");
@@ -125,8 +132,10 @@ namespace ColourCascade.Tests
         // The whole save the play script produces with today's rules (see SameRulesSameSave). Re-record only for a
         // deliberate gameplay change, and say so in the commit. Recorded for 2.1's later changes (5 x 5 bombs, groups
         // of specials, no spare-move bonus); it matched the build before them exactly, since levels played to the end
-        // never paid a bonus.
-        const ulong ExpectedSaveFingerprint = 7841276991854770152UL;
+        // never paid a bonus. 3.0 added the monetisation record (here: the interstitial level count); the rest of the
+        // save is still exactly the 2.1 save, checked by ExpectedSaveFingerprintBefore3.
+        const ulong ExpectedSaveFingerprint = 3316499532689436422UL;
+        const ulong ExpectedSaveFingerprintBefore3 = 7841276991854770152UL;
 
         [Test]
         public void TheSamePlayStillMakesTheSameProgress()
@@ -149,6 +158,12 @@ namespace ColourCascade.Tests
             PlayScript(store);
             if (System.Environment.GetEnvironmentVariable("PRINT_SAVE_FINGERPRINT") != null) System.Console.WriteLine("save fingerprint " + StableHash.Of(store.Main));
             Assert.AreEqual(ExpectedSaveFingerprint, StableHash.Of(store.Main), "the same play gives exactly the same save");
+            var root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(store.Main);
+            var m = (System.Collections.Generic.Dictionary<string, object>)root["monetisation"];
+            Assert.AreEqual(0L, m["lastInterstitial"], "no advert was involved");
+            Assert.AreEqual(false, m["noAds"]);
+            root.Remove("monetisation");
+            Assert.AreEqual(ExpectedSaveFingerprintBefore3, StableHash.Of(Json.Write(root)), "update 3.0 changed nothing else in the save");
         }
 
         /// <summary>The parts of a save that don't depend on how points are scored.</summary>

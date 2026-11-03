@@ -75,6 +75,14 @@ namespace ColourCascade.Core
                     break;
                 case "debug":
                     return "Developer coins";
+                case "ad":
+                    return p.Length == 2 && p[1] == "shortfall" ? "Advert: coins for a power-up" : "Advert reward";
+                case "iap":
+                    return "Bought coins";
+                case "continue":
+                    if (p.Length >= 2 && p[1].Length > 1 && p[1][0] == 'L')
+                        return (p.Length == 3 && p[2] == "refund" ? "Refund: extra moves, level " : "Extra moves, level ") + p[1].Substring(1);
+                    break;
             }
             return reason;
         }

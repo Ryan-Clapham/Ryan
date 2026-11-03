@@ -37,6 +37,8 @@ namespace ColourCascade.Core
         public HashSet<string> Tutorials = new HashSet<string>();
         public SettingsData Settings = new SettingsData();
         public StatsData Stats = new StatsData();
+        /// <summary>Advert counters, processed purchases and the No Ads entitlement (update 3.0). Kept by a progress reset.</summary>
+        public MonetisationRecord Monetisation = new MonetisationRecord();
 
         readonly Dictionary<int, LevelRecord> levelIndex = new Dictionary<int, LevelRecord>();
 
@@ -128,6 +130,8 @@ namespace ColourCascade.Core
             if (Settings == null) Settings = new SettingsData();
             if (Stats == null) Stats = new StatsData();
             if (LatestDayKey == null) LatestDayKey = "";
+            if (Monetisation == null) Monetisation = new MonetisationRecord();
+            Monetisation.Normalize();
             Settings.Clamp();
 
             levelIndex.Clear();
@@ -230,6 +234,60 @@ namespace ColourCascade.Core
         }
 
         static float Clamp01(float v) => float.IsNaN(v) ? 0.5f : v < 0 ? 0 : v > 1 ? 1 : v;
+    }
+
+    /// <summary>
+    /// Monetisation state that must survive restarts (docs/MONETISATION.md). Advert limits and the interstitial
+    /// counter live here so closing the app can't reset them; processed purchase IDs stop a purchase the store
+    /// delivers twice from paying twice; the No Ads entitlement is a cache of what the store last confirmed.
+    /// </summary>
+    public sealed class MonetisationRecord
+    {
+        public const int MaxTransactions = 300;
+
+        /// <summary>Campaign levels completed since the last interstitial was actually displayed.</summary>
+        public int CompletionsSinceInterstitial;
+        /// <summary>When the last interstitial was displayed (UTC ticks; 0 = never).</summary>
+        public long LastInterstitialTicks;
+        /// <summary>When the last rewarded advert or purchase happened (UTC ticks), for the interstitial quiet period.</summary>
+        public long LastQuietTicks;
+        /// <summary>The day (ChallengeCalendar.DayKey) that AdsToday counts.</summary>
+        public string AdDay = "";
+        /// <summary>Rewarded adverts completed today, per placement.</summary>
+        public Dictionary<string, int> AdsToday = new Dictionary<string, int>();
+        /// <summary>When each placement's last rewarded advert was completed (UTC ticks), for cooldowns.</summary>
+        public Dictionary<string, long> LastAdTicks = new Dictionary<string, long>();
+        /// <summary>Store transactions already granted (oldest first, capped at MaxTransactions).</summary>
+        public List<string> Transactions = new List<string>();
+        /// <summary>Last known No Ads ownership, its transaction and when the store last confirmed it (UTC ticks).</summary>
+        public bool NoAds;
+        public string NoAdsTransaction = "";
+        public long NoAdsCheckedTicks;
+        /// <summary>Store checks in a row that reported No Ads as not owned while it was saved as owned.</summary>
+        public int NoAdsMissingChecks;
+        /// <summary>How many times each monetisation event happened on this device (no personal data).</summary>
+        public Dictionary<string, int> EventCounts = new Dictionary<string, int>();
+
+        public bool HasTransaction(string key) => !string.IsNullOrEmpty(key) && Transactions.Contains(key);
+
+        public void AddTransaction(string key)
+        {
+            if (string.IsNullOrEmpty(key) || Transactions.Contains(key)) return;
+            Transactions.Add(key);
+            if (Transactions.Count > MaxTransactions) Transactions.RemoveRange(0, Transactions.Count - MaxTransactions);
+        }
+
+        public void Normalize()
+        {
+            if (CompletionsSinceInterstitial < 0) CompletionsSinceInterstitial = 0;
+            if (AdDay == null) AdDay = "";
+            if (AdsToday == null) AdsToday = new Dictionary<string, int>();
+            if (LastAdTicks == null) LastAdTicks = new Dictionary<string, long>();
+            if (Transactions == null) Transactions = new List<string>();
+            if (NoAdsTransaction == null) NoAdsTransaction = "";
+            if (NoAdsMissingChecks < 0) NoAdsMissingChecks = 0;
+            if (EventCounts == null) EventCounts = new Dictionary<string, int>();
+        }
     }
 
     public sealed class StatsData

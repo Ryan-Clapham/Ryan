@@ -80,6 +80,8 @@ namespace ColourCascade.App
                 Toast.Show("Tutorial hints will appear again", Icon.Check, Theme.Success);
             });
 
+            PrivacyAndPurchases();
+
             Section("YOUR PROGRESS");
             var d = Ctx.Data;
             int completed = 0;
@@ -195,7 +197,7 @@ namespace ColourCascade.App
 
         void ConfirmReset()
         {
-            Nav.Open<ConfirmPopup>().Setup("Reset progress?", "This erases your levels, stars, coins, power-ups and records. It can't be undone.", "Continue", () =>
+            Nav.Open<ConfirmPopup>().Setup("Reset progress?", "This erases your levels, stars, coins (bought ones too), power-ups and records. It can't be undone. No Ads stays yours.", "Continue", () =>
             {
                 Nav.Open<ConfirmPopup>().Setup("Are you sure?", "Everything will be erased permanently.", "Erase all", () =>
                 {
@@ -204,6 +206,32 @@ namespace ColourCascade.App
                     Rebuild();
                 }, ButtonStyle.Danger);
             }, ButtonStyle.Danger);
+        }
+
+        /// <summary>
+        /// Consent and purchases (docs/MONETISATION.md §7): the consent tool's privacy options when it requires them,
+        /// the privacy policy when its address is configured, and Restore Purchases.
+        /// </summary>
+        void PrivacyAndPurchases()
+        {
+            var m = Ctx.Monetisation;
+            string url = m.Config.privacy.privacyPolicyUrl;
+            bool privacyOptions = m.Ads.PrivacyOptionsRequired;
+            Section("PRIVACY & PURCHASES");
+            if (privacyOptions)
+                ActionRow(Icon.Eye, "Privacy options", ButtonStyle.Secondary, "Open", () => m.Ads.ShowPrivacyOptions(error =>
+                {
+                    if (!string.IsNullOrEmpty(error)) Toast.Show("Privacy options couldn't open: " + error, Icon.Info, Theme.Danger);
+                    Rebuild();
+                }));
+            if (!string.IsNullOrEmpty(url))
+                ActionRow(Icon.Info, "Privacy policy", ButtonStyle.Ghost, "Open", () => Application.OpenURL(url));
+            if (m.Config.store.enabled)
+                ActionRow(Icon.Crown, m.NoAds ? "No Ads is active" : "Restore purchases", ButtonStyle.Ghost, "Restore", () =>
+                {
+                    if (m.Purchases.Restore()) Toast.Show("Checking your purchases...", Icon.Timer, Theme.TextSecondary);
+                    else Toast.Show("The store isn't available right now.", Icon.Info, Theme.TextSecondary);
+                });
         }
 
         /// <summary>Testing aids, only in the Editor and development builds.</summary>
@@ -244,6 +272,19 @@ namespace ColourCascade.App
                         .Append("   = ").Append(NumberFormat.Thousands(e.Balance));
                 }
                 Nav.Open<ConfirmPopup>().SetupInfo("Recent coins", sb.Length > 0 ? sb.ToString() : "No coins earned or spent yet", sb.Length > 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleCenter);
+            });
+            ActionRow(Icon.Info, "Show monetisation status", ButtonStyle.Ghost, "Show", () =>
+            {
+                var m = Ctx.Monetisation;
+                var sb = new System.Text.StringBuilder();
+                sb.Append("Ads: ").Append(m.Ads.State).Append(" (").Append(m.Ads.NetworkName).Append(App.Monetisation != null && App.Monetisation.TestAds ? ", test ads" : ", live ads").Append(")");
+                if (!string.IsNullOrEmpty(m.Ads.UnavailableReason)) sb.Append("\n").Append(m.Ads.UnavailableReason);
+                sb.Append("\nStore: ").Append(m.Purchases.State).Append(" (").Append(m.Purchases.BackendName).Append(")");
+                sb.Append("\nNo Ads: ").Append(m.NoAds ? "owned" : "not owned");
+                sb.Append("\nLevels towards interstitial: ").Append(m.Interstitials.CompletionsSinceLast).Append(" of ").Append(m.Interstitials.LevelsPerInterstitial);
+                var recent = m.Analytics.Recent;
+                for (int i = recent.Count - 1; i >= 0 && i >= recent.Count - 8; i--) sb.Append("\n").Append(recent[i].ToString());
+                Nav.Open<ConfirmPopup>().SetupInfo("Monetisation", sb.ToString(), TextAnchor.MiddleLeft);
             });
         }
     }

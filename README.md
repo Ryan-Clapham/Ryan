@@ -104,7 +104,8 @@ tools/unity_meta.py            Creates .meta files for new assets
 
 Read **docs/DESIGN.md** for the rules, modes, economy and design decisions, **docs/ARCHITECTURE.md** for how
 the code fits together and how to extend it, and **docs/TESTING.md** for what has been verified and the
-manual test checklist, and **docs/RELEASE.md** for publishing on Google Play.
+manual test checklist, **docs/RELEASE.md** for publishing on Google Play, and **docs/MONETISATION.md** for
+adverts, purchases, consent and the AdMob / Play Console setup.
 
 ## Troubleshooting
 
