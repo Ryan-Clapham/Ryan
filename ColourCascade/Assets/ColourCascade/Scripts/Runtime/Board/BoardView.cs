@@ -556,13 +556,15 @@ namespace ColourCascade.App
                 float at = sf.Wave * WaveGap;
                 waveOrigin[sf.Wave] = sf.Pos;
                 RemoveSpecialView(sf.TileId, at);
-                if (sf.ComboWith != SpecialKind.None) RemoveSpecialView(sf.ComboTileId, at);
-                PlaySpecialEffect(sf, at);
+                // Every other special of its combination goes with it (groups of any size: docs/MECHANICS.md §2.3).
+                foreach (var m in o.ComboMembers) if (m.Wave == sf.Wave) RemoveSpecialView(m.TileId, at);
+                PlaySpecialEffect(sf, o, at);
                 end = Mathf.Max(end, at + 0.45f);
                 bool rocket = sf.Kind == SpecialKind.RocketRow || sf.Kind == SpecialKind.RocketColumn;
                 if (rocket && !rocketSound) { rocketSound = true; SfxLater(SfxNames.Rocket, at, 0.9f); }
                 if (sf.Kind == SpecialKind.Bomb && !bombSound) { bombSound = true; SfxLater(SfxNames.Bomb, at, 0.9f); }
                 if ((sf.Kind == SpecialKind.Prism || sf.ComboWith == SpecialKind.Prism) && !prismSound) { prismSound = true; SfxLater(SfxNames.Prism, at, 0.9f); }
+                if (sf.ComboSize > 1 && !bombSound && o.ComboMembers.Exists(m => m.Wave == sf.Wave && m.Kind == SpecialKind.Bomb)) { bombSound = true; SfxLater(SfxNames.Bomb, at, 0.9f); }
             }
 
             // Clears, staggered outwards from the tapped tile (or from the special of their wave).
@@ -819,20 +821,46 @@ namespace ColourCascade.App
             });
         }
 
-        /// <summary>The visual of a special firing: beams for rockets, a shockwave for bombs, a rainbow pulse for prisms.</summary>
-        void PlaySpecialEffect(SpecialFired sf, float at)
+        /// <summary>
+        /// The visual of a special (or a combination) firing. Every cell its blast actually reached lights up, so what
+        /// the player sees is exactly the area that was hit (cut off at the board's edges); on top, beams along every
+        /// full line a rocket cleared, a shockwave sized to a bomb's square, a rainbow pulse for prisms.
+        /// </summary>
+        void PlaySpecialEffect(SpecialFired sf, MoveOutcome o, float at)
         {
             var origin = CellInFx(sf.Pos);
-            bool combo = sf.ComboWith != SpecialKind.None;
+            bool combo = sf.ComboSize > 1;
             var gold = Theme.Gold;
             void Row(int r, float thick) => Fx.Beam(CellInFx(new GridPos(0, r)) - new Vector2(cell * 0.6f, 0), CellInFx(new GridPos(width - 1, r)) + new Vector2(cell * 0.6f, 0), Color.white, thick, at);
             void Column(int c, float thick) => Fx.Beam(CellInFx(new GridPos(c, 0)) - new Vector2(0, cell * 0.6f), CellInFx(new GridPos(c, height - 1)) + new Vector2(0, cell * 0.6f), Color.white, thick, at);
 
-            var kinds = new[] { sf.Kind, sf.ComboWith };
-            bool rocketRow = Array.IndexOf(kinds, SpecialKind.RocketRow) >= 0;
-            bool rocketCol = Array.IndexOf(kinds, SpecialKind.RocketColumn) >= 0;
-            bool bomb = Array.IndexOf(kinds, SpecialKind.Bomb) >= 0;
-            bool prism = Array.IndexOf(kinds, SpecialKind.Prism) >= 0;
+            bool rocket = SpecialEffects.IsRocket(sf.Kind), bomb = sf.Kind == SpecialKind.Bomb, prism = sf.Kind == SpecialKind.Prism;
+            foreach (var m in o.ComboMembers)
+            {
+                if (m.Wave != sf.Wave) continue;
+                rocket |= SpecialEffects.IsRocket(m.Kind);
+                bomb |= m.Kind == SpecialKind.Bomb;
+                prism |= m.Kind == SpecialKind.Prism;
+            }
+            // The exact area: light every cell, rippling out from the special; note its extent and full lines.
+            var rowCount = new int[height];
+            var colCount = new int[width];
+            int minC = int.MaxValue, maxC = int.MinValue, minR = int.MaxValue, maxR = int.MinValue;
+            var flash = new Color(1f, 0.96f, 0.82f, 0.55f);
+            foreach (var ec in o.EffectCells)
+            {
+                if (ec.Wave != sf.Wave) continue;
+                var p = ec.Pos;
+                if (p.Row < 0 || p.Row >= height || p.Col < 0 || p.Col >= width) continue;
+                rowCount[p.Row]++;
+                colCount[p.Col]++;
+                minC = Mathf.Min(minC, p.Col);
+                maxC = Mathf.Max(maxC, p.Col);
+                minR = Mathf.Min(minR, p.Row);
+                maxR = Mathf.Max(maxR, p.Row);
+                float dist = Mathf.Abs(p.Col - sf.Pos.Col) + Mathf.Abs(p.Row - sf.Pos.Row);
+                Fx.Flash(CellInFx(p), cell * 0.94f, flash, at + Mathf.Min(0.18f, dist * 0.02f));
+            }
             Tw.Delay(at, () =>
             {
                 if (this == null) return;
@@ -842,38 +870,18 @@ namespace ColourCascade.App
                     Fx.Ring(origin, colour, cell * (combo ? 10f : 7f));
                     Fx.Sparkle(origin, colour, 24, cell * 1.2f);
                 }
-                if (bomb)
+                if (bomb && minC <= maxC)
                 {
-                    bool doubleBomb = sf.Kind == SpecialKind.Bomb && sf.ComboWith == SpecialKind.Bomb;
-                    Fx.Ring(origin, new Color(1f, 0.55f, 0.35f, 1f), cell * (doubleBomb ? 7.5f : 5.2f));
+                    // A shockwave as wide as the square (or band) the bomb reached.
+                    float span = Mathf.Max(maxC - minC + 1, maxR - minR + 1);
+                    Fx.Ring(origin, new Color(1f, 0.55f, 0.35f, 1f), cell * (span + 0.6f));
                     Fx.Burst(origin, gold, 14, cell * 6f, ArtNames.ParticleSpark, cell * 0.25f);
                 }
             }, this);
-            // Rockets fire along their line; two rockets cross; a rocket with a bomb clears three lines; a prism fires
-            // its partner from where the partner sat.
-            bool bothRockets = combo && (sf.Kind == SpecialKind.RocketRow || sf.Kind == SpecialKind.RocketColumn) &&
-                               (sf.ComboWith == SpecialKind.RocketRow || sf.ComboWith == SpecialKind.RocketColumn);
-            if (prism && combo)
-            {
-                var p = sf.Kind == SpecialKind.Prism ? sf.ComboPos : sf.Pos;
-                if (rocketRow) Row(p.Row, cell * 0.9f);
-                if (rocketCol) Column(p.Col, cell * 0.9f);
-            }
-            else if (bothRockets)
-            {
-                Row(sf.Pos.Row, cell * 0.9f);
-                Column(sf.Pos.Col, cell * 0.9f);
-            }
-            else if (combo && bomb && (rocketRow || rocketCol))
-            {
-                for (int k = -1; k <= 1; k++)
-                {
-                    if (rocketRow && sf.Pos.Row + k >= 0 && sf.Pos.Row + k < height) Row(sf.Pos.Row + k, cell * 0.8f);
-                    if (rocketCol && sf.Pos.Col + k >= 0 && sf.Pos.Col + k < width) Column(sf.Pos.Col + k, cell * 0.8f);
-                }
-            }
-            else if (sf.Kind == SpecialKind.RocketRow) Row(sf.Pos.Row, cell * 0.9f);
-            else if (sf.Kind == SpecialKind.RocketColumn) Column(sf.Pos.Col, cell * 0.9f);
+            if (!rocket) return;
+            // Beams along every line the blast cleared from edge to edge (a cell short for the specials themselves).
+            for (int r = 0; r < height; r++) if (rowCount[r] >= width - 1) Row(r, cell * 0.85f);
+            for (int c = 0; c < width; c++) if (colCount[c] >= height - 1) Column(c, cell * 0.85f);
         }
 
         void Drop(TileView v, Vector2 to, float duration, float delay)

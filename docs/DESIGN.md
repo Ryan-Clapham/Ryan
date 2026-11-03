@@ -64,10 +64,9 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
 * **From level 21, every level is sized from simulated players** (details in 3.1).
 * **Passing and stars:** reaching the target (or meeting every goal) **passes** the level and earns ★, but play
   goes on (and when the moves run out, special tiles still on the board go off before the result: MECHANICS.md §4.4): the moves left raise the score towards ★★ and ★★★, and the stars light up on the game screen as they
-  are earned. The player can tap **Finish** at any time after passing; each unused move then adds a small bonus.
+  are earned. The player can tap **Finish** at any time after passing (unused moves score nothing).
   Out of moves after passing = won with the stars of the final score; out of moves before = failed, whatever the
-  score (docs/MECHANICS.md §4.3). Levels 1–20: ★★ 125% and ★★★ 150% of the target, finishing early pays target ÷
-  moves per unused move. From 21: see 3.2.
+  score (docs/MECHANICS.md §4.3). Levels 1–20: ★★ 125% and ★★★ 150% of the target. From 21: see 3.2.
 * **Losing:** running out of moves shows "Out of Moves" with Try Again. If Extra Moves is unlocked, the
   player may choose to use one they own, or explicitly buy one for 200 coins. Nothing is ever spent automatically.
 * **Regions:** 20 levels each, cycling through six themes (Sunrise Meadow, Coral Lagoon, Crystal Caverns,
@@ -125,11 +124,13 @@ size, roughly a relaxed beginner who never aims for specials; "Planner" is goal-
 | Band | Levels | Casual pass | Planner pass | Planner ★★ / ★★★ | Casual ★★ / ★★★ | Average moves |
 |---|---|---|---|---|---|---|
 | Learn | 1–20 | 83% | 100% | 100% / 99% | 68% / 52% | 17.5 |
-| Develop | 21–60 | 67% | 94% | 78% / 37% | 16% / 4% | 24.4 |
-| Combine | 61–120 | 65% | 94% | 77% / 43% | 16% / 4% | 29.6 |
-| Advanced | 121–200 | 64% | 93% | 77% / 37% | 16% / 4% | 33.6 |
+| Develop | 21–60 | 68% | 94% | 78% / 39% | 17% / 4% | 23.9 |
+| Combine | 61–120 | 64% | 94% | 78% / 49% | 17% / 5% | 29.2 |
+| Advanced | 121–200 | 64% | 94% | 77% / 41% | 15% / 3% | 34.1 |
 
-Before 2.1 (specials at 20 a tile, 3 × 3 bombs, no stone breaking or finale): Develop 62% / 94%, Combine 60% / 94%,
+These are the figures with 5 × 5 bombs, connected groups of specials, the end-of-level groups and no spare-move
+bonus (update 2.1 clarifications). The first 2.1 build (4 × 4 bombs, pairs only, spare-move bonus): Develop 67% /
+94%, Combine 65% / 94%, Advanced 64% / 93%, with Planner ★★★ 37% / 43% / 37%. Before 2.1 (specials at 20 a tile, 3 × 3 bombs, no stone breaking or finale): Develop 62% / 94%, Combine 60% / 94%,
 Advanced 56% / 92%. Stronger specials make levels a little easier to pass; stars did not get easier, because their
 thresholds are recalibrated from the same bot games with the new scoring (3.2). Before the play-on update: Develop
 76% / 96%, Combine 66% / 95%, Advanced 57% / 89%.
@@ -137,22 +138,25 @@ thresholds are recalibrated from the same bot games with the new scoring (3.2). 
 Levels 21–200: 58 with one goal, 81 with two, 13 with three, 28 score levels; 27 have a special-tile goal and 11 a
 score to reach as well as another goal (3.3).
 
-| Main mechanic | Levels | Casual | Planner |
-|---|---|---|---|
-| Collect a colour | 12 | 70% | 99% |
-| Score | 28 | 68% | 98% |
-| Chains | 29 | 67% | 96% |
-| Moss | 20 | 60% | 94% |
-| Ice | 51 | 61% | 92% |
-| Treasure | 39 | 66% | 88% |
+Pass rates by goal kind (levels 21–200; a level counts under every kind of goal it has):
 
-**Flagged levels (39 of 200):** the report flags a level as *too hard* when the Casual pass rate is below the band's
+| Goal kind | Levels | Casual pass | Planner pass | Planner ★★★ |
+|---|---|---|---|---|
+| Score only | 28 | 67% | 98% | 35% |
+| Chains | 56 | 66% | 96% | 50% |
+| Collect a colour | 30 | 66% | 96% | 38% |
+| Moss | 26 | 61% | 93% | 49% |
+| Ice | 70 | 60% | 92% | 42% |
+| Special tiles (make, fire, combine) | 27 | 60% | 91% | 42% |
+| Treasure | 39 | 70% | 90% | 48% |
+
+**Flagged levels (43 of 200):** the report flags a level as *too hard* when the Casual pass rate is below the band's
 floor (Learn 75%, Develop 55%, Combine 40%, Advanced 30%, introductions 70%), *too easy* above its ceiling,
 *unfair?* when even the Planner passes under 80%, *goals trivial* when the Planner meets them by move 2, and
 *3 stars rare* when it never gets three. "Too hard" is expected on special-tile levels (the Casual bot never builds
-specials). 13 levels are *unfair?*, most at exactly 9 of 12 Planner games; the clearly hard ones are the
-combination practice levels 48 and 50 (58% and 67%) and 115 and 160 (treasure or moss mixes, 67%). Level 128's moss
-goal is still trivial (its board only fits two patches). The full list is in the CSV; tune a level by adding an
+specials). 13 levels are *unfair?*, 11 of them at exactly 9 of 12 Planner games (75%); the clearly hard ones are
+99 (treasure under ice with prisms, 58%) and 151 (one treasure on a 45-move prism level, 50%). Level 128's moss goal
+is still trivial (its board only fits two patches), and 106 and 130 rarely reach three stars. The full list is in the CSV; tune a level by adding an
 override in the config.
 
 Changes made because of the simulation: specials at 6/9/12 tiles instead of 7/10/14; moss falls with its tile,
@@ -165,14 +169,14 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
 * **What stars measure:** ★ passing (every goal, the target included); ★★ and ★★★ the final score, with play going
   on after the pass. A player who passes in one move with 17 to spare keeps playing those 17 moves for stars. (This
   is what went wrong on level 47: the level used to end at the pass, 1,160 points + 17 × 70 spare-move bonus =
-  2,350, under its two-star 2,500, so one star.)
+  2,350, under its two-star 2,500, so one star. The bonus has since been removed altogether.)
 * **Calibration (every level from 21):** bots play the level to its last move, as a player chasing stars would.
   ★★ = halfway between a casual player's median final score (Casual bot, 16 games) and the 35th percentile of a
   thoughtful player's (Planner bot, 8 games); ★★★ = the Planner's 60th percentile, never more than 1.45 × ★★.
   Medians, not extremes, so one lucky calibration game can't put three stars out of reach. Goal levels show a
   target of ¾ of ★★; levels with a score goal show that score.
-* **Spare-move bonus:** finishing early pays each unused move half of what a thoughtful player's average move
-  scores (levels 1–20: target ÷ moves), so it rewards stopping once three stars are safe but never beats playing.
+* **No spare-move bonus (2.1):** unused moves score nothing. Stars depend only on the mandatory goals (★) and the
+  final score against the two thresholds (★★, ★★★); finishing early just stops the level.
 * **"...and reach a score":** the 20th percentile of the final scores of Casual games that meet the other goals.
 * **No one-move levels:** the combinations introduction (47) asks for a combination and 14 frozen tiles, 4 of them
   out of the starting rockets' reach; thick-ice practice always has thick ice; moss comes in separate patches;
@@ -182,18 +186,17 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
   because calibration now plays whole games. Levels are built when first needed (level card, game start) and then
   cached; on a phone this may show as a short pause the first time a level card opens. Not measured on a device.
 * **After the 2.1 scoring changes:** nothing was raised by a fixed percentage. Every level's target (score levels),
-  two- and three-star scores and spare-move bonus come from bot games played with the real rules, so they followed
-  the new special scoring, bigger bombs, stone breaking and the end-of-level specials automatically: the Planner
-  still reaches ★★★ in about 40% of games and ★★ in 77%, as before. A level's realistic scoring potential (board
+  two- and three-star scores come from bot games played with the real rules, so they followed the new special
+  scoring, 5 × 5 bombs, groups of specials, stone breaking, the end-of-level specials and the removal of the
+  spare-move bonus automatically: the Planner still reaches ★★ in 77–78% of games and ★★★ in 39–49%. A level's realistic scoring potential (board
   size, moves, how often big groups and specials form, obstacle density, goals, combinations) is what those games
   measure. Power-ups are left out on purpose, so stars never depend on purchases. Levels 1–20 have no specials and
   are unchanged.
-* **Spare-move bonus (audit):** it exists and is paid only when a passed level ends with moves unused (Finish, or a
-  board with no moves left): unused moves × the level's bonus per move, once, after any specials left on the board
-  have gone off. Bonus per move = half of a thoughtful player's average points per move on that level (its median
-  final score ÷ moves × 0.5, rounded to 10; config: spareMoveBonusPermille), or for levels 1–20 target ÷ moves.
-  Playing a move on scores more than the bonus on average, so Finish is for when three stars are safe. Running out
-  of moves pays no bonus (there are none left). The result screen shows it as its own line ("Spare moves (N)").
+* **Spare-move bonus: removed (2.1 clarifications).** It used to pay each unused move on Finish (half a
+  thoughtful player's average move). Now nothing is paid for unused moves: the calculation, its config
+  (leftoverBonusPermille, spareMoveBonusPermille), the level's bonus per move and the result screen's "Spare moves"
+  line are gone, and star calibration plays every move. Final score = score. Saves are unaffected (the bonus was
+  never stored separately; best scores already saved stay as they are).
 
 ### 3.3 Level types (2.1 review)
 
@@ -205,6 +208,37 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
   often later (the score partner's weight rises from 12 to 18 at 61 and 30 at 121). The score is set so that most
   casual games that meet the other goals also reach it.
 * The level card says which: its goals (with "Score X" listed as a goal when it is required) and what each star needs.
+
+### 3.4 Bomb size: the 5 × 5 test (2.1 clarifications)
+
+The bomb was made 5 × 5, centred on the bomb (cut off at the board's edges), and measured before deciding whether
+to keep it. The figures come from a one-off harness program (not committed) using the same calibration bots on the
+real level specs, with every other 2.1 rule the same. Share of the board one bomb reaches, averaged over every cell
+it could sit on (best cell in brackets):
+
+| Board | 3 × 3 | 4 × 4 | 5 × 5 |
+|---|---|---|---|
+| 6 × 6 | 20% | 44% | 44% (69%) |
+| 7 × 7 | 15% | 33% | 35% (51%) |
+| 8 × 9 | 11% | 22% | 26% (35%) |
+| 9 × 10 | 9% | 18% | 21% (28%) |
+
+Campaign levels 41–100 (every bomb level and the first prism levels; stars recalibrated for each size, Planner and
+Casual bots, about 1.3 bombs fired per game):
+
+| Bomb | Planner pass | Planner ★★★ | Casual pass | Tiles per single bomb | Points per single bomb |
+|---|---|---|---|---|---|
+| 3 × 3 | 92% | 45% | 63% | 5.8 | 292 |
+| 4 × 4 | 93% | 46% | 65% | 13.1 | 657 |
+| 5 × 5 | 92% | 46% | 65% | 16.9 | 847 |
+
+On a 6 × 6 board (20 moves, Planner) a 5 × 5 bomb clears 34% of the board each time, but only 0.7 form per game
+and specials supply about 30% of the points. **Decision: keep 5 × 5.** It does not change pass or star rates
+(stars are recalibrated from games with it), it reaches clearly more than a rocket's single line, and no campaign
+level with bombs is smaller than 8 × 9, where it reaches a quarter of the board. On boards of 6 × 6 or smaller it is
+strong (a centred bomb reaches over two thirds of the board), so a future small-board mode with bombs should test a
+smaller size first (config: scoring → specials → bombSize; odd sizes are centred, even sizes keep the old
+slide-inwards square).
 
 ## 4. Endless
 
@@ -239,8 +273,8 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
   reached (or a new best) and what the next introduction is.
 * Coins: one-time milestone rewards the first time any run reaches 2,500 / 5,000 / 10,000 / 20,000 / 40,000
   points (20/30/50/75/100). Endless never grants campaign rewards and never unlocks levels.
-* **Simulation** (`Sim -- modes`, 30 runs per bot): median stage 5 (Casual bot), 6 (Mixed), 7 (Planner); the best
-  10% of Planner runs reach 11, into the mixing stages; runs last about 45–55 moves with 12–14 obstacles, stones,
+* **Simulation** (`Sim -- modes`, 30 runs per bot): median stage 5 (Casual bot), 6 (Mixed), 8 (Planner); the best
+  10% of Planner runs reach 11 (best 12), into the mixing stages; runs last about 45–60 moves with 12–14 obstacles, stones,
   treasures and specials added. Before 2.1 runs stopped around stage 4–5 under the old stage scores (2,000 / 5,000 /
   10,000 / 17,000 / 26,000 / 38,000) and mechanics only arrived after many runs (Endless levels 5–40).
 
@@ -258,7 +292,7 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
   player gets the parts of it they have completed in the campaign, so everyone with the same progress plays the same
   puzzle, and a new player plays the original daily. Obstacles add goals (shown in the goals panel, with the target
   as the first goal); the day is complete when the target and every goal are met. Days with goals have a target 12%
-  lower. Simulation (60 days): Casual-bot success 47% on plain days, 43–54% with mechanics; Planner 88–100%.
+  lower. Simulation (60 days): Casual-bot success 47% on plain days, 50–56% with mechanics; Planner 90–100%.
 * **Limitation:** the date comes from the device clock. A player who changes their clock can view other days'
   puzzles. Mitigation: rewards are refused for any date earlier than the latest one the player has opened.
   Moving the clock forward is not detected. All time reads go through `IClock`, so a server time source can
@@ -278,8 +312,10 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
   more of the player's campaign-unlocked mechanics, so weekly boards combine more than daily ones. Special-tile weeks
   start with a few of that special on the board. The medal scores are scaled by how much the mechanics change a
   45-move bot score, and rewards use the medal scores of the board played. Simulation (16 weeks): with everything
-  unlocked the medal scores were 1.19× the plain ones on average, and the bot earned bronze, silver and gold at the
-  same rates as on the plain boards (100% / 98% / 43% against 100% / 98% / 42%).
+  unlocked the medal scores were 1.42× the plain ones on average (1.19× before 5 × 5 bombs and groups of
+  specials), and the bot earned bronze, silver and gold at close to the plain boards' rates (100% / 97% / 48%
+  against 100% / 98% / 42%). The Weekly Rush has no end-of-level specials (it is timed) and never had a spare-move
+  bonus.
 
 ## 7. Power-ups
 
@@ -395,7 +431,7 @@ Home ─┬─ Play Level N ───────────────▶ Gam
 |---|---|---|
 | Original project | The repository was empty, so nothing could be inspected or reused. The game was built from scratch to the brief. | |
 | Symbols button | Implemented as the colour-shape accessibility toggle the brief describes, wired end to end. | No original code existed to infer anything more specific. |
-| Campaign end | Win as soon as the target is reached; unused moves become bonus points. | Avoids pointless leftover moves and rewards efficiency. |
+| Campaign end | Passing earns ★ and play goes on; the player may Finish at any time. Unused moves score nothing (the spare-move bonus was removed in 2.1). | Stars reward playing the moves well; there is no reward for stopping. |
 | Daily format | Plays all 20 moves (score attack). | Distinguishes it from the campaign and suits leaderboards later. |
 | Challenge resets | UTC, ISO weeks. | Everyone shares one puzzle at once; ready for server validation. |
 | Power-up order | Blast → Tile Breaker → Swap → Colour Shift → Extra Moves → Colour Burst. | Simple to complex; Tile Breaker arrives once stones are common. |

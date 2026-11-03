@@ -90,7 +90,7 @@ namespace ColourCascade.Tests
                         Assert.IsTrue(o.Cleared.All(c => c.Pos.Row == 2), at);
                         break;
                     case Kind.Bombs:
-                        Assert.AreEqual(15, o.Cleared.Count, at);
+                        Assert.AreEqual(24, o.Cleared.Count, at);
                         break;
                     case Kind.Prisms:
                         Assert.IsTrue(o.Cleared.Count > 0 && o.Cleared.All(c => c.Colour == 1), at);
@@ -595,7 +595,7 @@ namespace ColourCascade.Tests
         [Test]
         public void TheStarChecklistSaysWhatEachStarNeeds()
         {
-            var level = new LevelSpec { Target = 1000, Star2 = 2000, Star3 = 3000, LeftoverBonusPerMove = 80, Goals = new[] { GoalSpec.FreeIce(3) } };
+            var level = new LevelSpec { Target = 1000, Star2 = 2000, Star3 = 3000, Goals = new[] { GoalSpec.FreeIce(3) } };
             var items = StarChecklist.For(level, null, true, 2300, 2);
             Assert.AreEqual(3, items.Count);
             Assert.IsTrue(items[0].Met && items[1].Met && !items[2].Met);

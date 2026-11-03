@@ -21,9 +21,9 @@ namespace ColourCascade.Core
         /// <summary>Make a number of special tiles from big groups (GoalSpec.special: which kind; None = any).</summary>
         CreateSpecial = 6,
         /// <summary>Set off a number of special tiles, by any means: a tap, a chain reaction, a combination or a
-        /// power-up (GoalSpec.special: which kind; None = any). Both specials of a combination count.</summary>
+        /// power-up (GoalSpec.special: which kind; None = any). Every special of a combination counts.</summary>
         FireSpecial = 7,
-        /// <summary>Fire a number of special combinations (a special tapped next to another).</summary>
+        /// <summary>Fire a number of special combinations (a group of connected specials fired together, any size).</summary>
         FireCombo = 8,
     }
 
@@ -163,15 +163,16 @@ namespace ColourCascade.Core
                         if (o.HasCreated && goals[i].CountsSpecial(o.Created.Kind)) progress[i]++;
                         break;
                     case GoalKind.FireSpecial:
+                        // Every special that went off counts once: each combination's lead and all its other members.
                         for (int k = 0; k < o.SpecialsFired.Count; k++)
-                        {
                             if (goals[i].CountsSpecial(o.SpecialsFired[k].Kind)) progress[i]++;
-                            if (goals[i].CountsSpecial(o.SpecialsFired[k].ComboWith)) progress[i]++;
-                        }
+                        for (int k = 0; k < o.ComboMembers.Count; k++)
+                            if (goals[i].CountsSpecial(o.ComboMembers[k].Kind)) progress[i]++;
                         break;
                     case GoalKind.FireCombo:
+                        // A group of two or more specials fired together is one combination, whatever its size.
                         for (int k = 0; k < o.SpecialsFired.Count; k++)
-                            if (o.SpecialsFired[k].ComboWith != SpecialKind.None) progress[i]++;
+                            if (o.SpecialsFired[k].ComboSize > 1) progress[i]++;
                         break;
                 }
                 if (progress[i] != before) changed = true;

@@ -157,7 +157,7 @@ namespace ColourCascade.Tests
             var quick = new LevelSpec
             {
                 Id = spec.Id, Mode = GameMode.Campaign, Number = spec.Number, Layout = LevelLayout.Parse(new[] { "000", "111", "222" }),
-                Colours = 3, Moves = 3 + extraBonusMoves, Target = 10, Star2 = 20, Star3 = 30, LeftoverBonusPerMove = 10,
+                Colours = 3, Moves = 3 + extraBonusMoves, Target = 10, Star2 = 20, Star3 = 30,
                 IsMilestone = spec.IsMilestone, IsRegionFinale = spec.IsRegionFinale,
             };
             var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = quick, BoardSeed = 1 });
@@ -425,7 +425,6 @@ namespace ColourCascade.Tests
                 Assert.Greater(x.Target, 0);
                 Assert.Greater(x.Star2, x.Target);
                 Assert.Greater(x.Star3, x.Star2);
-                Assert.Greater(x.LeftoverBonusPerMove, 0);
                 Assert.IsTrue(x.Colours >= 3 && x.Colours <= 6);
             }
         }

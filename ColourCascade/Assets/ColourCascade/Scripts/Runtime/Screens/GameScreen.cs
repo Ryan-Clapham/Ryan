@@ -584,18 +584,19 @@ namespace ColourCascade.App
             }
             if (targeting == null && session.IsSpecialAt(cell))
             {
-                // A special tile: show what it would reach (just the prism while its colour is still to be picked).
+                // A special tile: show what it would reach, with every special that fires with it (just the group
+                // while a prism's colour is still to be picked).
                 GridPos partner;
                 bool combo;
+                var group = new List<GridPos>();
+                session.SpecialGroupAt(cell, group);
                 if (session.NeedsColourChoice(cell))
                 {
-                    cells.Add(cell);
-                    if (SpecialEffects.FindPartner(session.Board, cell, out partner)) cells.Add(partner);
+                    cells.AddRange(group);
                     return cells.Count;
                 }
                 session.PreviewSpecial(cell, -1, cells, out partner, out combo);
-                cells.Add(cell);
-                if (combo) cells.Add(partner);
+                cells.AddRange(group);
                 return cells.Count;
             }
             if (targeting == null)
@@ -652,9 +653,9 @@ namespace ColourCascade.App
             }
             if (session.IsSpecialAt(cell))
             {
-                GridPos partner;
-                bool combo = SpecialEffects.FindPartner(session.Board, cell, out partner);
-                previewText.text = combo ? "Combo!" : SpecialName(session.Board[cell].Special) + "!";
+                var group = new List<GridPos>();
+                session.SpecialGroupAt(cell, group);
+                previewText.text = group.Count > 2 ? group.Count + "x Combo!" : group.Count == 2 ? "Combo!" : SpecialName(session.Board[cell].Special) + "!";
                 previewText.color = Theme.Gold;
             }
             else
@@ -720,10 +721,7 @@ namespace ColourCascade.App
             targetingBanner.gameObject.SetActive(true);
             targetingBanner.localScale = Vector3.one * 0.9f;
             Tw.Scale(targetingBanner, 1f, 0.2f, Ease.OutBack);
-            scratch.Clear();
-            scratch.Add(cell);
-            GridPos partner;
-            if (SpecialEffects.FindPartner(session.Board, cell, out partner)) scratch.Add(partner);
+            session.SpecialGroupAt(cell, scratch);
             board.Mark(scratch, Theme.Gold);
             var present = new List<int>();
             for (int c = 0; c < TileColours.Max; c++)
@@ -829,14 +827,17 @@ namespace ColourCascade.App
                 ShowBanner(specials == 1 ? "Out of moves! Your special goes off" : "Out of moves! Your " + specials + " specials go off", 1.3f);
                 Tw.Delay(0.7f, () =>
                 {
-                    if (session == null || !session.RunFinale(outcome)) return;
+                    if (session == null) return;
+                    var before = session.FinaleBreakdown.Clone();
+                    if (!session.RunFinale(outcome)) return;
                     float d = board.Animate(outcome);
                     Haptics.Heavy();
                     ShakeBoard(16f);
                     ShowMoveFeedback(outcome);
                     RefreshHud(true);
                     RefreshFinishButton();
-                    if (outcome.Ended) ScheduleEnd(d + 0.5f);
+                    float hold = ShowFinaleSummary(before, d * 0.7f);
+                    if (outcome.Ended) ScheduleEnd(d * 0.7f + hold + 0.2f);
                 }, this);
             }, this);
         }
@@ -886,33 +887,86 @@ namespace ColourCascade.App
                 FinishNow();
                 return;
             }
-            int bonus = session.SpareMoveBonusNow;
             int stars = session.StarsIfFinishedNow;
-            string body = session.MovesLeft + (session.MovesLeft == 1 ? " spare move adds " : " spare moves add ") + NumberFormat.Thousands(bonus) +
-                          " points: " + NumberFormat.Thousands(session.Score + bonus) + " in all, " + stars + (stars == 1 ? " star." : " stars.");
+            string body = "You have " + NumberFormat.Thousands(session.Score) + " points: " + stars + (stars == 1 ? " star" : " stars") + " so far. " +
+                          "Your " + session.MovesLeft + (session.MovesLeft == 1 ? " move left scores" : " moves left score") + " nothing if you stop now.";
             int specials = session.Board.CountType(CellType.Special);
-            if (specials > 0) body += " Your " + (specials == 1 ? "special tile goes" : specials + " special tiles go") + " off first.";
-            if (stars < 3) body += "\n\n" + NextStarText(session, false) + ". Playing on usually scores more than the bonus.";
+            if (specials > 0) body += " Your " + (specials == 1 ? "special tile goes" : specials + " special tiles go") + " off first and count.";
+            if (stars < 3) body += "\n\n" + NextStarText(session, false) + ".";
             var popup = Nav.Open<ConfirmPopup>();
             popup.Setup("Finish now?", body, "Finish", FinishNow, ButtonStyle.Primary, "Keep playing");
         }
 
-        /// <summary>Ends a passed level now; spare moves become bonus points.</summary>
+        /// <summary>Ends a passed level now (specials on the board go off first; unused moves score nothing).</summary>
         void FinishNow()
         {
             if (session == null || endScheduled) return;
+            var before = session.FinaleBreakdown.Clone();
             if (!session.Finish(outcome)) return;
-            // Specials still on the board went off as part of finishing: show them going.
+            // Specials still on the board went off as part of finishing: show them going, then what they scored.
             float d = outcome.Kind == OutcomeKind.Finale ? board.Animate(outcome) : 0f;
+            float hold = 0f;
             if (d > 0f)
             {
                 Haptics.Heavy();
                 ShakeBoard(16f);
                 ShowMoveFeedback(outcome);
+                hold = ShowFinaleSummary(before, d * 0.7f);
             }
             RefreshHud(true);
             RefreshFinishButton();
-            ScheduleEnd(d + 0.35f);
+            ScheduleEnd(d > 0f ? d * 0.7f + hold + 0.2f : 0.35f);
+        }
+
+        /// <summary>
+        /// After the specials left on the board have gone off: a card with what they scored, line by line, taken from
+        /// the session's own scoring (docs/MECHANICS.md §4.4), so the figures are exactly what was added. Returns how
+        /// long it stays up (0 when they scored nothing).
+        /// </summary>
+        float ShowFinaleSummary(ScoreBreakdown before, float delay)
+        {
+            var now = session.FinaleBreakdown;
+            var lines = new List<(string label, int points)>();
+            void Line(string label, int points)
+            {
+                if (points > 0) lines.Add((label, points));
+            }
+            Line("Tiles cleared", now.Specials - before.Specials);
+            Line("Combo bonus", now.ComboBonus - before.ComboBonus);
+            Line("Ice, chains, moss", now.Obstacles - before.Obstacles);
+            Line("Stones broken", now.Stones - before.Stones);
+            Line("Treasure", now.Treasure - before.Treasure);
+            int total = 0;
+            foreach (var l in lines) total += l.points;
+            if (total <= 0) return 0f;
+            const float row = 58f, top = 128f;
+            var panel = UI.Rect("FinaleSummary", Safe);
+            panel.Place(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(820, top + lines.Count * row + 36));
+            var group = panel.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            group.alpha = 0f;
+            var card = UI.Card(panel, "Card", Theme.SurfaceHigh, 50);
+            var title = UI.FitText(card, "Specials at the end", Theme.FontLarge - 6, Theme.Text, TextAnchor.MiddleLeft, true, "Title");
+            title.rectTransform.TopStrip(80, 26, 44, 260);
+            var sum = UI.FitText(card, "+" + NumberFormat.Thousands(total), Theme.FontLarge, Theme.Gold, TextAnchor.MiddleRight, true, "Total");
+            sum.rectTransform.TopStrip(80, 26, 300, 44);
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var label = UI.FitText(card, lines[i].label, Theme.FontBody - 4, Theme.TextSecondary, TextAnchor.MiddleLeft, true, "Label");
+                label.rectTransform.TopStrip(row - 6, top + i * row, 60, 300);
+                var value = UI.FitText(card, "+" + NumberFormat.Thousands(lines[i].points), Theme.FontBody - 2, Theme.Text, TextAnchor.MiddleRight, true, "Value");
+                value.rectTransform.TopStrip(row - 6, top + i * row, 420, 60);
+            }
+            const float holdFor = 2.4f;
+            panel.localScale = Vector3.one * 0.9f;
+            Tw.Fade(group, 1f, 0.2f, Ease.OutQuad, delay);
+            Tw.Scale(panel, 1f, 0.3f, Ease.OutBack, delay);
+            Tw.Fade(group, 0f, 0.25f, Ease.InQuad, delay + holdFor).OnComplete(() =>
+            {
+                if (panel != null) Destroy(panel.gameObject);
+            });
+            Tw.Delay(delay, () => AudioService.Sfx(SfxNames.Coin, 0.7f), this);
+            return holdFor + 0.25f;
         }
 
         void ShowMoveFeedback(MoveOutcome o)
@@ -1620,8 +1674,6 @@ namespace ColourCascade.App
             else if (session.State == SessionState.Failed) AudioService.Sfx(SfxNames.Lose);
             else AudioService.Sfx(SfxNames.Win, 0.8f);
             if (result.Success) Haptics.Medium();
-            if (session.Mode == GameMode.Campaign && session.State == SessionState.Won && session.LeftoverBonus > 0)
-                board.Fx.Sparkle(board.Fx.ToLocal(badge.position), Theme.Gold, 18, 90f);
             var popup = Nav.Open<ResultPopup>();
             popup.Setup(result, session, this);
         }

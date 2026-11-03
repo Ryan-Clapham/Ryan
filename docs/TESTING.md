@@ -13,7 +13,7 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **351 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **379 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Campaign mechanics: Casual and Planner bots play every level 1–200 (12 games each, every move played) and flag levels that look too easy, too hard, unfair, trivial or short of three stars | `Sim -- campaign 1 200 12 <csv>` | See DESIGN.md §3.1–3.2 and docs/campaign-simulation.csv |
@@ -25,7 +25,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (351 tests)
+### Automated test coverage (379 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -48,16 +48,17 @@ real Android builds provide it.
 | Chains | 7 | Chained tiles join their colour's group, stay and lose a link; a group of only chained tiles is a legal move; adjacent clears do nothing; no Swap, but Colour Shift recolours (chain stays); Tile Breaker strips all links; Blast/Colour Burst take one |
 | Obstacle boards and layouts | 6 | Recovery reshuffles only free tiles (40 seeds); obstacle notation round trips; validation; obstacles don't change generated colours; obstacle points configurable; `TileRules` matches the definitions |
 | Campaign-only mechanics | 7 | Endless, Daily, Weekly and Practice have no obstacles or goals and refuse to start with them; built-in levels 1–300 unchanged; a hand-made level can list obstacles and goals |
-| Goals | 11 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; meeting every goal passes the level and play goes on; Finish pays the spare-move bonus and is refused before passing; a passed level that runs out of moves is won with no bonus; fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
+| Goals | 11 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; meeting every goal passes the level and play goes on; Finish ends a passed level with nothing added for unused moves and is refused before passing; a passed level that runs out of moves is won; fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
 | Stars and objectives (play on) | 13 | The level 67, 47 and 78 reports: the target passes without ending and stars rise with every move left (the HUD's stars are the stars awarded); the real level 67 keeps going after its goals; a high score with a treasure left fails, Extra Moves keep score and progress, a power-up finishes the goal, Finish and the saved result; the combinations tutorial is no longer a one-tap win; no level 21–60 is passed by move 2; three stars within reach on 21–60; make/set off/combination goals count only the kind asked, chain reactions, both halves of a combination and power-ups; all goals needed; the new goals round trip through level files; star requirements match the star rule on levels 1–60; the result says why the next star was missed; stars from playing on are saved |
 | Planner bot | 6 | Picks goal progress over the biggest group; breaks the ice/chains a goal needs; looks one move ahead; deterministic; beats Casual on levels 1–40 (120/120 vs 93/120) and on an ice level (29/30 vs 10/30) |
-| Save compatibility | 2 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte, and the same play on the new code (finishing each level the moment it is passed) produces exactly the same save (progress, stars, coins, ledger, records) |
+| Save compatibility | 3 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte; the same play on the new code (every move played) makes exactly the same progress: levels unlocked and completed, plays and wins, first-clear and milestone rewards, Daily and Weekly plays, the purchase, inventory, tutorials and settings (scores, stars and star rewards differ, because levels are now played to the end and unused moves score nothing); and the whole save it writes matches a recorded fingerprint, which the build before the 2.1 clarifications also produced byte for byte (checked in a separate worktree) |
 | Special tiles | 29 | Creation at 6/9/12 tiles and only as taught; configurable thresholds; row vs column rockets; placement (tapped cell, or nearest cleared cell); they fall and stop at stones; rocket, bomb and prism hits on every tile type; every combination; chain reactions in order, each once; goals count their clears; Blast, Tile Breaker, Swap, Colour Shift and Colour Burst with specials; a special is always a legal move |
 | Treasure | 9 | Falls and is collected at the bottom edge and on stones, never through them; waits on ice, chains, moss and tiles; stacked treasure; untouched by power-ups and reshuffles; layout rules; the treasure goal wins the level |
 | Moss | 11 | Leaves with its group and with area hits; scraped off by a neighbouring clear; grows by one free tile after a move that clears none, repeatably, never two moves in a row, never past its cap, never onto ice, chains, specials or treasure; falls with its tile; can't block every move; the moss goal follows the board |
 | Campaign design and level files | 22 | No mechanic before its introduction (levels 1–200); each introduction teaches one thing with a tutorial; practice levels focus on it; obstacle combinations arrive one showcase at a time and most later obstacle levels mix kinds; objective-only, score and combined levels all exist; generated levels valid with goals that can be met and moves in their band; same on every device; levels saved to JSON load back exactly and play the same board (13 levels covering every mechanic); hand-written level files load and bad ones are refused; progress on mechanic levels saves and loads |
 | Mechanics in every mode | 24 | Each of the seven mechanics gives identical results (and points) in Campaign, Daily, Weekly Rush and Endless; power-up rules per mode unchanged; recovery keeps obstacles in every mode; campaign and Endless unlocks (milestones configurable); Daily uses only the day's plan and the player's unlocks, is identical for players with the same unlocks, stays keyed by date, needs its goals as well as the target, and its goals are reachable (planner 27/30 days); Weekly themes, more combinations than Daily, never treasure with chains, medal rewards follow the board played; players with nothing unlocked get the original challenges and Endless; Endless level saved and migrated from old saves; the Endless journey brings one thing per stage (stones, ice, a breather, chains, rockets and bombs, treasure, a breather, moss, prisms) then mixes, more kinds and denser, with breathers; waves arrive only with new stages, never more stones than columns; no specials before their stage; random play in every mode keeps every rule; the star checklist |
-| Scoring, stones and the finale (2.1) | 39 | Rocket scores on rows 5–10 wide and columns 6–12 tall; a rocket scores only what it reaches (holes nothing, stones and ice their points); the bomb's 4 × 4 square leans to the middle and stays whole at every edge and corner, and clears a board smaller than itself; bombs break stones and hit obstacles in their square; only specials and Tile Breaker break stones (not groups, Blast, Colour Burst or prisms), and a broken stone lets tiles fall through; every combination pays 75 a tile with the combo bonus as its own line; two prisms clear the board for a big score but don't pass a level with thick ice and chains; chain reactions score each tile once; specials left when the moves run out go off (no move charged, points and goal progress count, a goal they finish still passes), each alone, in Campaign, Daily and Endless but not Weekly Rush; a failed finish stays failed and Extra Moves restart it; Finish sets specials off then pays the spare moves once; every power-up's points and goal progress; tutorial power-ups kept on the first win only, temporary on replays, gone on the next level, kept through a revivable failure, settled across a restart, nothing extra for players with older free trials; the tutorial hand's fingertip lands on its target on 9:16, 9:20, 3:4 and 9:19.5 screens and the hand stays on screen |
+| Scoring, stones and the finale (2.1) | 49 | Rocket scores on rows 5–10 wide and columns 6–12 tall; a rocket scores only what it reaches (holes nothing, stones and ice their points); **the bomb's 5 × 5 square is centred on the bomb in the middle, on all four edges and in all four corners (25 cells in the middle, 16 one step from a corner, 15 on an edge, 9 in a corner), never reaches off the board, and reaches 25 cells in the middle of boards from 5 × 5 to 10 × 12**; even-sized squares (config) still lean to the middle; bombs break stones and hit obstacles in their square, scoring each once; only specials and Tile Breaker break stones (not groups, Blast, Colour Burst or prisms), and a broken stone lets tiles fall through; every combination pays 75 a tile with the combo bonus as its own line; two prisms clear the board for a big score but don't pass a level with thick ice and chains; chain reactions score each tile once; specials left when the moves run out go off (no move charged, points and goal progress count, a goal they finish still passes), **adjacent ones together as a combination**, in Campaign, Daily and Endless but not Weekly Rush; a failed finish stays failed and Extra Moves restart it; **Finish sets the specials off and adds nothing for unused moves**; every power-up's points and goal progress; tutorial power-ups kept on the first win only, temporary on replays, gone on the next level, kept through a revivable failure, settled across a restart, nothing extra for players with older free trials; the tutorial hand's fingertip lands on its target on 9:16, 9:20, 3:4 and 9:19.5 screens and the hand stays on screen |
+| Groups of specials (2.1) | 17 | Three rockets (a cross three lines wide), four rockets (five wide), three bombs (9 × 9, clipped), a rocket and two bombs (a five-line band), two rockets and a bomb (a three-wide cross), prism + rocket + bomb (the colour, then the band), two prisms + a bomb (every colour tile, and the bomb's area breaks stones), a snake of five specials fires as one; only orthogonal neighbours join (a diagonal special fires later, alone); a blast that reaches a special outside the group sets it off once, alone, with no loop; power-ups that hit specials set them off singly and never combine them; ice, chains, moss and stones in a combination's area each take one step and score once; make/fire/combination goals count every member once; the preview shows exactly the cells the combination clears; a group of three left at the end goes off as one combination; Finish uses the same groups; 200 random boards full of specials: every special fires at most once, no tile scores twice, score = breakdown, the session always settles |
 | Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 3,400 actions, 400 specials made, combos, treasure, moss growth, 47 finales): score bookkeeping, the score breakdown always equals the score, no tile removed twice, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
@@ -123,9 +124,16 @@ real Android builds provide it.
   against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
   watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
   how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
-* Balance comes from bots, not people. 57 of levels 1–200 are flagged by the report, 9 of them clearly hard for
-  the Planner bot (DESIGN.md §3.1).
-* **Update 2.1 has not been seen running:** the end-of-level finale animation and its banner, the 4 × 4 bomb ring,
+* Balance comes from bots, not people. 43 of levels 1–200 are flagged by the report, 13 of them *unfair?* (the
+  Planner passes under 80%, most at 9 of 12 games) and 2 clearly hard for it, 99 and 151 (DESIGN.md §3.1). The bomb
+  size decision (DESIGN.md §3.4) also rests on bot games.
+* **The 2.1 clarifications have not been seen running:** the 5 × 5 bomb's flashes (every hit cell lights up,
+  staggered by distance, with the ring sized to the area), the flashes and beams of groups of three or more
+  specials and the "3x Combo!" preview, the "Specials at the end" card that lists the end-of-level points (its size
+  on a short phone, and that it doesn't hide the board for too long: it stays 2.4 s), the result screen's "Specials
+  at the end" note, and the Finish confirmation's new wording all compile in every variant and pass the lint, but
+  their look and timing are unverified. The rules behind them are tested in the harness.
+* **Update 2.1 has not been seen running:** the end-of-level finale animation and its banner, the bomb ring,
   stones breaking under rockets and bombs (and the tiles falling through), stones and specials appearing in Endless
   stages and their banners, the score breakdown grid on the result screen, the coin balance on the Out of Moves
   screen (and the "coins left" toast after buying moves), the "Kept 1 free ..." badge, and the corrected tutorial
@@ -141,16 +149,24 @@ real Android builds provide it.
 
 ### Update 2.1: scoring, stones, finale, tutorials, Endless
 
-* Fire a rocket across a full 8-wide row: about 350 points (7 tiles × 50), more on a longer row. A bomb clears a
-  4 × 4 square (about 750 points) even in a corner. Two specials side by side pay 75 a tile.
+* Fire a rocket across a full 8-wide row: about 350 points (7 tiles × 50), more on a longer row. A bomb in the
+  middle clears the 5 × 5 square centred on it (24 tiles, about 1,200 points); on an edge or in a corner the square
+  is cut off (14 or 8 tiles) and the flashes cover exactly the cells that went. Two specials side by side pay 75 a
+  tile; two bombs clear 7 × 7.
 * A rocket or bomb reaching a stone breaks it (100 points) and the tiles above fall through. Groups, Blast and
   Colour Burst never break stones; Tile Breaker does.
-* Run out of moves with a rocket on the board: "Out of moves! Your special goes off" appears, the rocket fires,
-  then the result shows. If its blast finishes the last goal, the level is passed. Tap Finish with specials on
-  the board: they go off first, then the result shows the spare-move bonus.
+* Run out of moves with a rocket on the board: "Out of moves! Your special goes off" appears, the rocket fires, a
+  "Specials at the end" card lists its points, then the result shows. If its blast finishes the last goal, the
+  level is passed. With three specials touching, they go off together ("Your 3 specials go off") as one combination.
+  Tap Finish with specials on the board: the confirmation says the unused moves score nothing and the specials go
+  off first; they do, the card shows, then the result. No spare-move points appear anywhere.
 * The level result shows a breakdown (Groups, Special tiles, Combo bonus, Power-ups, Ice/chains/moss, Stones,
-  Treasure, Specials at the end, Spare moves) whose numbers add up to the final score; check it fits on a short
-  phone with the star checklist and rewards.
+  Treasure, Specials at the end) whose numbers add up to the final score, and, when specials went off at the end,
+  a "Specials at the end: tiles … · combo bonus …" note with the same figures as the card; check it fits on a
+  short phone with the star checklist and rewards.
+* Groups of specials: put three or more specials side by side (a line or an L): holding one highlights the whole
+  group and the preview reads "3x Combo!"; releasing fires them as one (one bomb sound, flashes on every hit cell).
+  A special touching only diagonally is not part of the group. Inventory power-ups never fire together.
 * Out of Moves with Extra Moves offered: the coin balance shows at the top of the popup; buying moves shows a
   "coins left" toast.
 * Level 60 (Colour Burst): don't use the free one and win: the result says "Kept 1 free Colour Burst" and the shop
@@ -166,9 +182,10 @@ real Android builds provide it.
 
 * Level 67 (or any score level): reaching the target shows "Level passed!", the moves badge keeps counting, the bar
   keeps filling towards the third star and its stars light up as they are reached; the top-right button becomes
-  **Finish**. Play every move: the result shows the stars of the final score with no spare-move bonus.
-* Finish with fewer than three stars: a confirmation shows the spare moves, the bonus, the total and the stars,
-  with "Keep playing". With three stars, Finish ends at once. The result line reads "score + bonus for N spare moves".
+  **Finish**. Play every move: the result shows the stars of the final score.
+* Finish with fewer than three stars: a confirmation shows the score and stars so far, says the moves left score
+  nothing, and offers "Keep playing". With three stars, Finish ends at once. The result has no spare-move line; its
+  "why" line says how many moves were left unplayed.
 * A goal level: three small stars and a caption ("Goals first", then "2nd: 2,800", "3rd: 3,300") sit under the
   score; check they don't collide with the goals on a narrow phone.
 * Level 78 (or any treasure level): run out of moves with a high score and a treasure left: "Out of Moves" says
@@ -198,8 +215,8 @@ Use **Settings → Developer → unlock levels** to jump ahead, then open each i
       row; release to fire (beam across the row, one move used). Clear the 8 blue tiles at the bottom: a rocket
       appears where you tapped, and a tip says to tap it. Check row rockets (arrows left-right) and column rockets
       (arrows up-down).
-* [ ] **Level 41 (bombs)** and **level 47 (combos):** a bomb clears a 3 × 3 square; tapping one of the two touching
-      rockets fires both (row and column at once).
+* [ ] **Level 41 (bombs)** and **level 47 (combos):** a bomb clears the 5 × 5 square centred on it; tapping one of the two
+      touching rockets fires both (row and column at once).
 * [ ] **Level 51 (prisms):** tap the prism: a colour row replaces the power-up bar and the banner asks for a
       colour. Pick a swatch, or tap any tile of that colour; Cancel backs out without using a move.
 * [ ] **Level 61 (chains):** chained tiles show chains, a padlock and a link count from 2; they match their colour,
@@ -236,7 +253,7 @@ Use **Settings → Developer** (Editor/dev builds) to add coins, unlock levels a
 - [ ] Level 1 shows the hand pointer hint; tapping a group clears it, tiles fall and refill smoothly.
 - [ ] Press and hold shows "+points"; sliding to another group previews that one; sliding off cancels.
 - [ ] Single tiles shake and cost no move.
-- [ ] Reaching the target ends the level with stars, spare-move bonus and coins flying into the counter.
+- [ ] Reaching the target shows "Level passed!" and play goes on; when the level ends the result shows the stars and coins fly into the counter.
 - [ ] "Next Level" plays level 2; "Map" shows the path lighting up to the new level with an unlock animation.
 - [ ] The map scrolls smoothly, opens near the current level, shows stars on completed nodes, locks on locked ones, region banners and milestone gems; "My level" appears when scrolled away.
 - [ ] Replaying level 1 earns no first-clear coins again (§21) and never lowers stars.

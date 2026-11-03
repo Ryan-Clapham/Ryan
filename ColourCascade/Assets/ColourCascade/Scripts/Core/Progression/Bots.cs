@@ -167,8 +167,7 @@ namespace ColourCascade.Core
 
         public struct GameResult
         {
-            /// <summary>Final score of a passed game played to its last move (spare-move bonus included if the board
-            /// ran out of moves first).</summary>
+            /// <summary>Final score of a passed game played to its last move (specials left at the end included).</summary>
             public int Score;
             /// <summary>Moves made when every goal was met.</summary>
             public int PassedAtMove;

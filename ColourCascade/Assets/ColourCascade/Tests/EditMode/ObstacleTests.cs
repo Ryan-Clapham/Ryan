@@ -595,7 +595,7 @@ namespace ColourCascade.Tests
                 var spec = new LevelSpec
                 {
                     Id = "long" + seed, Mode = GameMode.Campaign, Number = 1, Layout = layout, Colours = 4 + (int)(seed % 3),
-                    Moves = 45, Target = 1000000, Star2 = 2000000, Star3 = 3000000, LeftoverBonusPerMove = 50,
+                    Moves = 45, Target = 1000000, Star2 = 2000000, Star3 = 3000000,
                     Goals = new[] { GoalSpec.FreeIce(ice), GoalSpec.BreakChains(chains), GoalSpec.Collect(0, 30) },
                 };
                 var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = spec, Scoring = scoring, BoardSeed = seed * 31 });

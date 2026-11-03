@@ -127,6 +127,26 @@ namespace ColourCascade.App
             });
         }
 
+        /// <summary>A rounded square that lights up and fades: marks one cell a blast reached.</summary>
+        public void Flash(Vector2 pos, float size, Color colour, float delay = 0f)
+        {
+            var img = UI.Image(rt, ArtLibrary.Instance.Get(ArtNames.Round), colour, "Flash");
+            img.type = Image.Type.Sliced;
+            UI.SetRadius(img, size * 0.22f);
+            img.raycastTarget = false;
+            var r = img.rectTransform;
+            r.anchoredPosition = pos;
+            r.sizeDelta = new Vector2(size, size);
+            var c = colour;
+            c.a = 0f;
+            img.color = c;
+            Tw.Fade(img, colour.a, 0.08f, Ease.OutQuad, delay);
+            Tw.Fade(img, 0f, 0.3f, Ease.InQuad, delay + 0.12f).OnComplete(() =>
+            {
+                if (img != null) Destroy(img.gameObject);
+            });
+        }
+
         /// <summary>A bright streak between two points (a rocket's path) that shoots out, then fades.</summary>
         public void Beam(Vector2 from, Vector2 to, Color colour, float width, float delay = 0f)
         {

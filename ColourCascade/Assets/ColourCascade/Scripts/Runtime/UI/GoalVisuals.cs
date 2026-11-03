@@ -278,7 +278,7 @@ namespace ColourCascade.App
                     return new Tip
                     {
                         Title = "Special combos", ArtTile = ArtNames.RocketColumn,
-                        Body = "Tap a special tile that touches another one to fire both together for a much bigger effect.\nTwo rockets clear a row and a column; two bombs clear a huge square.",
+                        Body = "Tap a special tile that touches others to fire them all together for a much bigger effect.\nTwo rockets clear a row and a column; two bombs clear a huge square.",
                         Pointer = "Tap one of these rockets to fire them together",
                     };
                 case TutorialKeys.Prisms:

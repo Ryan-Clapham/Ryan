@@ -6,7 +6,7 @@ namespace ColourCascade.Core
     /// What each star of a campaign level asks for (docs/MECHANICS.md §4.3), in one place so the level card, the
     /// game screen and the result screen always agree with how stars are actually awarded (PuzzleSession.Stars):
     /// one star for passing the level (every goal met, the target score included when the level has one), two and
-    /// three for the final score, spare-move bonus included.
+    /// three for the final score (with whatever specials left on the board scored at the end).
     /// </summary>
     public static class StarChecklist
     {
@@ -84,7 +84,7 @@ namespace ColourCascade.Core
             string line = (stars + 1) + " stars need " + NumberFormat.Thousands(needed) + " points: you finished with " +
                           NumberFormat.Thousands(finalScore) + " (" + NumberFormat.Thousands(needed - finalScore) + " short).";
             if (finishedEarly && movesLeftAtFinish > 0)
-                line += " You finished with " + movesLeftAtFinish + (movesLeftAtFinish == 1 ? " move" : " moves") + " to spare: playing them usually scores more than their bonus.";
+                line += " You finished with " + movesLeftAtFinish + (movesLeftAtFinish == 1 ? " move" : " moves") + " left: playing them could have scored the rest.";
             return line;
         }
 

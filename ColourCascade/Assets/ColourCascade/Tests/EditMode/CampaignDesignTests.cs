@@ -252,7 +252,7 @@ namespace ColourCascade.Tests
             cfg.Campaign.overrides = cfg.Campaign.overrides.Where(o => o.level != n).Concat(new[] { ov }).ToArray();
             var loaded = new CampaignCatalog(cfg.Campaign, cfg.Scoring).Get(n);
             Assert.AreEqual(json, LevelCodec.Encode(loaded));
-            Assert.AreEqual(original.LeftoverBonusPerMove, loaded.LeftoverBonusPerMove);
+            Assert.AreEqual(original.Star3, loaded.Star3);
 
             // And it plays: same board, same goals.
             var x = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = original, Scoring = cfg.Scoring, BoardSeed = 9 });

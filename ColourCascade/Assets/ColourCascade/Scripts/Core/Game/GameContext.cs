@@ -138,7 +138,6 @@ namespace ColourCascade.Core
         public EndReason EndReason;
         public bool Success;
         public int Score;
-        public int LeftoverBonus;
         public int FinalScore;
         public int Stars;
         public int PreviousStars;
@@ -148,12 +147,14 @@ namespace ColourCascade.Core
         public bool UnlockedNext;
         public int BiggestGroup;
         public int MovesMade;
-        /// <summary>Moves left when the run ended (campaign: the spare moves a Finish paid for).</summary>
+        /// <summary>Moves left when the run ended (campaign: unused when the player chose Finish).</summary>
         public int MovesLeft;
         /// <summary>Campaign: every goal was met at some point (the level was passed).</summary>
         public bool Passed;
-        /// <summary>Where the score came from (the spare-move bonus is LeftoverBonus).</summary>
+        /// <summary>Where the score came from: its Total is the final score.</summary>
         public ScoreBreakdown Breakdown = new ScoreBreakdown();
+        /// <summary>What the specials left on the board scored at the end, line by line (Total = Breakdown.Finale).</summary>
+        public ScoreBreakdown FinaleBreakdown = new ScoreBreakdown();
         /// <summary>First win of a power-up's introduction: the power-up, and how many unused free uses were kept.</summary>
         public PowerUpDefinition KeptPowerUp;
         public int KeptPowerUps;
@@ -359,7 +360,6 @@ namespace ColourCascade.Core
                 EndReason = s.EndReason,
                 Success = s.Succeeded,
                 Score = s.Score,
-                LeftoverBonus = s.LeftoverBonus,
                 FinalScore = s.FinalScore,
                 Stars = s.Stars,
                 BiggestGroup = s.BiggestGroup,
@@ -367,6 +367,7 @@ namespace ColourCascade.Core
                 MovesLeft = s.MovesLeft,
                 Passed = s.Passed,
                 Breakdown = s.Breakdown.Clone(),
+                FinaleBreakdown = s.FinaleBreakdown.Clone(),
                 Stage = s.Stage,
             };
 

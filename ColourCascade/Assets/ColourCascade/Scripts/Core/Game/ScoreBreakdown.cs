@@ -2,8 +2,8 @@ namespace ColourCascade.Core
 {
     /// <summary>
     /// Where a run's points came from (docs/MECHANICS.md §5), for the result screen. Every point added to the score is
-    /// counted in exactly one line, so Total always equals the session's Score; the spare-move bonus is separate
-    /// (PuzzleSession.LeftoverBonus).
+    /// counted in exactly one line, so Total always equals the session's Score (and the final score: there is no
+    /// bonus for unused moves since 2.1).
     /// </summary>
     public sealed class ScoreBreakdown
     {

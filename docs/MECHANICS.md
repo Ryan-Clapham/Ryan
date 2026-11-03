@@ -80,9 +80,10 @@ phase 2 (new tile mechanics) brief. Where a rule was changed after simulation, t
   otherwise a **column** rocket. The arrows on the tile show which.
 * **Firing:** tapping a special fires it and **costs one move**. A press-and-hold shows what it will reach.
   * Rocket: every cell in its row or column is hit.
-  * Bomb: every cell in a 4 × 4 square is hit (config: scoring → specials → bombSize; it was 3 × 3). An even square
-    has no middle cell, so the extra row and column lie towards the middle of the board, and near an edge the
-    square slides inwards to stay whole: a bomb reaches 16 cells wherever it sits (all of a board smaller than that).
+  * Bomb: every cell of the **5 × 5 square centred on the bomb** is hit (config: scoring → specials → bombSize; it
+    was 3 × 3, then 4 × 4 in early 2.1 builds). Near an edge or a corner the square is simply cut off: cells off
+    the board are never touched, so a bomb reaches 25 cells in the middle, 15 on an edge and 9 in a corner of an
+    8 × 9 board. The effect on screen lights exactly the cells that were hit. (DESIGN.md §3.4 has the size study.)
   * Prism: the player picks a colour (a swatch, or by tapping any tile of that colour); every tile of that colour
     is hit. Only colours on the board are offered.
 * **What a hit does:** a free colour tile or mossy tile is removed (with its moss); ice and chains lose one step;
@@ -91,23 +92,36 @@ phase 2 (new tile mechanics) brief. Where a rule was changed after simulation, t
 * **Chain reactions:** specials set off by a hit join a queue and fire in the order they were hit, each after the
   previous one finishes. Each special fires at most once per action. A prism set off this way (nobody can choose)
   takes the colour with the most tiles on the board (lowest colour index on a tie).
-* **Two specials together:** tapping a special that touches another special (orthogonally) fires both as one
-  effect, using up both. With several neighbours the strongest is the partner (prism, then bomb, then rocket;
-  ties go right, left, up, down):
-  * rocket + rocket: the tapped tile's row **and** column,
-  * rocket + bomb: three rows (row rocket) or three columns (column rocket), centred on the tapped tile,
-  * bomb + bomb: a 6 × 6 square around the tapped tile (same rule as the bomb's square; config: bombComboSize),
-  * prism + rocket or bomb: the chosen colour everywhere, then the other special fires from where it sat,
-  * prism + prism: every colour tile on the board.
-* A group never contains a special (specials do not join groups), so "a group with several specials" cannot
-  happen; several specials can only meet through combinations and chain reactions.
+* **Groups of specials (combinations, 2.1):** tapping a special fires **every special connected to it** (through
+  orthogonally adjacent specials: a line, an L, a snake or a block of any size) as **one combination**. Each member
+  fires once and is used up; the effect depends only on what the group contains, so the rules are the same for a
+  pair and for a group of five. Counting R rockets, B bombs and P prisms in the group:
+
+  | Group | What it reaches |
+  |---|---|
+  | One special | Its own effect (row, column, 5 × 5, a colour) |
+  | Bombs only (B ≥ 2) | A square of 5 + 2 × (B − 1) centred on the tapped bomb: 7 × 7 for two, 9 × 9 for three |
+  | Rockets only (R ≥ 2) | A cross through the tapped tile: its row and its column, each 1 + 2 × (R − 2) lines wide (1 for two rockets, 3 for three, 5 for four) |
+  | One rocket with bombs | A band in the rocket's direction (rows for a row rocket, columns for a column rocket), 1 + 2 × B lines wide, centred on the tapped tile: 3 lines with one bomb, 5 with two |
+  | Several rockets with bombs | A cross 1 + 2 × B + 2 × (R − 2) lines wide (3 for two rockets and a bomb) |
+  | One prism with others | The chosen colour everywhere, **and** the rockets and bombs fire together as above, from the tapped tile (or, when the tapped one is the prism, from the first rocket or bomb next in the group) |
+  | Two or more prisms | Every colour tile on the board, plus whatever the group's rockets and bombs reach (they still break stones) |
+
+  Two specials therefore behave as before (rocket + rocket a cross, rocket + bomb three lines, prism + rocket or
+  bomb the colour and then that special, prism + prism everything), except bomb + bomb, which is 7 × 7 now that a
+  bomb is 5 × 5. Every cell is hit once even where parts of the effect overlap. A special the blast reaches that is
+  **not** in the group is set off afterwards **alone** (as a chain reaction: only a tap, or the end of the level,
+  forms a combination); every special fires at most once per action, so chains always end. Power-ups that reach
+  specials set them off alone too: the six inventory power-ups are never combined with anything.
+* A group of tiles never contains a special (specials do not join tile groups); specials meet only through
+  combinations and chain reactions.
 * Specials fall like tiles, are never reshuffled, and **always count as a legal move**.
-* **Points (2.1):** 50 for each colour tile a special actually removes, 75 for each in a combination (config:
-  scoring → specials). Nothing else: holes, empty cells and untouched treasure score nothing, so a rocket on an
+* **Points (2.1):** 50 for each colour tile a special actually removes, 75 for each removed by a combination of
+  any size (config: scoring → specials). Nothing else: holes, empty cells and untouched treasure score nothing, so a rocket on an
   8-wide row scores 7 × 50 = 350 and one on a 6-wide row 250. Ice, chains, moss and stones it hits score their own
   points (section 5) on top. Every tile is scored once, by whichever special removed it: in a chain reaction each
   special scores only the tiles still there when it fires, and a special set off by another scores at the single
-  rate even if the first was a combination. 50 is a tile's share of the 6-tile group that makes a rocket (it was
+  rate even if the first was a combination. Members that are themselves specials score nothing as tiles. 50 is a tile's share of the 6-tile group that makes a rocket (it was
   20, so a rocket across a row was worth a group of 4). A combination's extra 25 a tile is shown as its own
   "combo bonus" line.
 * **Exceptional combinations:** two prisms clear every colour tile (up to 70 on an 8 × 9 board: 5,250 points), but
@@ -200,7 +214,7 @@ makes progress, and **all** of them must be met to pass the level.
 
 | Goal | Counts | Complete when |
 |---|---|---|
-| Score | The running score (any spare-move bonus is added only at the end) | Score ≥ amount |
+| Score | The running score | Score ≥ amount |
 | Collect a colour | Colour tiles of that colour **removed** from the board, by any means | Count ≥ amount |
 | Free the ice | Frozen tiles whose **last** layer is removed | Count ≥ amount |
 | Break the chains | Chained tiles whose **last** link is removed | Count ≥ amount |
@@ -232,29 +246,31 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
 * The moment every goal is met (the target included, on a score level), the level is **passed**: one star is
   secured and "Level passed!" is shown. The level is **not over**: the remaining moves stay available, and every
   point they add counts towards two and three stars. The stars on the game screen light up as they are earned.
-* A passed level ends when the moves run out (no bonus: every move was used), when the player taps **Finish**
-  (each unused move adds the level's spare-move bonus, about half of what an average move scores, so finishing
-  early never beats playing well), or when the board has no move left (also paid the bonus). Quitting or restarting
-  a passed level finishes it first, so the pass is never lost.
+* A passed level ends when the moves run out, when the player taps **Finish**, or when the board has no move left.
+  **Unused moves score nothing** (the spare-move bonus was removed in 2.1): Finish is for stopping once the stars
+  are where the player wants them. Quitting or restarting a passed level finishes it first, so the pass is never lost.
 * Running out of moves with any goal unmet **fails** the level, however high the score. Extra Moves (owned or bought,
   always an explicit choice) revives it with its score and goal progress intact.
-* Stars, on the final score (score + any spare-move bonus): ★ pass the level; ★★ and ★★★ reach the level's two
-  score thresholds. A passed level always earns at least one star. The level card lists all three requirements
+* Stars, on the final score (everything scored, including the specials that went off at the end): ★ pass the level
+  (every mandatory goal); ★★ and ★★★ reach the level's two score thresholds. A passed level always earns at least one star. The level card lists all three requirements
   before play; the result screen ticks each one against the actual result and says what the next star needed.
 * Daily Challenge, Weekly Rush and Endless are unchanged (Daily already plays every move).
 
 ### 4.4 Special tiles left when the moves run out (2.1)
 
 * If the last move leaves special tiles on the board (campaign, Daily Challenge and Endless; not the timed Weekly
-  Rush), they all go off before the result is decided, top row first: each alone (a combination needs a tap), chain
-  reactions included. No move is charged and no power-up is used. Their points count (shown as "Specials at the
-  end"), and so does their goal progress: a goal they complete still passes the level. Then the result is
-  decided as usual (won, failed, or the end of the run).
-* **Finish** on a passed level does the same first: the specials go off, then the spare-move bonus is paid.
-* Order of the level-ending sequence: last move (or Finish) → specials left on the board go off → spare-move bonus
-  (unused moves × the level's bonus per move; 0 when the moves ran out) → final score = score + bonus → stars. The
-  bonus is set once, when the level ends, and never again (Finish twice is refused; recording a result twice
-  returns the same result).
+  Rush), they all go off before the result is decided. They go group by group, top row first: each **connected
+  group fires as one combination** (the same rules as a tap, led by its top-left member; a prism takes the most
+  common colour), a lone special fires alone, and chain reactions resolve before the next group. No move is
+  charged and no inventory power-up is ever used. Their points and their goal progress count: a goal they complete
+  still passes the level.
+* **Finish** on a passed level does exactly the same before the result.
+* **Showing the points:** when they have gone off, a card on the board lists what they scored, taken from the
+  scoring itself: tiles cleared, combination bonus, ice/chains/moss, stones broken, treasure, and the total. The
+  result screen shows the same figures as "Specials at the end", with its lines underneath.
+* Order of the level-ending sequence: last move (or Finish) → specials left on the board go off → final score (the
+  score: nothing is added for moves) → stars (and pass or fail, if goals remain). Recording a result twice returns
+  the same result.
 * Extra Moves after a failed finish starts a fresh run of moves: specials made from then on go off again if those
   run out too.
 
@@ -274,10 +290,10 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
 | Stone broken (2.6) | 100 (new) | Stones |
 | Treasure collected | 500 | Treasure |
 | Everything specials left on the board score when the level ends (4.4) | as above | Specials at the end |
-| Each unused move when a passed level is finished early | the level's spare-move bonus (DESIGN.md §3.2) | Spare moves |
+| Unused moves | Nothing (the spare-move bonus was removed in 2.1) | — |
 
 All values live in the game config's scoring section. Every point is counted once, in one line: the lines always
-add up to the score, and the spare-move bonus is added to make the final score. Nothing scores a fixed amount
+add up to the score, which is the final score. Nothing scores a fixed amount
 regardless of its effect.
 
 **Power-ups (audit, 2.1).** Power-ups score less per tile than specials on purpose (20, the share of a tile in the

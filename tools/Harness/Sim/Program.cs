@@ -50,7 +50,7 @@ static class Program
             var m = Attempts(spec, cfg, BotKind.Mixed, 40, n);
             var c = Attempts(spec, cfg, BotKind.Casual, 40, n);
             var p = Attempts(spec, cfg, BotKind.Planner, 40, n);
-            Console.WriteLine($"{n,3}  {spec.Width}x{spec.Height}  {spec.Colours,2} {spec.Moves,3} {spec.StoneCount,3} {spec.Target,7} {spec.Star2,6} {spec.Star3,6} {spec.LeftoverBonusPerMove,5} | {g.PassPct,6:0}% {m.PassPct,6:0}% {c.PassPct,7:0}% {p.PassPct,7:0}% | {g.S1,3}/{g.S2,3}/{g.S3,3}  {g.AvgLeft,6:0.0} | {p.S1,3}/{p.S2,3}/{p.S3,3}  {p.AvgLeft,6:0.0}   ({calibMs}ms) {spec.Note}");
+            Console.WriteLine($"{n,3}  {spec.Width}x{spec.Height}  {spec.Colours,2} {spec.Moves,3} {spec.StoneCount,3} {spec.Target,7} {spec.Star2,6} {spec.Star3,6} {0,5} | {g.PassPct,6:0}% {m.PassPct,6:0}% {c.PassPct,7:0}% {p.PassPct,7:0}% | {g.S1,3}/{g.S2,3}/{g.S3,3}  {g.AvgLeft,6:0.0} | {p.S1,3}/{p.S2,3}/{p.S3,3}  {p.AvgLeft,6:0.0}   ({calibMs}ms) {spec.Note}");
         }
 
         Console.WriteLine();

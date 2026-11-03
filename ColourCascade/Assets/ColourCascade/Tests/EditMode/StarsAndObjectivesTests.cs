@@ -43,7 +43,7 @@ namespace ColourCascade.Tests
             }
             Assert.AreEqual(SessionState.Won, s.State);
             Assert.AreEqual(0, s.MovesLeft);
-            Assert.AreEqual(0, s.LeftoverBonus, "every move was played");
+            Assert.AreEqual(s.Score, s.FinalScore, "the final score is the score");
             Assert.AreEqual(System.Math.Max(1, StarRating.Compute(s.FinalScore, s.Level.Target, s.Level.Star2, s.Level.Star3)), s.Stars);
             Assert.AreEqual(s.Stars, s.LiveStars, "the HUD's stars are the stars awarded");
         }
@@ -121,7 +121,8 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SessionState.Playing, s.State);
             int left = s.MovesLeft;
             Assert.IsTrue(s.Finish());
-            Assert.AreEqual(left * s.Level.LeftoverBonusPerMove, s.LeftoverBonus);
+            Assert.Greater(left, 0);
+            Assert.AreEqual(s.Score, s.FinalScore, "no bonus for the moves left");
             var won = ctx.FinishRun(s);
             Assert.IsTrue(won.Success);
             Assert.IsTrue(won.Passed);
@@ -312,12 +313,12 @@ namespace ColourCascade.Tests
         [Test]
         public void TheResultSaysWhyTheNextStarWasMissed()
         {
-            var level = new LevelSpec { Target = 1900, Star2 = 2500, Star3 = 2550, LeftoverBonusPerMove = 70 };
+            var level = new LevelSpec { Target = 1900, Star2 = 2500, Star3 = 2550 };
             // The playtest report: level 47 won on the first move with 17 to spare, 2,350 in all.
             string why = StarChecklist.WhyNotNext(level, 2350, 1, true, 17);
             StringAssert.Contains("2,500", why);
             StringAssert.Contains("150 short", why);
-            StringAssert.Contains("17 moves to spare", why);
+            StringAssert.Contains("17 moves left", why);
             Assert.IsNull(StarChecklist.WhyNotNext(level, 2600, 3, false, 0));
             StringAssert.Contains("not passed", StarChecklist.WhyNotNext(level, 5000, 0, false, 0));
         }

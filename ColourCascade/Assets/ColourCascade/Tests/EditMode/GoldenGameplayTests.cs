@@ -12,20 +12,23 @@ namespace ColourCascade.Tests
     /// </summary>
     public class GoldenGameplayTests
     {
-        // Levels 1-20 (before the first mechanic): recorded on the pre-mechanics build (backup/before-phase2-mechanics)
-        // and unchanged since. They must never change: players have already played them.
-        const ulong ExpectedOpeningLevels = 6328615708927920260UL;
-        const ulong ExpectedOpeningPlay = 8421993498075673067UL;
-        // Levels 1-60 and seeded games on 1-40: re-recorded when the campaign mechanics arrived (phase 2), when levels 21+
-        // got more mixed goals and less spare room (cross-mode update), when stars were recalibrated for playing on after
-        // the goals (play-on update), and for update 2.1 (specials score 50 a tile and break stones, 4 x 4 bombs, the
-        // end-of-level finale, obstacle showcases). Each deliberately changed levels 21 and up only. Earlier values:
+        // Levels 1-20 (before the first mechanic). The spare-move bonus was removed in 2.1, so its field left the level
+        // fingerprint and seeded games now play every move: both were then checked against the previous build (the
+        // same fingerprints computed there matched exactly: levels 1-20 are unchanged, and a level played to its last
+        // move never paid a bonus). Earlier values: 6328615708927920260 / 8421993498075673067 (recorded on the
+        // pre-mechanics build, with the bonus, finishing at the target).
+        const ulong ExpectedOpeningLevels = 17149871321450646362UL;
+        const ulong ExpectedOpeningPlay = 1635603827691466495UL;
+        // Levels 1-60 and seeded games on 1-40: re-recorded for each deliberate change to levels 21 and up (phase 2;
+        // cross-mode; play-on; 2.1; and 2.1's 5 x 5 bombs, groups of specials and no spare-move bonus). Earlier values:
         // pre-overhaul 16043548939747815137 / 15566285578730975039; before play-on 15906189200241180985 /
-        // 5795225104261133210; before 2.1 8601877286259485673 / 14890508832734008440.
-        const ulong ExpectedCampaignLevels = 11215332883839779233UL;
-        const ulong ExpectedSeededPlay = 3186517301294407716UL;
+        // 5795225104261133210; before 2.1 8601877286259485673 / 14890508832734008440; 2.1 11215332883839779233 /
+        // 3186517301294407716.
+        const ulong ExpectedCampaignLevels = 17907502106875071358UL;
+        const ulong ExpectedSeededPlay = 8694822094800872972UL;
         // Endless, Daily and Rush: re-recorded for 2.1 because Endless runs now walk the stage journey (Daily and Weekly
-        // boards for a player with nothing unlocked were checked to play exactly as before). Before 2.1: 318364672465816974.
+        // boards for a player with nothing unlocked were checked to play exactly as before); unchanged by 2.1's later
+        // changes. Before 2.1: 318364672465816974.
         const ulong ExpectedChallengeModes = 6941777045657669987UL;
         // Scripted power-ups: re-recorded for 2.1 because a stone broken by Tile Breaker now scores 100. Before: 2022348128171972134.
         const ulong ExpectedScriptedPowerUps = 13805293097089027243UL;
@@ -76,7 +79,6 @@ namespace ColourCascade.Tests
                 h = Mix(h, s.Moves);
                 h = Mix(h, s.Colours);
                 h = Mix(h, s.AssistPermille);
-                h = Mix(h, s.LeftoverBonusPerMove);
                 h = Mix(h, string.Join("/", s.Layout.ToRows()));
                 h = Mix(h, s.Note);
             }
@@ -94,11 +96,8 @@ namespace ColourCascade.Tests
                     {
                         var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = catalog.Get(n), Scoring = cfg.Scoring, BoardSeed = (ulong)(n * 1000 + seed) });
                         s.Start();
-                        // Finish the moment the level is passed: identical to how levels ended before play could go
-                        // on after the goals (docs/MECHANICS.md §4.3), so these fingerprints still prove the engine
-                        // plays exactly as before. Playing on is covered by its own tests.
-                        Bots.PlayOut(s, kind, new Rng((ulong)(n * 77 + seed)), 10000, true);
-                        s.Finish();
+                        // Every move played, as the game is now played (and specials left at the end go off).
+                        Bots.PlayOut(s, kind, new Rng((ulong)(n * 77 + seed)));
                         h = Fingerprint(h, s);
                     }
             return h;

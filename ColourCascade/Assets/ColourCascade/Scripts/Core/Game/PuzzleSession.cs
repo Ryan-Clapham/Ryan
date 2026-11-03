@@ -46,6 +46,7 @@ namespace ColourCascade.Core
         readonly List<GridPos> specialQueue = new List<GridPos>();
         readonly HashSet<int> firedThisAction = new HashSet<int>();
         readonly List<GridPos> effectCells = new List<GridPos>();
+        readonly List<GridPos> clusterBuffer = new List<GridPos>();
         int actionSpecialPoints;
         // The extra a combination pays on top of the single-special rate, and stones destroyed, this action.
         int actionComboPoints;
@@ -101,8 +102,6 @@ namespace ColourCascade.Core
         public int PowerUpsUsed { get; private set; }
         public int Shuffles { get; private set; }
         public int Stage { get; private set; }
-        /// <summary>Campaign bonus for moves left unused when a passed level ends (Finish, or a board with no moves).</summary>
-        public int LeftoverBonus { get; private set; }
         /// <summary>
         /// Campaign: every goal (the target score included, when the level has one) has been met at some point this
         /// run. The level is passed from then on, but it is not over: the remaining moves can still raise the score
@@ -118,6 +117,9 @@ namespace ColourCascade.Core
         public bool FinalePending { get; private set; }
         /// <summary>Where the score came from (docs/MECHANICS.md §5); Breakdown.Total is always Score.</summary>
         public ScoreBreakdown Breakdown { get; } = new ScoreBreakdown();
+        /// <summary>What the specials left on the board scored when the level ended, line by line (its Total is
+        /// Breakdown.Finale), for the summary shown after they go off (docs/MECHANICS.md §4.4).</summary>
+        public ScoreBreakdown FinaleBreakdown { get; } = new ScoreBreakdown();
         /// <summary>Progress towards the level's goals (campaign completion; tracked in every mode).</summary>
         public GoalTracker Goals { get; private set; }
         public double TimeLeft { get; private set; }
@@ -129,7 +131,8 @@ namespace ColourCascade.Core
         public SpecialTier Specials => specialTier;
         public bool IsTimed => Level.TimeLimitSeconds > 0;
         public int Target => Level.Target;
-        public int FinalScore => Score + LeftoverBonus;
+        /// <summary>The score the run ends with (there is no longer a bonus for unused moves: 2.1).</summary>
+        public int FinalScore => Score;
         public int ColourCount => source != null ? source.ColourCount : Level.Colours;
         public bool IsOver => State != SessionState.Playing && State != SessionState.Ready;
 
@@ -146,15 +149,12 @@ namespace ColourCascade.Core
 
         /// <summary>
         /// Campaign, during play: the stars the level has earned so far (0 until it is cleared). Only ever goes up,
-        /// since the score never drops. The spare-move bonus is not included: see StarsIfFinishedNow.
+        /// since the score never drops; when the level ends the stars are these (specials left on the board may add more).
         /// </summary>
         public int LiveStars => Mode == GameMode.Campaign && (Passed || State == SessionState.Won) ? CampaignStars(State == SessionState.Won ? FinalScore : Score) : 0;
 
-        /// <summary>Campaign: the stars Finish would give right now (score plus the spare-move bonus), or 0 if it can't.</summary>
-        public int StarsIfFinishedNow => CanFinish ? CampaignStars(Score + SpareMoveBonusNow) : 0;
-
-        /// <summary>The spare-move bonus Finish would pay right now.</summary>
-        public int SpareMoveBonusNow => Math.Max(0, MovesLeft) * Math.Max(0, Level.LeftoverBonusPerMove);
+        /// <summary>Campaign: the stars Finish would give right now, before any specials on the board go off, or 0.</summary>
+        public int StarsIfFinishedNow => CanFinish ? CampaignStars(Score) : 0;
 
         /// <summary>A cleared campaign level always earns at least one star, even when it has no score goal.</summary>
         int CampaignStars(int score) => Math.Max(1, StarRating.Compute(score, Level.Target, Level.Star2, Level.Star3));
@@ -253,10 +253,14 @@ namespace ColourCascade.Core
         public bool NeedsColourChoice(GridPos p)
         {
             if (!IsSpecialAt(p)) return false;
-            if (Board[p].Special == SpecialKind.Prism) return true;
-            GridPos partner;
-            return SpecialEffects.FindPartner(Board, p, out partner) && Board[partner].Special == SpecialKind.Prism;
+            SpecialEffects.FindCluster(Board, p, clusterBuffer);
+            for (int i = 0; i < clusterBuffer.Count; i++)
+                if (Board[clusterBuffer[i]].Special == SpecialKind.Prism) return true;
+            return false;
         }
+
+        /// <summary>The specials that would fire together with a tap at p (p first), for previews and bots.</summary>
+        public void SpecialGroupAt(GridPos p, List<GridPos> members) => SpecialEffects.FindCluster(Board, p, members);
 
         /// <summary>
         /// The cells a tap on the special at p reaches directly (chain reactions not included), for previews and
@@ -268,31 +272,29 @@ namespace ColourCascade.Core
             partner = default;
             combo = false;
             if (!IsSpecialAt(p)) return false;
-            var t = Board[p];
-            combo = SpecialEffects.FindPartner(Board, p, out partner);
-            var other = combo ? Board[partner].Special : SpecialKind.None;
+            SpecialEffects.FindCluster(Board, p, clusterBuffer);
+            combo = clusterBuffer.Count > 1;
+            if (combo) partner = Strongest(clusterBuffer, 1);
             if (colour < 0) colour = SpecialEffects.MostCommonColour(Board);
-            AreaFor(p, t.Special, combo, partner, other, colour, cells);
+            SpecialEffects.ClusterArea(Board, clusterBuffer, colour, Scoring.specials, cells);
             return true;
         }
 
-        void AreaFor(GridPos p, SpecialKind kind, bool combo, GridPos partnerPos, SpecialKind partner, int colour, List<GridPos> cells)
+        /// <summary>The strongest special in members from index 'from' on (prism, bomb, rocket; the first on a tie).</summary>
+        GridPos Strongest(List<GridPos> members, int from)
         {
-            if (!combo)
+            int best = -1;
+            GridPos at = members[Math.Min(from, members.Count - 1)];
+            for (int i = from; i < members.Count; i++)
             {
-                SpecialEffects.Single(Board, p, kind, colour, cells, Scoring.specials);
-                return;
+                int rank = SpecialEffects.Rank(Board[members[i]].Special);
+                if (rank > best)
+                {
+                    best = rank;
+                    at = members[i];
+                }
             }
-            bool onePrism = (kind == SpecialKind.Prism) != (partner == SpecialKind.Prism);
-            if (!onePrism)
-            {
-                SpecialEffects.Combined(Board, p, kind, partner, cells, Scoring.specials);
-                return;
-            }
-            // Prism + another special: the chosen colour everywhere, then the other special from where it sat.
-            SpecialEffects.Single(Board, p, SpecialKind.Prism, colour, cells, Scoring.specials);
-            if (kind == SpecialKind.Prism) SpecialEffects.Single(Board, partnerPos, partner, colour, cells, Scoring.specials);
-            else SpecialEffects.Single(Board, p, kind, colour, cells, Scoring.specials);
+            return at;
         }
 
         public int PointsForGroup(int size) => Scoring.GroupPoints(size);
@@ -417,31 +419,51 @@ namespace ColourCascade.Core
             return true;
         }
 
-        void FireSpecial(GridPos p, bool tapped, int chosenColour, MoveOutcome o)
+        /// <summary>
+        /// Fires the special at p. With asGroup (a tap, or the end of the level), every special connected to it fires
+        /// together as one combination (docs/MECHANICS.md §2.3); otherwise (set off by another blast) it fires alone.
+        /// Each special fires at most once per action; every cell it reaches is recorded for the view.
+        /// </summary>
+        void FireSpecial(GridPos p, bool asGroup, int chosenColour, MoveOutcome o)
         {
             var t = Board[p];
             if (t.Type != CellType.Special) return;
-            firedThisAction.Add(t.Id);
-            GridPos partnerPos = default;
-            bool combo = tapped && SpecialEffects.FindPartner(Board, p, out partnerPos);
-            var partner = combo ? Board[partnerPos] : default;
-            if (combo) firedThisAction.Add(partner.Id);
-            bool prism = t.Special == SpecialKind.Prism || (combo && partner.Special == SpecialKind.Prism);
+            var members = new List<GridPos>();
+            if (asGroup) SpecialEffects.FindCluster(Board, p, members);
+            else members.Add(p);
+            bool prism = false;
+            foreach (var m in members)
+            {
+                firedThisAction.Add(Board[m].Id);
+                prism |= Board[m].Special == SpecialKind.Prism;
+            }
+            bool combo = members.Count > 1;
             int colour = -1;
             if (prism) colour = chosenColour >= 0 && chosenColour < TileColours.Max ? chosenColour : SpecialEffects.MostCommonColour(Board);
             int wave = nextWave++;
-            Board[p] = default;
-            if (combo) Board[partnerPos] = default;
-            o.SpecialsFired.Add(new SpecialFired
-            {
-                TileId = t.Id, Pos = p, Kind = t.Special, ComboWith = combo ? partner.Special : SpecialKind.None,
-                ComboPos = partnerPos, ComboTileId = combo ? partner.Id : 0, Colour = colour, Wave = wave,
-            });
-            if (tapped && prism) o.GroupColour = colour;
+            // The area is worked out with the group still on the board (it depends on what each member is).
             effectCells.Clear();
-            AreaFor(p, t.Special, combo, partnerPos, combo ? partner.Special : SpecialKind.None, colour, effectCells);
+            SpecialEffects.ClusterArea(Board, members, colour, Scoring.specials, effectCells);
+            var lead = new SpecialFired { TileId = t.Id, Pos = p, Kind = t.Special, Colour = colour, Wave = wave, ComboSize = members.Count };
+            if (combo)
+            {
+                var partnerPos = Strongest(members, 1);
+                lead.ComboWith = Board[partnerPos].Special;
+                lead.ComboPos = partnerPos;
+                lead.ComboTileId = Board[partnerPos].Id;
+                for (int i = 1; i < members.Count; i++)
+                {
+                    var m = Board[members[i]];
+                    o.ComboMembers.Add(new ComboMember { TileId = m.Id, Pos = members[i], Kind = m.Special, Wave = wave });
+                }
+            }
+            o.SpecialsFired.Add(lead);
+            foreach (var m in members) Board[m] = default;
+            if (o.Kind == OutcomeKind.Special && prism && p == o.Origin) o.GroupColour = colour;
+            for (int i = 0; i < effectCells.Count; i++) o.EffectCells.Add(new EffectCell { Pos = effectCells[i], Wave = wave });
             // Scored on what the blast actually removes: each colour tile at the special rate (a combination pays
-            // more, counted separately as its bonus); stones, obstacles and treasure score their own points.
+            // more, counted separately as its bonus); stones, obstacles and treasure score their own points. A tile
+            // already removed earlier in the action is not there to be removed (or scored) again.
             int rate = Scoring.specials.pointsPerTile;
             int comboExtra = combo ? Math.Max(0, Scoring.specials.comboPointsPerTile - rate) : 0;
             int before = o.Cleared.Count;
@@ -540,17 +562,16 @@ namespace ColourCascade.Core
         }
 
         /// <summary>
-        /// Campaign: ends a cleared level now. Each unused move adds the level's spare-move bonus to the final score.
-        /// Returns false if the level is not cleared or not in play.
+        /// Campaign: ends a passed level now. Specials still on the board go off first (the same groups and rules as
+        /// when the moves run out); unused moves score nothing. Returns false if the level is not passed or not in play.
         /// </summary>
         public bool Finish(MoveOutcome o = null)
         {
             if (!CanFinish) return false;
             o = o ?? new MoveOutcome();
             o.Reset();
-            // Specials still on the board go off first (their points count), then the spare moves are paid.
+            // Specials still on the board go off first (their points count). Unused moves are worth nothing.
             if (Mode == GameMode.Campaign && !finaleDone && Board.CountType(CellType.Special) > 0) FireFinale(o);
-            LeftoverBonus = SpareMoveBonusNow;
             State = SessionState.Won;
             EndReason = EndReason.FinishedEarly;
             o.Ended = true;
@@ -579,13 +600,15 @@ namespace ColourCascade.Core
             BeginAction();
             o.Kind = OutcomeKind.Finale;
             inFinale = true;
-            // Top to bottom, left to right; each fires alone (combinations need a tap), and any it reaches go off in turn.
+            // Top to bottom, left to right: each connected group of specials fires as one combination, led by its
+            // top-left member (exactly as if that one were tapped; a prism takes the most common colour), and anything
+            // it reaches goes off in turn before the next group.
             for (int r = Board.Height - 1; r >= 0; r--)
                 for (int c = 0; c < Board.Width; c++)
                 {
                     var p = new GridPos(c, r);
                     if (Board[p].Type != CellType.Special || firedThisAction.Contains(Board[p].Id)) continue;
-                    FireSpecial(p, false, -1, o);
+                    FireSpecial(p, true, -1, o);
                     RunSpecialQueue(o);
                 }
             Resolve(o, true, false);
@@ -818,7 +841,14 @@ namespace ColourCascade.Core
         {
             if (boardChanged) ApplyAdjacentHits(o);
             int extra = actionObstaclePoints + actionSpecialPoints + actionComboPoints + actionStonePoints;
-            if (inFinale) Breakdown.Finale += extra;
+            if (inFinale)
+            {
+                Breakdown.Finale += extra;
+                FinaleBreakdown.Obstacles += actionObstaclePoints;
+                FinaleBreakdown.Specials += actionSpecialPoints;
+                FinaleBreakdown.ComboBonus += actionComboPoints;
+                FinaleBreakdown.Stones += actionStonePoints;
+            }
             else
             {
                 Breakdown.Obstacles += actionObstaclePoints;
@@ -842,7 +872,11 @@ namespace ColourCascade.Core
                 {
                     int points = o.Treasures.Count * Scoring.treasurePoints;
                     Score += points;
-                    if (inFinale) Breakdown.Finale += points;
+                    if (inFinale)
+                    {
+                        Breakdown.Finale += points;
+                        FinaleBreakdown.Treasure += points;
+                    }
                     else Breakdown.Treasure += points;
                     o.ScoreGained += points;
                     if (Mode == GameMode.Endless && HasMoveLimit && setup.Endless.treasureBonusMoves > 0)
@@ -1085,8 +1119,7 @@ namespace ColourCascade.Core
         /// <summary>
         /// Campaign (docs/MECHANICS.md §4.3): completing every goal clears the level, but play goes on with the moves
         /// that are left. When they run out the level is won if it was cleared and failed if any goal is still
-        /// unfinished, however high the score. A cleared level whose board has no moves left ends as won, with the
-        /// spare-move bonus for the moves it could not use.
+        /// unfinished, however high the score. A cleared level whose board has no moves left ends as won.
         /// </summary>
         void EvaluateEnd(MoveOutcome o)
         {
@@ -1098,7 +1131,6 @@ namespace ColourCascade.Core
             }
             if (Mode == GameMode.Campaign && Passed && State == SessionState.Stuck)
             {
-                LeftoverBonus = SpareMoveBonusNow;
                 State = SessionState.Won;
                 EndReason = EndReason.TargetReached;
             }

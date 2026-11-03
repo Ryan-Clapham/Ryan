@@ -44,7 +44,6 @@ namespace ColourCascade.Tests
                 Target = target,
                 Star2 = target * 2,
                 Star3 = target * 3,
-                LeftoverBonusPerMove = 100,
                 TimeLimitSeconds = mode == GameMode.WeeklyRush ? 60 : 0,
             };
             return new SessionSetup { Mode = mode, Level = spec, Scoring = new ScoringRules(), BoardSeed = 12345, Endless = mode == GameMode.Endless ? new EndlessConfig() : null };

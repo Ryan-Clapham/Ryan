@@ -31,8 +31,6 @@ namespace ColourCascade.Core
         public MechanicSet Pool;
         public int Star2;
         public int Star3;
-        /// <summary>Campaign only: points awarded per unused move when the target is reached.</summary>
-        public int LeftoverBonusPerMove;
         /// <summary>Seed for layout generation and difficulty calibration.</summary>
         public ulong Seed;
         /// <summary>When true the board and refills always use Seed (daily/weekly), so everyone plays the same puzzle.</summary>

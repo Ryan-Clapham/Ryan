@@ -23,7 +23,7 @@ namespace ColourCascade.Core
         OutOfMoves = 2,
         TimeUp = 3,
         BoardStuck = 4,
-        /// <summary>Campaign: the player finished a cleared level before using every move (spare-move bonus paid).</summary>
+        /// <summary>Campaign: the player finished a passed level before using every move (unused moves score nothing).</summary>
         FinishedEarly = 5,
     }
 
@@ -63,13 +63,32 @@ namespace ColourCascade.Core
         public int TileId;
         public GridPos Pos;
         public SpecialKind Kind;
-        /// <summary>The special it fired together with (tapped next to it), or None.</summary>
+        /// <summary>The strongest other special it fired together with (connected to it), or None.</summary>
         public SpecialKind ComboWith;
         public GridPos ComboPos;
         public int ComboTileId;
+        /// <summary>How many specials fired together as this one combination (1 = alone). The others are in
+        /// MoveOutcome.ComboMembers with the same Wave.</summary>
+        public int ComboSize;
         /// <summary>Colour a prism cleared; -1 otherwise.</summary>
         public int Colour;
         /// <summary>Matches ClearedTile.Wave for the tiles it removed.</summary>
+        public int Wave;
+    }
+
+    /// <summary>A special that fired as part of a combination led by another (the SpecialFired with the same Wave).</summary>
+    public struct ComboMember
+    {
+        public int TileId;
+        public GridPos Pos;
+        public SpecialKind Kind;
+        public int Wave;
+    }
+
+    /// <summary>A cell a special's (or combination's) blast reached, whatever was there: what the view flashes.</summary>
+    public struct EffectCell
+    {
+        public GridPos Pos;
         public int Wave;
     }
 
@@ -181,6 +200,10 @@ namespace ColourCascade.Core
         public readonly List<TileSpawn> Spawns = new List<TileSpawn>();
         public readonly List<TileMove> ShuffleMoves = new List<TileMove>();
         public readonly List<SpecialFired> SpecialsFired = new List<SpecialFired>();
+        /// <summary>Specials that fired as part of a combination (besides each combination's lead in SpecialsFired).</summary>
+        public readonly List<ComboMember> ComboMembers = new List<ComboMember>();
+        /// <summary>Every cell each blast reached (the exact area), by wave.</summary>
+        public readonly List<EffectCell> EffectCells = new List<EffectCell>();
         public readonly List<CollectedTreasure> Treasures = new List<CollectedTreasure>();
         public readonly List<MossGrowth> MossGrowth = new List<MossGrowth>();
         /// <summary>Endless: what the stage just reached added to the board (after tiles have fallen).</summary>
@@ -211,6 +234,8 @@ namespace ColourCascade.Core
             HasCreated = false;
             Created = default;
             SpecialsFired.Clear();
+            ComboMembers.Clear();
+            EffectCells.Clear();
             Treasures.Clear();
             MossGrowth.Clear();
             Added.Clear();

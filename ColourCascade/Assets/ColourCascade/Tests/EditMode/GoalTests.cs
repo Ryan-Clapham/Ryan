@@ -103,11 +103,10 @@ namespace ColourCascade.Tests
             Assert.IsTrue(s.CanFinish);
             Assert.AreEqual(0, s.Stars, "stars are final only once the level is over");
             Assert.AreEqual(1, s.LiveStars, "a passed level shows at least one star while play goes on");
-            Assert.AreEqual(9 * 100, s.SpareMoveBonusNow);
         }
 
         [Test]
-        public void FinishingAPassedLevelPaysTheSpareMoveBonus()
+        public void FinishingAPassedLevelEndsItWithNoBonusForUnusedMoves()
         {
             var s = Play.Level(new[] { "001", "223" }, null, 10, GoalSpec.Collect(0, 2));
             Play.Tap(s, 0, 1);
@@ -116,8 +115,9 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SessionState.Won, s.State);
             Assert.AreEqual(EndReason.FinishedEarly, s.EndReason);
             Assert.IsTrue(o.Ended);
-            Assert.AreEqual(9 * 100, s.LeftoverBonus);
-            Assert.AreEqual(40 + 900, s.FinalScore);
+            Assert.AreEqual(9, s.MovesLeft);
+            Assert.AreEqual(40, s.FinalScore, "the 9 unused moves score nothing (2.1)");
+            Assert.AreEqual(s.Score, s.FinalScore);
             Assert.AreEqual(1, s.Stars, "a won level earns at least one star even below its score target");
             Assert.IsTrue(s.Succeeded);
             Assert.IsFalse(s.Finish(o), "only once");
@@ -145,7 +145,6 @@ namespace ColourCascade.Tests
             Assert.IsTrue(o.Ended);
             Assert.AreEqual(SessionState.Won, s.State);
             Assert.AreEqual(EndReason.TargetReached, s.EndReason);
-            Assert.AreEqual(0, s.LeftoverBonus);
             Assert.AreEqual(s.Score, s.FinalScore);
         }
 
@@ -159,7 +158,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SessionState.Failed, s.State);
             Assert.AreEqual(EndReason.OutOfMoves, s.EndReason);
             Assert.AreEqual(0, s.Stars);
-            Assert.AreEqual(0, s.LeftoverBonus);
+            Assert.AreEqual(s.Score, s.FinalScore);
         }
 
         [Test]
@@ -177,7 +176,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SessionState.Playing, s.State, "3 moves are left to chase stars");
             s.Finish();
             Assert.AreEqual(SessionState.Won, s.State);
-            Assert.AreEqual(3 * 100, s.LeftoverBonus);
+            Assert.AreEqual(s.Score, s.FinalScore, "nothing for the 3 unused moves");
         }
 
         [Test]

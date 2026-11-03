@@ -33,7 +33,7 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void CampaignPassesAtTheTargetAndFinishingPaysTheLeftoverBonus()
+        public void CampaignPassesAtTheTargetAndFinishingEndsIt()
         {
             var s = TestUtil.Session(GameMode.Campaign, 5, 90, 3, Stripes);
             var o = new MoveOutcome();
@@ -45,9 +45,8 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SessionState.Won, s.State);
             Assert.AreEqual(EndReason.FinishedEarly, s.EndReason);
             Assert.IsTrue(o.Ended);
-            Assert.AreEqual(4 * 100, s.LeftoverBonus);
-            Assert.AreEqual(90 + 400, s.FinalScore);
-            Assert.AreEqual(3, s.Stars);
+            Assert.AreEqual(90, s.FinalScore, "no bonus for the 4 unused moves (2.1)");
+            Assert.AreEqual(1, s.Stars, "90 reaches the target; two stars need 180"); 
             Assert.IsTrue(s.Succeeded);
             Assert.IsFalse(s.TryPlay(new GridPos(0, 0), o), "no moves after the level ends");
         }

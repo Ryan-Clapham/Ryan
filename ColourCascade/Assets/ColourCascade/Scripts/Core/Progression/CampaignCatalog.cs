@@ -237,8 +237,6 @@ namespace ColourCascade.Core
             spec.Star2 = ov != null && ov.star2 > target ? ov.star2 : NumberFormat.RoundNice((int)((long)target * cfg.star2Permille / 1000));
             spec.Star3 = ov != null && ov.star3 > spec.Star2 ? ov.star3 : NumberFormat.RoundNice((int)((long)target * cfg.star3Permille / 1000));
             if (spec.Star3 <= spec.Star2) spec.Star3 = spec.Star2 + 50;
-            int perMove = (int)((long)target * cfg.leftoverBonusPermille / 1000 / Math.Max(1, moves));
-            spec.LeftoverBonusPerMove = Math.Max(10, (perMove + 5) / 10 * 10);
             return spec;
         }
 
@@ -353,8 +351,7 @@ namespace ColourCascade.Core
         /// like a player chasing stars, play on to the last move once the goals are done: two stars halfway between a
         /// casual player's median and a lower percentile of a thoughtful player's (Planner bot), three stars around
         /// the thoughtful player's median. Medians, not extremes, so a lucky calibration game cannot put three stars
-        /// out of reach. The spare-move bonus (paid when a passed level is finished early) is about half of what a
-        /// thoughtful player's average move scores, so finishing early never beats playing well. Goal levels show a
+        /// out of reach. Unused moves score nothing (there is no spare-move bonus since 2.1). Goal levels show a
         /// target below two stars.
         /// </summary>
         void CalibrateStars(LevelSpec spec, LevelOverride ov, bool scoreLevel)
@@ -373,7 +370,6 @@ namespace ColourCascade.Core
             star2 = Math.Max(star2, floor2);
             // Bombs and prisms make for a few huge games: keep three stars within reach of a good one.
             star3 = Math.Max(star2 * 11 / 10, Math.Min(star3, star2 * 29 / 20));
-            spec.LeftoverBonusPerMove = SpareMoveBonus(median, moves, cfg.spareMoveBonusPermille);
             spec.Star2 = ov != null && ov.star2 > 0 ? ov.star2 : NumberFormat.RoundNice(star2);
             spec.Star3 = ov != null && ov.star3 > spec.Star2 ? ov.star3 : NumberFormat.RoundNice(Math.Max(star3, spec.Star2 + 1));
             if (spec.Star3 <= spec.Star2) spec.Star3 = spec.Star2 + 50;
@@ -397,12 +393,6 @@ namespace ColourCascade.Core
 
         static int Percentile(List<int> sorted, int pct) => sorted[Math.Max(0, Math.Min(sorted.Count - 1, sorted.Count * pct / 100))];
 
-        /// <summary>Points per unused move when a passed level is finished early: permille of an average move's points.</summary>
-        static int SpareMoveBonus(int fullScore, int moves, int permille)
-        {
-            int perMove = (int)((long)fullScore * permille / 1000 / Math.Max(1, moves));
-            return Math.Max(10, (perMove + 5) / 10 * 10);
-        }
 
         void SizeFor(int n, out int cols, out int rows)
         {

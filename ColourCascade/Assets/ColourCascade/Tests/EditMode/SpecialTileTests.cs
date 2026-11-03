@@ -153,14 +153,13 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void ABombHitsAFourByFourSquare()
+        public void ABombHitsTheFiveByFiveSquareCentredOnIt()
         {
-            // On a 5 x 5 board the square around the middle cell leans to the larger side: columns and rows 1-4.
+            // On a 5 x 5 board the bomb in the middle reaches every cell.
             var s = Play.Specials(Checker(5, (2, 2, '*')), null);
             var o = Play.Tap(s, 2, 2);
-            Assert.AreEqual(15, o.Cleared.Count);
-            Assert.IsTrue(o.Cleared.All(c => c.Pos.Col >= 1 && c.Pos.Col <= 4 && c.Pos.Row >= 1 && c.Pos.Row <= 4));
-            Assert.AreEqual(15 * 50, o.ScoreGained);
+            Assert.AreEqual(24, o.Cleared.Count);
+            Assert.AreEqual(24 * 50, o.ScoreGained);
         }
 
         [Test]
@@ -209,13 +208,14 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void TwoBombsTogetherClearSixBySix()
+        public void TwoBombsTogetherClearSevenBySeven()
         {
-            var s = Play.Specials(Checker(7, (3, 3, '*'), (4, 3, '*')), null);
-            var o = Play.Tap(s, 3, 3);
-            Assert.AreEqual(34, o.Cleared.Count, "36 cells less the two bombs");
-            Assert.IsTrue(o.Cleared.All(c => c.Pos.Col >= 1 && c.Pos.Col <= 6 && c.Pos.Row >= 1 && c.Pos.Row <= 6));
-            Assert.AreEqual(34 * 75, o.ScoreGained);
+            // 5 x 5 + 2: a 7 x 7 square centred on the tapped bomb, here the whole board.
+            var s = Play.Specials(Checker(9, (4, 4, '*'), (5, 4, '*')), null);
+            var o = Play.Tap(s, 4, 4);
+            Assert.AreEqual(47, o.Cleared.Count, "49 cells less the two bombs");
+            Assert.IsTrue(o.Cleared.All(c => c.Pos.Col >= 1 && c.Pos.Col <= 7 && c.Pos.Row >= 1 && c.Pos.Row <= 7));
+            Assert.AreEqual(47 * 75, o.ScoreGained);
         }
 
         [Test]
@@ -261,8 +261,8 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SpecialKind.Bomb, o.SpecialsFired[1].Kind);
             Assert.AreEqual(1, o.SpecialsFired[1].Wave);
             Assert.AreEqual(3, o.Cleared.Count(c => c.Wave == 0));
-            Assert.AreEqual(12, o.Cleared.Count(c => c.Wave == 1), "the bomb's 4 x 4, less itself and the row the rocket already cleared");
-            Assert.AreEqual(15 * 50, o.ScoreGained, "each tile scores once, whichever special removed it");
+            Assert.AreEqual(16, o.Cleared.Count(c => c.Wave == 1), "the bomb's 5 x 5 (cut to columns 1-4 by the edge), less itself and the row the rocket already cleared");
+            Assert.AreEqual(19 * 50, o.ScoreGained, "each tile scores once, whichever special removed it");
 
             // Rockets that reach each other fire once each.
             var t = Play.Specials(Checker(5, (0, 2, '-'), (4, 2, '|'), (4, 0, '-')), null);
@@ -294,7 +294,7 @@ namespace ColourCascade.Tests
             int primary = blast.Cleared.Count(c => c.Wave == 0);
             int bySpecial = blast.Cleared.Count(c => c.Wave == 1);
             Assert.AreEqual(8, primary);
-            Assert.AreEqual(12, bySpecial);
+            Assert.AreEqual(16, bySpecial, "the bomb's 5 x 5 (the whole board) less the Blast's tiles and itself");
             Assert.AreEqual(s.Scoring.PowerUpPoints(primary) + bySpecial * s.Scoring.specials.pointsPerTile, blast.ScoreGained, "the power-up's tiles at its rate, the bomb's at the special rate");
 
             // Tile Breaker fires a special.

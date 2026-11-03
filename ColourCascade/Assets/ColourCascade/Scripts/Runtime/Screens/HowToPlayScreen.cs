@@ -203,14 +203,14 @@ namespace ColourCascade.App
         void PageSpecials()
         {
             var sp = Ctx.Config.Scoring.specials;
-            pageBody.text = "Clear a big group to earn a <b>special tile</b>, then tap it to fire: <b>rockets</b> clear a line, <b>bombs</b> clear around them and <b>prisms</b> clear a colour you pick. Fire two that touch for a <b>combo</b>!";
+            pageBody.text = "Clear a big group to earn a <b>special tile</b>, then tap it to fire: <b>rockets</b> clear a line, <b>bombs</b> clear around them and <b>prisms</b> clear a colour you pick. Specials that touch fire together as a <b>combo</b>!";
             PictureRow(60, (ArtNames.RocketRow, null, 0, sp.rocketGroupSize + "+ tiles"), (ArtNames.Bomb, null, 0, sp.bombGroupSize + "+ tiles"),
                 (ArtNames.Prism, null, 0, sp.prismGroupSize + "+ tiles"));
         }
 
         void PageLevels()
         {
-            pageBody.text = "Meet a level's <b>goals</b> (or reach its <b>target</b>) to pass: <b>1 star</b>. Then keep playing: points from the moves left earn <b>2 and 3 stars</b>. <b>Finish</b> stops early, with a small bonus per spare move.";
+            pageBody.text = "Meet a level's <b>goals</b> (or reach its <b>target</b>) to pass: <b>1 star</b>. Then keep playing: points from the moves left earn <b>2 and 3 stars</b>. <b>Finish</b> stops early; specials left on the board go off first.";
             var mock = UI.Rect("Mock", stage);
             mock.Centre(820, 230, 0, 120);
             var card = UI.Card(mock, "Card", Theme.SurfaceHigh, 44);

@@ -7,7 +7,7 @@ namespace ColourCascade.Tests
 {
     /// <summary>
     /// Update 2.1: special tiles score what they actually reach (50 a tile, 75 in a combination, obstacles and stones
-    /// on top), bombs reach 4 × 4, rockets and bombs break stones, specials left on the board go off when the moves
+    /// on top), bombs reach the 5 × 5 square centred on them, rockets and bombs break stones, specials left on the board go off when the moves
     /// run out, the score breakdown, every power-up's points, tutorial power-ups and the tutorial hand.
     /// </summary>
     public class ScoringAndFinaleTests
@@ -89,19 +89,40 @@ namespace ColourCascade.Tests
             Assert.AreEqual(expectedStart, SpecialEffects.BlockStart(pos, extent, 4));
         }
 
-        [TestCase(0, 0)]
-        [TestCase(7, 8)]
-        [TestCase(3, 4)]
-        [TestCase(4, 4)]
-        [TestCase(0, 4)]
-        [TestCase(7, 0)]
-        public void ABombReachesSixteenCellsWhereverItSits(int col, int row)
+        [TestCase(3, 4, 25)]
+        [TestCase(4, 4, 25)]
+        [TestCase(1, 1, 16)]
+        [TestCase(0, 0, 9)]
+        [TestCase(7, 8, 9)]
+        [TestCase(7, 0, 9)]
+        [TestCase(0, 8, 9)]
+        [TestCase(0, 4, 15)]
+        [TestCase(7, 4, 15)]
+        [TestCase(3, 0, 15)]
+        [TestCase(3, 8, 15)]
+        public void ABombHitsTheFiveByFiveSquareCentredOnItCutAtTheEdges(int col, int row, int cells)
         {
+            // 8 x 9: the middle reaches all 25 cells, an edge 15 (three rows or columns of five), a corner 9.
             var s = Play.Specials(Grid(8, 9, (col, row, '*')), null);
             var o = Play.Tap(s, col, row);
-            Assert.AreEqual(15, o.Cleared.Count, "the 4 x 4 square, less the bomb");
-            Assert.AreEqual(15 * Tile, o.ScoreGained);
-            Assert.IsTrue(o.Cleared.All(c => System.Math.Abs(c.Pos.Col - col) <= 3 && System.Math.Abs(c.Pos.Row - row) <= 3));
+            Assert.AreEqual(cells - 1, o.Cleared.Count, "the square on the board, less the bomb");
+            Assert.AreEqual((cells - 1) * Tile, o.ScoreGained);
+            Assert.IsTrue(o.Cleared.All(c => System.Math.Abs(c.Pos.Col - col) <= 2 && System.Math.Abs(c.Pos.Row - row) <= 2), "centred on the bomb");
+            Assert.AreEqual(cells - 1, o.EffectCells.Count, "the view is told exactly these cells, nothing off the board");
+            Assert.IsTrue(o.EffectCells.All(e => s.Board.InBounds(e.Pos)));
+        }
+
+        [TestCase(5, 5)]
+        [TestCase(6, 6)]
+        [TestCase(7, 7)]
+        [TestCase(8, 9)]
+        [TestCase(10, 12)]
+        public void ABombInTheMiddleOfAnyBoardReachesTwentyFiveCells(int w, int h)
+        {
+            var s = Play.Specials(Grid(w, h, (w / 2, h / 2, '*')), null);
+            var o = Play.Tap(s, w / 2, h / 2);
+            Assert.AreEqual(24, o.Cleared.Count);
+            TestContext.WriteLine(w + " x " + h + ": a bomb reaches 25 of " + (w * h) + " cells (" + (2500 / (w * h)) + "%)");
         }
 
         [Test]
@@ -116,7 +137,7 @@ namespace ColourCascade.Tests
         [Test]
         public void ABombBreaksStonesAndHitsObstaclesInItsSquare()
         {
-            // Bomb at (2,2) on 6 x 6: columns 1-4, rows 1-4. Two stones and a frozen tile inside; a stone outside.
+            // Bomb at (2,2) on 6 x 6: columns 0-4, rows 0-4. Two stones and a frozen tile inside; a stone outside.
             var rows = Grid(6, 6, (2, 2, '*'), (1, 1, '#'), (4, 4, '#'), (5, 5, '#'));
             var obstacles = new[] { "......", "......", "...i..", "......", "......", "......" };
             var s = Play.Specials(rows, obstacles);
@@ -125,7 +146,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(1, s.Board.CountType(CellType.Stone), "the one outside stays");
             Assert.AreEqual(1, o.ObstacleHits.Count);
             int tiles = o.Cleared.Count(c => !c.WasStone);
-            Assert.AreEqual(12, tiles, "16 cells less the bomb, two stones and the frozen tile (which stays)");
+            Assert.AreEqual(21, tiles, "25 cells less the bomb, two stones and the frozen tile (which stays)");
             Assert.AreEqual(tiles * Tile + 2 * s.Scoring.stonePoints + s.Scoring.iceLayerPoints, o.ScoreGained);
             AssertEachTileScoredOnce(o, s);
         }
@@ -244,23 +265,25 @@ namespace ColourCascade.Tests
             Assert.AreEqual(s.Score - score, s.Breakdown.Finale, "the finale's points are their own line");
             Assert.IsTrue(s.Goals.IsComplete(0), "goal progress counts");
             Assert.AreEqual(SessionState.Won, s.State, "the goal it completed passes the level");
-            Assert.AreEqual(0, s.LeftoverBonus, "no spare moves were left");
+            Assert.AreEqual(s.Score, s.FinalScore, "nothing is added for moves");
             Assert.IsTrue(o.Ended);
             Assert.IsFalse(s.RunFinale(o), "only once");
         }
 
         [Test]
-        public void SeveralSpecialsGoOffAloneAndTheirChainsResolve()
+        public void AdjacentSpecialsLeftAtTheEndGoOffTogetherAsACombination()
         {
-            // Two specials side by side do not combine (combinations need a tap); each fires once.
+            // A rocket and a rocket side by side when the moves run out fire as one combination (a cross).
             var s = Play.Specials(new[] { "00123", "45-|1", "23451" }, null, SpecialTier.Prisms, 1);
             Play.Tap(s, 0, 2);
             Assert.IsTrue(s.FinalePending);
             var o = new MoveOutcome();
             s.RunFinale(o);
-            Assert.AreEqual(2, o.SpecialsFired.Count);
-            Assert.IsTrue(o.SpecialsFired.All(f => f.ComboWith == SpecialKind.None));
+            Assert.AreEqual(1, o.SpecialsFired.Count, "one combination");
+            Assert.AreEqual(2, o.SpecialsFired[0].ComboSize);
+            Assert.AreEqual(1, o.ComboMembers.Count);
             Assert.AreEqual(0, Play.CountPieces(s.Board, CellType.Special));
+            Assert.Greater(s.FinaleBreakdown.ComboBonus, 0, "the combination bonus is part of the finale");
             AssertEachTileScoredOnce(o, s);
             Assert.AreEqual(SessionState.Failed, s.State, "its 1,000,000 target was not reached: the finale scores, it doesn't pass levels by itself");
         }
@@ -303,7 +326,7 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void FinishingSetsOffTheSpecialsThenPaysTheSpareMovesOnce()
+        public void FinishingSetsOffTheSpecialsAndAddsNothingForUnusedMoves()
         {
             var s = Play.Specials(new[] { "33212", "-0102", "12345" }, null, SpecialTier.Prisms, 10, GoalSpec.Collect(3, 2));
             Play.Tap(s, 0, 2);
@@ -314,14 +337,17 @@ namespace ColourCascade.Tests
             Assert.AreEqual(OutcomeKind.Finale, o.Kind, "the rocket went off first");
             Assert.AreEqual(1, o.SpecialsFired.Count);
             Assert.Greater(s.Breakdown.Finale, 0);
-            Assert.AreEqual(moves * s.Level.LeftoverBonusPerMove, s.LeftoverBonus, "every unused move, once");
-            Assert.AreEqual(s.Score + s.LeftoverBonus, s.FinalScore);
-            Assert.AreEqual(s.Breakdown.Total, s.Score, "the bonus is separate from the breakdown of the score");
+            Assert.Greater(moves, 0);
+            Assert.AreEqual(s.Score, s.FinalScore, "unused moves score nothing");
+            Assert.AreEqual(s.Breakdown.Total, s.FinalScore, "the breakdown is the whole final score");
+            Assert.AreEqual(s.Breakdown.Finale, s.FinaleBreakdown.Total, "and the finale's own lines add up to its line");
+            int final = s.FinalScore;
             Assert.IsFalse(s.Finish(o));
-            Assert.AreEqual(moves * s.Level.LeftoverBonusPerMove, s.LeftoverBonus, "not paid twice");
+            Assert.AreEqual(final, s.FinalScore, "finishing twice changes nothing");
             var ctx = TestUtil.Context();
             var r = ctx.FinishRun(s);
-            Assert.AreEqual(s.LeftoverBonus, r.LeftoverBonus);
+            Assert.AreEqual(s.FinalScore, r.FinalScore);
+            Assert.AreEqual(s.FinaleBreakdown.Specials, r.FinaleBreakdown.Specials);
             Assert.AreEqual(s.Breakdown.Finale, r.Breakdown.Finale, "the result screen gets the breakdown");
             Assert.AreSame(r, ctx.FinishRun(s), "and the result is recorded once");
         }
@@ -367,7 +393,7 @@ namespace ColourCascade.Tests
             var quick = new LevelSpec
             {
                 Id = spec.Id, Mode = GameMode.Campaign, Number = number, Layout = LevelLayout.Parse(new[] { "000", "111", "222" }),
-                Colours = 3, Moves = moves, Target = 10, Star2 = 20, Star3 = 30, LeftoverBonusPerMove = 10,
+                Colours = 3, Moves = moves, Target = 10, Star2 = 20, Star3 = 30,
             };
             var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = quick, BoardSeed = 1 });
             s.Start();

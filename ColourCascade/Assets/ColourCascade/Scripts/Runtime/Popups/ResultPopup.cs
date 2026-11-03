@@ -73,7 +73,7 @@ namespace ColourCascade.App
             stars.Layout(preferredHeight: 200);
             float t = stars.Reveal(result.Stars, 0.35f, App.GlobalFx);
             ScoreBlock(result.FinalScore, "Final score", t);
-            // Where the points came from, the spare-move bonus as its own line (docs/MECHANICS.md §5).
+            // Where the points came from, line by line; the lines add up to the final score (docs/MECHANICS.md §5).
             Breakdown(t);
             if (result.NewBest) Badge("New best score!", Theme.Gold);
             if (result.KeptPowerUps > 0 && result.KeptPowerUp != null)
@@ -336,7 +336,6 @@ namespace ColourCascade.App
             Line("Stones", b.Stones);
             Line("Treasure", b.Treasure);
             Line("Specials at the end", b.Finale);
-            Line("Spare moves (" + result.MovesLeft + ")", result.LeftoverBonus);
             if (lines.Count == 0) return;
             int rows = (lines.Count + 1) / 2;
             var grid = UI.Rect("Breakdown", body);
@@ -363,6 +362,19 @@ namespace ColourCascade.App
             }
             grid.localScale = new Vector3(1f, 0f, 1f);
             Tw.Scale(grid, 1f, 0.3f, Ease.OutCubic, delay);
+            // What the specials left on the board scored at the end, the same figures as the in-game card.
+            var f = result.FinaleBreakdown;
+            if (b.Finale > 0 && f != null)
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                if (f.Specials > 0) parts.Add("tiles " + NumberFormat.Thousands(f.Specials));
+                if (f.ComboBonus > 0) parts.Add("combo bonus " + NumberFormat.Thousands(f.ComboBonus));
+                if (f.Obstacles > 0) parts.Add("ice, chains, moss " + NumberFormat.Thousands(f.Obstacles));
+                if (f.Stones > 0) parts.Add("stones " + NumberFormat.Thousands(f.Stones));
+                if (f.Treasure > 0) parts.Add("treasure " + NumberFormat.Thousands(f.Treasure));
+                var note = UI.FitText(body, "Specials at the end: " + string.Join(" · ", parts), Theme.FontSmall - 6, Theme.TextMuted, TextAnchor.MiddleCenter, false, "FinaleNote");
+                note.Layout(preferredHeight: 50);
+            }
         }
 
         static string JourneyNames(MechanicSet set)

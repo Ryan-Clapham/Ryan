@@ -32,7 +32,10 @@ namespace ColourCascade.Core
         Board scratch;
         // The move being weighed, for goals about special tiles: the special a group would make (and where), or the
         // special fired, its combination partner and how many other specials its blast reaches.
-        SpecialKind candCreated, candFired, candPartner;
+        SpecialKind candCreated;
+        // The specials that would fire together (a tapped special's connected group), and how many others its blast reaches.
+        readonly List<SpecialKind> candGroup = new List<SpecialKind>();
+        readonly List<GridPos> groupCells = new List<GridPos>();
         GridPos candAt;
         int candChained;
 
@@ -76,12 +79,13 @@ namespace ColourCascade.Core
                 GridPos partner;
                 bool combo;
                 session.PreviewSpecial(p, prismColour, cells, out partner, out combo);
-                candFired = board[p].Special;
-                candPartner = combo ? board[partner].Special : SpecialKind.None;
+                session.SpecialGroupAt(p, groupCells);
+                candGroup.Clear();
+                foreach (var m in groupCells) candGroup.Add(board[m].Special);
                 candAt = p;
                 candChained = 0;
                 for (int k = 0; k < cells.Count; k++)
-                    if (cells[k] != p && (!combo || cells[k] != partner) && board[cells[k]].Type == CellType.Special) candChained++;
+                    if (board[cells[k]].Type == CellType.Special && !groupCells.Contains(cells[k])) candChained++;
                 long v = EvaluateSpecial(session, combo);
                 if (v > best)
                 {
@@ -116,7 +120,7 @@ namespace ColourCascade.Core
                 if (!TileRules.StaysWhenItsGroupClears(board[cells[k]])) removed.Add(cells[k]);
             var tier = s.Specials;
             candCreated = tier != SpecialTier.None ? s.Scoring.specials.KindFor(g.Size, tier, false) : SpecialKind.None;
-            candFired = candPartner = SpecialKind.None;
+            candGroup.Clear();
             candAt = g.Anchor;
             candChained = 0;
             value += GoalValue(s, true);
@@ -240,13 +244,14 @@ namespace ColourCascade.Core
                         }
                         else
                         {
-                            int n = (goal.CountsSpecial(candFired) ? 1 : 0) + (goal.CountsSpecial(candPartner) ? 1 : 0);
+                            int n = 0;
+                            foreach (var k in candGroup) if (goal.CountsSpecial(k)) n++;
                             if (goal.special == SpecialKind.None) n += candChained;
                             value += 2L * 2 * System.Math.Min(n, remaining) * GoalUnitValue;
                         }
                         break;
                     case GoalKind.FireCombo:
-                        if (!isGroup && candPartner != SpecialKind.None) value += 2L * 4 * GoalUnitValue;
+                        if (!isGroup && candGroup.Count > 1) value += 2L * 4 * GoalUnitValue;
                         else if (isGroup && candCreated != SpecialKind.None && NextToSpecial(board, candAt)) value += 2L * 2 * GoalUnitValue;
                         else if (isGroup && candCreated != SpecialKind.None) value += 2L * GoalUnitValue / 2;
                         break;

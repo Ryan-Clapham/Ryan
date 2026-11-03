@@ -156,8 +156,6 @@ namespace ColourCascade.Core
         /// <summary>Opening score levels (before the first mechanic): star thresholds as a multiple (permille) of the target.</summary>
         public int star2Permille = 1250;
         public int star3Permille = 1500;
-        /// <summary>Opening score levels: finishing early pays each unused move target / moves × this permille.</summary>
-        public int leftoverBonusPermille = 1000;
         /// <summary>
         /// Calibrated stars, every level from the first mechanic on (docs/DESIGN.md §3.2). Bots play every move, as a
         /// player chasing stars would. Two stars sit halfway between a casual player's median final score and this
@@ -165,8 +163,6 @@ namespace ColourCascade.Core
         /// </summary>
         public int star2Percentile = 35;
         public int star3Percentile = 60;
-        /// <summary>Calibrated levels: finishing early pays each unused move this permille of a thoughtful player's average move.</summary>
-        public int spareMoveBonusPermille = 500;
         /// <summary>"...and reach a score" goals: this percentile of casual players' final scores among those who meet the other goals.</summary>
         public int scoreGoalPercentile = 20;
         public int calibrationRuns = 16;

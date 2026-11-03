@@ -105,7 +105,7 @@ namespace ColourCascade.Tests
             var spec = new LevelSpec
             {
                 Id = "ice", Mode = GameMode.Campaign, Number = 1, Layout = layout, Colours = 5, Moves = 14,
-                Target = 1000000, Star2 = 2000000, Star3 = 3000000, LeftoverBonusPerMove = 50,
+                Target = 1000000, Star2 = 2000000, Star3 = 3000000,
                 Goals = new[] { GoalSpec.FreeIce(5) },
             };
             var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = spec, Scoring = new ScoringRules(), BoardSeed = seed });

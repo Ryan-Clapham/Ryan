@@ -122,13 +122,65 @@ namespace ColourCascade.Tests
             Assert.IsTrue(ctx.Save());
         }
 
+        // The whole save the play script produces with today's rules (see SameRulesSameSave). Re-record only for a
+        // deliberate gameplay change, and say so in the commit. Recorded for 2.1's later changes (5 x 5 bombs, groups
+        // of specials, no spare-move bonus); it matched the build before them exactly, since levels played to the end
+        // never paid a bonus.
+        const ulong ExpectedSaveFingerprint = 7841276991854770152UL;
+
         [Test]
-        public void TheSamePlayStillProducesExactlyTheSameSave()
+        public void TheSamePlayStillMakesTheSameProgress()
+        {
+            // The fixture comes from the build before the progression overhaul, when a level ended at its target and
+            // spare moves became bonus points. Levels are now played to their last move and unused moves score
+            // nothing, so the same play scores differently: best scores, stars, star rewards (coins, claims, ledger)
+            // and the Endless record and lifetime counts are expected to differ. Everything else must not: which
+            // levels are unlocked and completed, plays and wins, first-clear rewards, Daily and Weekly plays, the
+            // purchase, inventory, tutorials and settings.
+            var store = new MemorySaveStorage();
+            PlayScript(store);
+            Assert.AreEqual(Progress(SaveBeforeOverhaul), Progress(store.Main));
+        }
+
+        [Test]
+        public void SameRulesSameSave()
         {
             var store = new MemorySaveStorage();
             PlayScript(store);
-            Assert.AreEqual(WithoutNewFields(SaveBeforeOverhaul, out _), WithoutNewFields(store.Main, out long level), "same progress, stars, coins, ledger and records as before the overhaul");
-            Assert.GreaterOrEqual(level, 1);
+            if (System.Environment.GetEnvironmentVariable("PRINT_SAVE_FINGERPRINT") != null) System.Console.WriteLine("save fingerprint " + StableHash.Of(store.Main));
+            Assert.AreEqual(ExpectedSaveFingerprint, StableHash.Of(store.Main), "the same play gives exactly the same save");
+        }
+
+        /// <summary>The parts of a save that don't depend on how points are scored.</summary>
+        static string Progress(string json)
+        {
+            var root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(json);
+            var keep = new System.Collections.Generic.Dictionary<string, object>();
+            foreach (var k in new[] { "format", "version", "highestUnlocked", "latestDay", "inventory", "tutorials", "settings" })
+                if (root.ContainsKey(k)) keep[k] = root[k];
+            var levels = new System.Collections.Generic.List<object>();
+            foreach (System.Collections.Generic.Dictionary<string, object> l in (System.Collections.Generic.List<object>)root["levels"])
+                levels.Add(new System.Collections.Generic.Dictionary<string, object> { ["n"] = l["n"], ["done"] = l["done"], ["plays"] = l["plays"], ["wins"] = l["wins"] });
+            keep["levels"] = levels;
+            var daily = new System.Collections.Generic.List<object>();
+            foreach (System.Collections.Generic.Dictionary<string, object> d in (System.Collections.Generic.List<object>)root["daily"])
+                daily.Add(new System.Collections.Generic.Dictionary<string, object> { ["day"] = d["day"], ["done"] = d["done"], ["plays"] = d["plays"] });
+            keep["daily"] = daily;
+            var weekly = new System.Collections.Generic.List<object>();
+            foreach (System.Collections.Generic.Dictionary<string, object> w in (System.Collections.Generic.List<object>)root["weekly"])
+                weekly.Add(new System.Collections.Generic.Dictionary<string, object> { ["week"] = w["week"], ["runs"] = w["runs"] });
+            keep["weekly"] = weekly;
+            keep["endlessRuns"] = ((System.Collections.Generic.Dictionary<string, object>)root["endless"])["runs"];
+            var firstClears = new System.Collections.Generic.List<object>();
+            foreach (System.Collections.Generic.Dictionary<string, object> e in (System.Collections.Generic.List<object>)root["ledger"])
+            {
+                string r = (string)e["r"];
+                if (r.StartsWith("c.first.", System.StringComparison.Ordinal) || r.StartsWith("c.mile.", System.StringComparison.Ordinal) ||
+                    r.StartsWith("shop.", System.StringComparison.Ordinal) || r.StartsWith("d.", System.StringComparison.Ordinal))
+                    firstClears.Add(r + " " + e["d"]);
+            }
+            keep["rewardsThatDontDependOnScore"] = firstClears;
+            return Json.Write(keep);
         }
 
         /// <summary>A fixed sequence of real play through GameContext: campaign levels, every challenge mode, a purchase and settings.</summary>
@@ -144,10 +196,8 @@ namespace ColourCascade.Tests
                     var s = new PuzzleSession(setup);
                     s.Start();
                     ctx.BeginRun(s);
-                    // Finishing as soon as the level is passed is exactly how levels ended before play could go on
-                    // after the goals (same moment, same spare-move bonus), so the save must come out identical.
-                    Bots.PlayOut(s, BotKind.Greedy, new Rng((ulong)(n * 10 + attempt)), 10000, true);
-                    s.Finish();
+                    // Every move played, as levels are now played.
+                    Bots.PlayOut(s, BotKind.Greedy, new Rng((ulong)(n * 10 + attempt)));
                     ctx.FinishRun(s);
                 }
             }
