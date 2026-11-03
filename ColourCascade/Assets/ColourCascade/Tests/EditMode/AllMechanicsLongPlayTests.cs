@@ -14,7 +14,7 @@ namespace ColourCascade.Tests
             var cfg = GameConfigData.CreateDefault();
             var catalog = new CampaignCatalog(cfg.Campaign, cfg.Scoring);
             var rules = cfg.Scoring.specials;
-            int actions = 0, fired = 0, combos = 0, created = 0, treasures = 0, mossGrew = 0, iceFreed = 0, chainsFreed = 0, won = 0, games = 0;
+            int actions = 0, fired = 0, combos = 0, created = 0, treasures = 0, mossGrew = 0, iceFreed = 0, chainsFreed = 0, won = 0, games = 0, finales = 0;
             for (int n = 21; n <= 200; n += 4)
             {
                 var spec = catalog.Get(n);
@@ -94,14 +94,27 @@ namespace ColourCascade.Tests
                             if (goal.kind == GoalKind.ClearMoss) Assert.AreEqual(s.Board.CountObstacle(ObstacleKind.Moss), s.Goals.Remaining(g));
                         }
                         if (s.Goals.AllComplete) Assert.IsTrue(s.Passed, "complete goals pass the level at once");
+                        Assert.AreEqual(s.Score, s.Breakdown.Total, "level " + n + ": every point is in the breakdown once");
+                        Assert.AreEqual(o.Cleared.Count, o.Cleared.Select(c => c.TileId).Distinct().Count(), "level " + n + ": a tile was removed twice");
                     }
+                    // Specials left on the board go off; their points count once, and the result follows.
+                    if (s.FinalePending)
+                    {
+                        int before = s.Score;
+                        var fin = new MoveOutcome();
+                        Assert.IsTrue(s.RunFinale(fin));
+                        Assert.AreEqual(s.Score - before, fin.ScoreGained, "level " + n + ": the finale's points");
+                        Assert.IsTrue(s.IsOver);
+                        finales++;
+                    }
+                    Assert.AreEqual(s.Score, s.Breakdown.Total);
                     treasures += collected;
                     iceFreed += freedIce;
                     chainsFreed += freedChains;
                     if (s.State == SessionState.Won) won++;
                 }
             }
-            TestContext.WriteLine($"{games} games, {actions} actions, won {won}; specials made {created}, fired {fired} ({combos} combos); treasure {treasures}; ice {iceFreed}, chains {chainsFreed}; moss grew {mossGrew}");
+            TestContext.WriteLine($"{games} games, {actions} actions, won {won}; specials made {created}, fired {fired} ({combos} combos); treasure {treasures}; ice {iceFreed}, chains {chainsFreed}; moss grew {mossGrew}; finales {finales}");
             Assert.Greater(actions, 2000);
             Assert.Greater(created, 50);
             Assert.Greater(fired, 50);

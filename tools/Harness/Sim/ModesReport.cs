@@ -91,39 +91,51 @@ static class ModesReport
         Console.WriteLine($"  same weeks without mechanics:  bronze {100.0 * baseline[0] / baseRuns:0}%  silver {100.0 * baseline[1] / baseRuns:0}%  gold {100.0 * baseline[2] / baseRuns:0}%");
 
         Console.WriteLine();
-        Console.WriteLine("ENDLESS: 20 runs per Endless level, Planner bot");
+        Console.WriteLine("ENDLESS: the stage journey (docs/DESIGN.md §4), 30 runs per bot, real run setup");
+        var ctx = new GameContext(cfg, new MemorySaveStorage(), new SystemClock());
         var e = cfg.Endless;
-        foreach (int level in new[] { 1, 5, 10, 20, 30, 40 })
+        foreach (var kind in new[] { BotKind.Casual, BotKind.Mixed, BotKind.Planner })
         {
-            var pool = Mechanics.FromEndless(level, e.mechanics);
             var scores = new List<int>();
             var stages = new List<int>();
             var moves = new List<int>();
-            int added = 0;
-            for (int i = 0; i < 20; i++)
+            int added = 0, finales = 0;
+            for (int i = 0; i < 30; i++)
             {
-                var spec = new LevelSpec
-                {
-                    Id = "endless", Mode = GameMode.Endless, Layout = LevelLayout.Open(e.columns, e.rows), Colours = e.ColoursForStage(1),
-                    AssistPermille = e.assistPermille, Moves = e.startMoves, Pool = pool, Specials = Mechanics.Tier(pool),
-                };
-                var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Endless, Level = spec, Scoring = cfg.Scoring, Endless = e, BoardSeed = (ulong)(i + 1) });
+                var setup = ctx.CreateEndlessRun();
+                setup.BoardSeed = (ulong)(i + 1);
+                var s = new PuzzleSession(setup);
                 s.Start();
-                var bot = new PlannerBot();
+                var bot = kind == BotKind.Planner ? new PlannerBot() : null;
+                var rng = new Rng((ulong)(i * 13 + 5));
+                var finder = new GroupFinder();
+                var groups = new List<GroupInfo>();
                 var o = new MoveOutcome();
                 while (s.AcceptsMoves && s.MovesMade < 2000)
                 {
-                    if (!bot.Choose(s, out var p, out var c)) break;
+                    GridPos p;
+                    int c = -1;
+                    bool found = bot != null ? bot.Choose(s, out p, out c) : Bots.Choose(s.Board, kind, rng, finder, groups, out p);
+                    if (!found) break;
+                    if (bot == null && s.NeedsColourChoice(p)) c = PlannerBot.PrismColour(s);
                     s.TryPlay(p, o, c);
                     added += o.Added.Count;
+                }
+                if (s.FinalePending)
+                {
+                    s.RunFinale(o);
+                    finales++;
                 }
                 scores.Add(s.Score);
                 stages.Add(s.Stage);
                 moves.Add(s.MovesMade);
             }
             scores.Sort();
-            Console.WriteLine($"  level {level,2} ({(pool == MechanicSet.None ? "original tiles" : Mechanics.Names(pool))}): median score {scores[10],6}, median stage {stages.OrderBy(x => x).ElementAt(10)}, max stage {stages.Max()}, median moves {moves.OrderBy(x => x).ElementAt(10)}, items added per run {added / 20.0:0.0}");
+            stages.Sort();
+            moves.Sort();
+            Console.WriteLine($"  {kind,-8} stage P25 {stages[7]}  median {stages[15]}  P90 {stages[27]}  max {stages.Max()}  ·  median score {scores[15],6}  ·  median moves {moves[15]}  ·  items added per run {added / 30.0:0.0}  ·  runs ending with specials left {finales}");
         }
+        Console.WriteLine("  journey: " + string.Join("  ", Enumerable.Range(1, 16).Select(st => st + " " + EndlessJourney.For(st, e.journey).Title + " (" + NumberFormat.Thousands(e.ScoreForStage(st)) + ")")));
     }
 
     static string Describe(LevelLayout l)

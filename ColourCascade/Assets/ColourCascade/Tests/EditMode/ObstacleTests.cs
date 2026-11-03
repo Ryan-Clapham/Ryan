@@ -644,7 +644,9 @@ namespace ColourCascade.Tests
                         if (h.Freed && h.Kind == ObstacleKind.Ice) iceFreed++;
                         if (h.Freed && h.Kind == ObstacleKind.Chain) chainsFreed++;
                     }
-                    Assert.AreEqual(basePoints + obstaclePoints, o.ScoreGained, "points = action points + obstacle steps");
+                    int stonePoints = o.Cleared.Count(t => t.WasStone) * scoring.stonePoints;
+                    Assert.AreEqual(basePoints + obstaclePoints + stonePoints, o.ScoreGained, "points = action points + obstacle steps + stones");
+                    Assert.AreEqual(s.Score, s.Breakdown.Total, "every point is in the breakdown once");
                     Assert.AreEqual(scoreBefore + o.ScoreGained, s.Score);
                     collected += o.Cleared.Count(t => !t.WasStone && t.Colour == 0);
 

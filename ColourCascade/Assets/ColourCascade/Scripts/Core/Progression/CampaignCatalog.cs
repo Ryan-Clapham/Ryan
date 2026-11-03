@@ -259,6 +259,13 @@ namespace ColourCascade.Core
             // Treasure needs open columns to the floor: treasure levels use an open board of the same size.
             if (recipe.Has(Mechanic.Treasure) && (baseLayout.StoneCount > 0 || baseLayout.OpenCellCount < baseLayout.Width * baseLayout.Height))
                 baseLayout = LevelLayout.Open(baseLayout.Width, baseLayout.Height);
+            // "...among the stones": a stone board even where the level would have been open.
+            else if (recipe.StoneLayout && baseLayout.StoneCount == 0)
+            {
+                var stoneRng = new Rng(StableHash.Combine(spec.Seed, 0xD360));
+                int tier = Math.Min(3, Math.Max(0, n - cfg.stonesFromLevel) / 15);
+                baseLayout = LayoutLibrary.Build(LayoutLibrary.StonePatterns[stoneRng.Next(LayoutLibrary.StonePatterns.Length)], baseLayout.Width, baseLayout.Height, tier, stoneRng);
+            }
             // Scaled amounts never go below a working minimum (CampaignDesign.Scaled): halving 4 ice to 2 once left
             // levels a thoughtful player passed in a move or two (simulation).
             int[] scales = { 100, 80, 65, 50 };
@@ -324,9 +331,16 @@ namespace ColourCascade.Core
             // A casual player never aims for big groups, so goals about special tiles are sized from a thoughtful
             // player (Planner bot) instead: from its slower games (making a special depends on the board), with extra
             // room for players who are still learning to build them.
-            bool specials = false;
-            if (spec.Goals != null) foreach (var g in spec.Goals) specials |= g.IsSpecialGoal;
-            if (specials) needed = (LevelCalibrator.MovesNeeded(spec, scoring, Math.Max(4, cfg.goalCalibrationRuns), 80, BotKind.Planner, 75) * 13 + 9) / 10;
+            bool specials = false, combos = false;
+            if (spec.Goals != null)
+                foreach (var g in spec.Goals)
+                {
+                    specials |= g.IsSpecialGoal;
+                    combos |= g.kind == GoalKind.FireCombo;
+                }
+            if (specials) needed = (LevelCalibrator.MovesNeeded(spec, scoring, Math.Max(4, cfg.goalCalibrationRuns), 80, BotKind.Planner, 75) * (combos ? 15 : 13) + 9) / 10;
+            // Treasure depends a lot on how the tiles under it fall: sized from a casual player's slower games.
+            else if (spec.Layout.TreasureCount > 0) needed = LevelCalibrator.MovesNeeded(spec, scoring, Math.Max(4, cfg.goalCalibrationRuns), 80, BotKind.Casual, 75);
             else needed = LevelCalibrator.MedianMovesNeeded(spec, scoring, Math.Max(3, cfg.goalCalibrationRuns), 80, BotKind.Casual);
             int permille = 1000 + band.SlackPermille + CampaignDesign.RhythmPermille(n) + (practice ? 150 : 0);
             int moves = (needed * permille + 999) / 1000;

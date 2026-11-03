@@ -264,14 +264,14 @@ namespace ColourCascade.App
                     return new Tip
                     {
                         Title = "Rockets", ArtTile = ArtNames.RocketRow,
-                        Body = "Clear a group of " + sp.rocketGroupSize + " or more tiles to make a rocket.\nTap a rocket to clear its whole row or column: the arrows show which. Firing it uses a move.",
+                        Body = "Clear a group of " + sp.rocketGroupSize + " or more tiles to make a rocket.\nTap a rocket to clear its whole row or column (the arrows show which), stones included. Firing it uses a move.",
                         Pointer = "Tap the rocket to fire it",
                     };
                 case TutorialKeys.Bombs:
                     return new Tip
                     {
                         Title = "Bombs", ArtTile = ArtNames.Bomb,
-                        Body = "Clear a group of " + sp.bombGroupSize + " or more to make a bomb.\nTap it to clear every tile around it.",
+                        Body = "Clear a group of " + sp.bombGroupSize + " or more to make a bomb.\nTap it to clear a " + sp.bombSize + " × " + sp.bombSize + " square, stones included.",
                         Pointer = "Tap the bomb to set it off",
                     };
                 case TutorialKeys.Combos:

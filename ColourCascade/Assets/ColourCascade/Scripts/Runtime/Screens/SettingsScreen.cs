@@ -225,7 +225,7 @@ namespace ColourCascade.App
             {
                 Ctx.Data.Endless.Level = Mathf.Max(1, Ctx.Data.Endless.Level) + 5;
                 Ctx.Save();
-                Toast.Show("Endless level " + Ctx.Data.Endless.Level + (Ctx.EndlessMechanics != MechanicSet.None ? ": " + Mechanics.Names(Ctx.EndlessMechanics) : ""), Icon.Check);
+                Toast.Show("Endless level " + Ctx.Data.Endless.Level, Icon.Check);
             });
             ActionRow(Icon.Calendar, "Advance clock one day", ButtonStyle.Ghost, "+1 day", () =>
             {

@@ -11,7 +11,7 @@ namespace ColourCascade.Core
         RocketRow = 1,
         /// <summary>Clears its whole column.</summary>
         RocketColumn = 2,
-        /// <summary>Clears the 3 × 3 square around it.</summary>
+        /// <summary>Clears the 4 × 4 square around it (SpecialRules.bombSize).</summary>
         Bomb = 3,
         /// <summary>Clears every tile of a colour the player picks.</summary>
         Prism = 4,
@@ -36,10 +36,19 @@ namespace ColourCascade.Core
         public int bombGroupSize = 9;
         /// <summary>Smallest group that creates a prism.</summary>
         public int prismGroupSize = 12;
-        /// <summary>Points for each colour tile a special removes.</summary>
-        public int pointsPerTile = 20;
-        /// <summary>Points for each colour tile removed by two specials fired together.</summary>
-        public int comboPointsPerTile = 40;
+        /// <summary>
+        /// Points for each colour tile a special removes (docs/MECHANICS.md §5): what the special actually reaches, so a
+        /// rocket on a longer row scores more and holes, stones and obstacles in its way score nothing as tiles.
+        /// Obstacles and stones it hits score their own points on top. 50 = a tile's share of the 6-tile group that
+        /// makes a rocket (it was 20: a rocket across 8 tiles was worth a group of 4).
+        /// </summary>
+        public int pointsPerTile = 50;
+        /// <summary>Points for each colour tile removed by two specials fired together (1.5 × a single special).</summary>
+        public int comboPointsPerTile = 75;
+        /// <summary>Side of a bomb's square (it was 3).</summary>
+        public int bombSize = 4;
+        /// <summary>Side of the square two bombs fired together reach.</summary>
+        public int bombComboSize = 6;
 
         /// <summary>The special a group of this size earns, or None. A level only gets the kinds its tier allows;
         /// a big group earns the strongest allowed kind it qualifies for.</summary>
@@ -93,14 +102,18 @@ namespace ColourCascade.Core
             return best > 0;
         }
 
+        /// <summary>Default sizes (SpecialRules) for callers without the scoring rules at hand.</summary>
+        static readonly SpecialRules Defaults = new SpecialRules();
+
         /// <summary>Adds the cells one special at p reaches (not p itself). colour is used by prisms only.</summary>
-        public static void Single(Board b, GridPos p, SpecialKind kind, int colour, List<GridPos> cells)
+        public static void Single(Board b, GridPos p, SpecialKind kind, int colour, List<GridPos> cells, SpecialRules rules = null)
         {
+            rules = rules ?? Defaults;
             switch (kind)
             {
                 case SpecialKind.RocketRow: Rows(b, p.Row, p.Row, cells); break;
                 case SpecialKind.RocketColumn: Columns(b, p.Col, p.Col, cells); break;
-                case SpecialKind.Bomb: Square(b, p, 1, cells); break;
+                case SpecialKind.Bomb: Block(b, p, rules.bombSize, cells); break;
                 case SpecialKind.Prism: OfColour(b, colour, cells); break;
             }
             cells.Remove(p);
@@ -111,8 +124,9 @@ namespace ColourCascade.Core
         /// A prism pair is handled by the caller (the prism's colour first, then the other special alone),
         /// except prism + prism, which reaches every colour tile.
         /// </summary>
-        public static void Combined(Board b, GridPos p, SpecialKind a, SpecialKind c, List<GridPos> cells)
+        public static void Combined(Board b, GridPos p, SpecialKind a, SpecialKind c, List<GridPos> cells, SpecialRules rules = null)
         {
+            rules = rules ?? Defaults;
             if (a == SpecialKind.Prism && c == SpecialKind.Prism)
             {
                 for (int i = 0; i < b.CellCount; i++)
@@ -126,7 +140,7 @@ namespace ColourCascade.Core
             }
             else if (a == SpecialKind.Bomb && c == SpecialKind.Bomb)
             {
-                Square(b, p, 2, cells);
+                Block(b, p, rules.bombComboSize, cells);
             }
             else
             {
@@ -149,11 +163,27 @@ namespace ColourCascade.Core
                 for (int r = 0; r < b.Height; r++) cells.Add(new GridPos(c, r));
         }
 
-        static void Square(Board b, GridPos p, int radius, List<GridPos> cells)
+        /// <summary>
+        /// The size × size square around p: centred when size is odd; when it is even, the extra row and column lie
+        /// towards the middle of the board. Near an edge the square slides inwards to stay whole, so a bomb reaches
+        /// the same number of cells wherever it sits (all of a board smaller than the square).
+        /// </summary>
+        public static void Block(Board b, GridPos p, int size, List<GridPos> cells)
         {
-            for (int r = p.Row - radius; r <= p.Row + radius; r++)
-                for (int c = p.Col - radius; c <= p.Col + radius; c++)
-                    if (b.InBounds(c, r)) cells.Add(new GridPos(c, r));
+            int c0 = BlockStart(p.Col, b.Width, size), r0 = BlockStart(p.Row, b.Height, size);
+            for (int r = r0; r < r0 + size && r < b.Height; r++)
+                for (int c = c0; c < c0 + size && c < b.Width; c++)
+                    cells.Add(new GridPos(c, r));
+        }
+
+        /// <summary>First column (or row) of a size-wide span containing pos, leaning to the middle and kept on the board.</summary>
+        public static int BlockStart(int pos, int extent, int size)
+        {
+            if (size >= extent) return 0;
+            int before = (size - 1) / 2;
+            // Even sizes have one more cell on one side: put it on the side towards the middle of the board.
+            if (size % 2 == 0 && pos * 2 >= extent) before = size / 2;
+            return Math.Max(0, Math.Min(extent - size, pos - before));
         }
 
         static void OfColour(Board b, int colour, List<GridPos> cells)

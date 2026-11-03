@@ -68,12 +68,32 @@ namespace ColourCascade.Tests
         /// Fields added to the save since the fixture was written, with the value an old save gets. Everything else must
         /// read and write back exactly. (endless.level: Endless progression, added with cross-mode mechanics.)
         /// </summary>
+        /// <summary>
+        /// The save without what later updates deliberately changed: the Endless level (a new field); the claim
+        /// recorded when a power-up's tutorial level is first won (2.1); and, since Endless runs now walk the stage
+        /// journey (2.1), the Endless record and the lifetime group and tile counts its run adds to (checked for
+        /// presence only). Everything else (campaign progress, stars, coins, ledger, Daily and Weekly records,
+        /// inventory, settings) must match exactly.
+        /// </summary>
         static string WithoutNewFields(string json, out long endlessLevel)
         {
             var root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(json);
             var endless = (System.Collections.Generic.Dictionary<string, object>)root["endless"];
             endlessLevel = endless.ContainsKey("level") ? (long)endless["level"] : -1;
             endless.Remove("level");
+            foreach (var k in new[] { "best", "bestGroup", "bestMoves", "bestStage" })
+            {
+                Assert.IsTrue(endless.ContainsKey(k), "endless." + k + " is saved");
+                endless[k] = 0L;
+            }
+            var stats = (System.Collections.Generic.Dictionary<string, object>)root["stats"];
+            foreach (var k in new[] { "groups", "tiles" })
+            {
+                Assert.IsTrue(stats.ContainsKey(k), "stats." + k + " is saved");
+                stats[k] = 0L;
+            }
+            var claims = (System.Collections.Generic.List<object>)root["claims"];
+            claims.RemoveAll(c => ((string)c).StartsWith("pu.trial.", System.StringComparison.Ordinal));
             return Json.Write(root);
         }
 

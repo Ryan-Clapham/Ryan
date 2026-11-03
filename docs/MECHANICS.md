@@ -23,7 +23,7 @@ phase 2 (new tile mechanics) brief. Where a rule was changed after simulation, t
 | Tile | Joins groups? | Falls? | Holds up tiles above? | Reshuffled? | Removed by |
 |---|---|---|---|---|---|
 | Free colour tile | Yes, its colour | Yes | No | Yes | Its group, area effects, power-ups |
-| Stone | No | No | Yes (permanent) | No | Tile Breaker only |
+| Stone | No | No | Yes, until broken | No | Rockets, bombs (and their combinations), Tile Breaker (2.6) |
 | Void | No | No | Yes (permanent) | No | Never |
 | Frozen (ice) | No | No | Yes, until freed | No | Never directly: ice is broken off, then it is a free tile |
 | Chained | Yes, its own colour | No | Yes, until freed | No | Never directly: links are broken off, then it is a free tile |
@@ -80,11 +80,14 @@ phase 2 (new tile mechanics) brief. Where a rule was changed after simulation, t
   otherwise a **column** rocket. The arrows on the tile show which.
 * **Firing:** tapping a special fires it and **costs one move**. A press-and-hold shows what it will reach.
   * Rocket: every cell in its row or column is hit.
-  * Bomb: every cell in the 3 × 3 square around it is hit.
+  * Bomb: every cell in a 4 × 4 square is hit (config: scoring → specials → bombSize; it was 3 × 3). An even square
+    has no middle cell, so the extra row and column lie towards the middle of the board, and near an edge the
+    square slides inwards to stay whole: a bomb reaches 16 cells wherever it sits (all of a board smaller than that).
   * Prism: the player picks a colour (a swatch, or by tapping any tile of that colour); every tile of that colour
     is hit. Only colours on the board are offered.
 * **What a hit does:** a free colour tile or mossy tile is removed (with its moss); ice and chains lose one step;
-  stones, voids and treasure are unaffected; another special is set off.
+  a **stone is broken** (rockets, bombs and their combinations; a prism reaches colours, not stones); voids and
+  treasure are unaffected; another special is set off.
 * **Chain reactions:** specials set off by a hit join a queue and fire in the order they were hit, each after the
   previous one finishes. Each special fires at most once per action. A prism set off this way (nobody can choose)
   takes the colour with the most tiles on the board (lowest colour index on a tie).
@@ -93,13 +96,23 @@ phase 2 (new tile mechanics) brief. Where a rule was changed after simulation, t
   ties go right, left, up, down):
   * rocket + rocket: the tapped tile's row **and** column,
   * rocket + bomb: three rows (row rocket) or three columns (column rocket), centred on the tapped tile,
-  * bomb + bomb: the 5 × 5 square around the tapped tile,
+  * bomb + bomb: a 6 × 6 square around the tapped tile (same rule as the bomb's square; config: bombComboSize),
   * prism + rocket or bomb: the chosen colour everywhere, then the other special fires from where it sat,
   * prism + prism: every colour tile on the board.
 * A group never contains a special (specials do not join groups), so "a group with several specials" cannot
   happen; several specials can only meet through combinations and chain reactions.
 * Specials fall like tiles, are never reshuffled, and **always count as a legal move**.
-* Points: 20 for each colour tile a special removes, 40 in a combination (config: scoring → specials).
+* **Points (2.1):** 50 for each colour tile a special actually removes, 75 for each in a combination (config:
+  scoring → specials). Nothing else: holes, empty cells and untouched treasure score nothing, so a rocket on an
+  8-wide row scores 7 × 50 = 350 and one on a 6-wide row 250. Ice, chains, moss and stones it hits score their own
+  points (section 5) on top. Every tile is scored once, by whichever special removed it: in a chain reaction each
+  special scores only the tiles still there when it fires, and a special set off by another scores at the single
+  rate even if the first was a combination. 50 is a tile's share of the 6-tile group that makes a rocket (it was
+  20, so a rocket across a row was worth a group of 4). A combination's extra 25 a tile is shown as its own
+  "combo bonus" line.
+* **Exceptional combinations:** two prisms clear every colour tile (up to 70 on an 8 × 9 board: 5,250 points), but
+  each obstacle still takes only one step, so thick ice and chains of two or more links remain: a full-board clear
+  is a big score, never a pass by itself, and three stars stay calibrated against whole games (DESIGN.md §3.2).
 
 ### 2.4 Treasure
 
@@ -134,6 +147,16 @@ phase 2 (new tile mechanics) brief. Where a rule was changed after simulation, t
   * power-ups never make it grow (they cost no move).
 * Because mossy tiles still match their colour and a neighbouring clear removes moss, moss can never take every
   move away or make a level impossible.
+
+### 2.6 Stones (2.1)
+
+* Stones are barriers: tiles above them stay up, and each section below refills on its own.
+* **Breaking them:** a rocket breaks every stone in its line, a bomb every stone in its square, and the combinations
+  that include a rocket or a bomb do the same over their larger areas. Tile Breaker breaks the stone it targets.
+  Nothing else does: tapping groups never touches stones, and neither do Blast, Colour Burst or a prism.
+* A broken stone leaves an empty cell: the tiles above fall through it and the column refills from the top, so two
+  sections become one. Each stone broken scores 100 (config: scoring → stonePoints) and is shown on the result
+  screen as "Stones". Neighbouring frozen tiles count it as a removed neighbour (they lose a layer).
 
 ## 3. Move resolution
 
@@ -220,26 +243,62 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
   before play; the result screen ticks each one against the actual result and says what the next star needed.
 * Daily Challenge, Weekly Rush and Endless are unchanged (Daily already plays every move).
 
+### 4.4 Special tiles left when the moves run out (2.1)
+
+* If the last move leaves special tiles on the board (campaign, Daily Challenge and Endless; not the timed Weekly
+  Rush), they all go off before the result is decided, top row first: each alone (a combination needs a tap), chain
+  reactions included. No move is charged and no power-up is used. Their points count (shown as "Specials at the
+  end"), and so does their goal progress: a goal they complete still passes the level. Then the result is
+  decided as usual (won, failed, or the end of the run).
+* **Finish** on a passed level does the same first: the specials go off, then the spare-move bonus is paid.
+* Order of the level-ending sequence: last move (or Finish) → specials left on the board go off → spare-move bonus
+  (unused moves × the level's bonus per move; 0 when the moves ran out) → final score = score + bonus → stars. The
+  bonus is set once, when the level ends, and never again (Finish twice is refused; recording a result twice
+  returns the same result).
+* Extra Moves after a failed finish starts a fresh run of moves: specials made from then on go off again if those
+  run out too.
+
 ## 5. Points
 
 | Event | Points |
 |---|---|
-| Group of *n* tiles | n² × 10 (unchanged), chained and mossy tiles included in *n* |
-| Tile removed by a power-up | 20 (unchanged) |
-| Tile removed by a special | 20; 40 in a combination |
-| Ice layer removed | 100 |
-| Chain link removed | 150 |
-| Moss removed | 100 |
-| Treasure collected | 500 |
+| Event | Points | Result-screen line |
+|---|---|---|
+| Group of *n* tiles | n² × 10 (unchanged), chained and mossy tiles included in *n* | Groups |
+| Colour tile removed by a special | 50 (was 20) | Special tiles |
+| ... in a combination of two specials | 75 (was 40): the extra 25 | Combo bonus |
+| Colour tile removed by a power-up | 20 (unchanged) | Power-ups |
+| Ice layer removed | 100 | Ice, chains, moss |
+| Chain link removed | 150 | Ice, chains, moss |
+| Moss removed | 100 | Ice, chains, moss |
+| Stone broken (2.6) | 100 (new) | Stones |
+| Treasure collected | 500 | Treasure |
+| Everything specials left on the board score when the level ends (4.4) | as above | Specials at the end |
+| Each unused move when a passed level is finished early | the level's spare-move bonus (DESIGN.md §3.2) | Spare moves |
 
-All values live in the game config's scoring section.
+All values live in the game config's scoring section. Every point is counted once, in one line: the lines always
+add up to the score, and the spare-move bonus is added to make the final score. Nothing scores a fixed amount
+regardless of its effect.
+
+**Power-ups (audit, 2.1).** Power-ups score less per tile than specials on purpose (20, the share of a tile in the
+smallest group), so that stars come from play rather than purchases; what they do to obstacles scores the usual
+obstacle points, and any special they set off scores as a special.
+
+| Power-up | What scores | Goal progress |
+|---|---|---|
+| Blast (3 × 3) | 20 per colour tile removed; obstacle steps; specials it sets off at their rate | Every tile and obstacle it removes or frees |
+| Tile Breaker | 20 for a colour tile, 100 for a stone, every ice layer or chain link it strips | As above |
+| Swap | Nothing (nothing is removed) | None |
+| Colour Shift | Nothing | None |
+| Extra Moves | Nothing (+3 moves) | None |
+| Colour Burst | 20 per tile of the colour; obstacle steps | Collect that colour; ice and chains of that colour take a step |
 
 ## 6. Power-ups on every tile
 
 | Power-up | Free tile | Stone | Ice | Chain | Moss | Special | Treasure |
 |---|---|---|---|---|---|---|---|
 | Blast (3 × 3) | Removed | Untouched | −1 layer | −1 link | Removed | Fires | Untouched |
-| Tile Breaker (one cell) | Removed | Removed | All layers (tile stays) | All links (tile stays) | Removed | Fires | Not a target |
+| Tile Breaker (one cell) | Removed | Broken (100 points) | All layers (tile stays) | All links (tile stays) | Removed | Fires | Not a target |
 | Swap (two neighbours) | Allowed | No | No | No | No | Allowed (not with another special) | No |
 | Colour Shift | Allowed | No | No | Allowed (chain stays) | No | No | No |
 | Colour Burst (a colour) | Removed | Untouched | −1 layer (that colour) | −1 link (that colour) | Removed (that colour) | Untouched | Untouched |
@@ -291,10 +350,10 @@ free), as are rewards and records.
 
 | | Campaign | Daily Challenge | Weekly Rush | Endless |
 |---|---|---|---|---|
-| Unlocked by | Its introduction levels (section 7) | Campaign: a mechanic counts once its introduction level is completed | Campaign, as for Daily | Endless level (below) |
-| Boards | Hand-made introductions, then recipes by band | The day's plan from the date | A weekly theme plus more | Waves added at each new stage |
+| Unlocked by | Its introduction levels (section 7) | Campaign: a mechanic counts once its introduction level is completed | Campaign, as for Daily | The stages of each run (below) |
+| Boards | Hand-made introductions, then recipes by band | The day's plan from the date | A weekly theme plus more | The stage journey (below) |
 | Goals | 1–3 per level | The target plus the obstacles' goals | None (scored) | None (scored) |
-| Special tiles | From their introductions | Whatever the player has unlocked | Whatever the player has unlocked | From their Endless milestones |
+| Special tiles | From their introductions | Whatever the player has unlocked | Whatever the player has unlocked | Rockets and bombs from stage 6, prisms from 10 |
 
 **Daily Challenge.** The day's plan comes from the date alone: one mechanic, or a pair that plays fairly on a
 20-move board (ice with treasure, moss or a colour goal; treasure with moss or a colour goal; moss with a colour
@@ -312,14 +371,18 @@ obstacle stands in. Up to two more of the player's obstacles join it, so weekly 
 board: a bot plays 45 moves on the board with and without the mechanics, and the medal scores are multiplied by the
 ratio (0.7× to 1.8×), so a medal takes the same effort. Rewards use the medal scores of the board that was played.
 
-**Endless.** A run starts with the original tiles. Each new stage adds a wave of the mechanics the player has
-unlocked in Endless, more of them together as stages go up: one kind on stages 2–3, two on 4–5, three from 6
-(frozen tiles, chains, moss on free tiles; treasure in place of a tile in an open column). Special tiles appear as
-soon as they are unlocked. Each treasure brought down gives 3 bonus moves (config: endless → treasureBonusMoves).
-Complexity grows through these combinations, not through higher targets.
+**Endless (2.1): the stage journey.** Every run starts with a clean board and walks through the game's mechanics, one
+new thing per stage (config: endless → journey; DESIGN.md §4): 1 warm-up, 2 stones, 3 frozen tiles, 4 a breather
+(+5 moves), 5 chains, 6 rockets and bombs (big groups make them from here; one rocket is placed to try), 7 treasure,
+8 a breather, 9 moss, 10 prisms (one is placed), then from 11 every stage mixes what came before, two kinds at
+first, three from 15 and four from 19, each more densely (amounts grow 8% a stage, up to double), with a breather
+every fourth stage (14, 18, 22...). Mixing stages draw their mechanics, and every wave its cells, from the run's own
+seed, so no two runs are alike. Waves never cover more than a third of the board; stones appear in the middle rows,
+at most one per column and never under treasure. Each treasure brought down gives 3 bonus moves. Stage scores rise
+with the stage: 1,200, 2,800, 4,800, 7,200, 10,000, 13,500, 17,500, 22,000, 27,000, 32,500, then +6,000 each.
 
-**Endless level.** Saved with the player's progress: it starts at 1 and goes up by one for every stage reached in any
-Endless run. It unlocks mechanics at these levels (config: endless → mechanics): frozen tiles 5, rockets 10, thick
-ice 12, bombs 15, chains 20, prisms 25, treasure 30, moss 40. Saves from before Endless levels existed start from the
-player's best stage. The first time a mechanic appears outside the campaign without having been taught, its tutorial
-card is shown (tutorials are shared by every mode; Weekly Rush never shows one, as its clock is running).
+**Endless level.** Still saved with the player's progress: it starts at 1 and goes up by one for every stage reached in
+any run. It no longer unlocks anything (the journey replaced the old Endless milestones); the mode card and the result
+show the best stage and what the next stages bring. The first time a mechanic appears outside the campaign without
+having been taught, its tutorial card is shown (tutorials are shared by every mode; Weekly Rush never shows one, as its
+clock is running).

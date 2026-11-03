@@ -34,6 +34,8 @@ namespace ColourCascade.Core
         PowerUp = 2,
         /// <summary>A special tile was tapped (costs a move).</summary>
         Special = 3,
+        /// <summary>The end of the level: specials left on the board went off (no move charged; docs/MECHANICS.md §4.4).</summary>
+        Finale = 4,
     }
 
     public struct ClearedTile
@@ -72,8 +74,8 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Something a new Endless stage added to the board: an obstacle on an existing tile, or treasure placed in a
-    /// tile's cell (that tile, ReplacedTileId, leaves the board).
+    /// Something a new Endless stage added to the board: an obstacle on an existing tile, or treasure, a stone or a
+    /// special tile placed in a tile's cell (that tile, ReplacedTileId, leaves the board).
     /// </summary>
     public struct TileChange
     {
@@ -82,6 +84,10 @@ namespace ColourCascade.Core
         public ObstacleKind Obstacle;
         public int Strength;
         public bool IsTreasure;
+        /// <summary>The tile in that cell became a stone (Endless stages).</summary>
+        public bool IsStone;
+        /// <summary>A special tile was placed in that cell (Endless: the first rocket and prism of a run), or None.</summary>
+        public SpecialKind Special;
         public int ReplacedTileId;
     }
 
@@ -161,6 +167,8 @@ namespace ColourCascade.Core
         public bool GoalsChanged;
         /// <summary>Campaign: this action completed the level's last goal. The level is now passed and play goes on.</summary>
         public bool JustPassed;
+        /// <summary>The moves ran out with specials on the board: call PuzzleSession.RunFinale to set them off.</summary>
+        public bool FinalePending;
         /// <summary>A group clear earned a special tile (see Created).</summary>
         public bool HasCreated;
         public SpecialCreated Created;
@@ -199,6 +207,7 @@ namespace ColourCascade.Core
             UsedTrial = false;
             GoalsChanged = false;
             JustPassed = false;
+            FinalePending = false;
             HasCreated = false;
             Created = default;
             SpecialsFired.Clear();

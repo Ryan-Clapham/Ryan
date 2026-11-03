@@ -17,14 +17,18 @@ namespace ColourCascade.Tests
         const ulong ExpectedOpeningLevels = 6328615708927920260UL;
         const ulong ExpectedOpeningPlay = 8421993498075673067UL;
         // Levels 1-60 and seeded games on 1-40: re-recorded when the campaign mechanics arrived (phase 2), when levels 21+
-        // got more mixed goals and less spare room (cross-mode update), and when stars were recalibrated for playing on
-        // after the goals and levels 21+ got special-tile objectives (docs/DESIGN.md §3.2). Each deliberately changed
-        // levels 21 and up only. The pre-overhaul values were 16043548939747815137 and 15566285578730975039; before the
-        // play-on update, 15906189200241180985 and 5795225104261133210.
-        const ulong ExpectedCampaignLevels = 8601877286259485673UL;
-        const ulong ExpectedSeededPlay = 14890508832734008440UL;
-        const ulong ExpectedChallengeModes = 318364672465816974UL;
-        const ulong ExpectedScriptedPowerUps = 2022348128171972134UL;
+        // got more mixed goals and less spare room (cross-mode update), when stars were recalibrated for playing on after
+        // the goals (play-on update), and for update 2.1 (specials score 50 a tile and break stones, 4 x 4 bombs, the
+        // end-of-level finale, obstacle showcases). Each deliberately changed levels 21 and up only. Earlier values:
+        // pre-overhaul 16043548939747815137 / 15566285578730975039; before play-on 15906189200241180985 /
+        // 5795225104261133210; before 2.1 8601877286259485673 / 14890508832734008440.
+        const ulong ExpectedCampaignLevels = 11215332883839779233UL;
+        const ulong ExpectedSeededPlay = 3186517301294407716UL;
+        // Endless, Daily and Rush: re-recorded for 2.1 because Endless runs now walk the stage journey (Daily and Weekly
+        // boards for a player with nothing unlocked were checked to play exactly as before). Before 2.1: 318364672465816974.
+        const ulong ExpectedChallengeModes = 6941777045657669987UL;
+        // Scripted power-ups: re-recorded for 2.1 because a stone broken by Tile Breaker now scores 100. Before: 2022348128171972134.
+        const ulong ExpectedScriptedPowerUps = 13805293097089027243UL;
 
         static ulong Mix(ulong h, long v) => StableHash.Combine(h, unchecked((ulong)v));
         static ulong Mix(ulong h, string s) => StableHash.Combine(h, StableHash.Of(s ?? ""));

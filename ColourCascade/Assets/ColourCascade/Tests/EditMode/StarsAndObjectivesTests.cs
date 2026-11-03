@@ -74,6 +74,7 @@ namespace ColourCascade.Tests
                         }
                     }
                 }
+                if (s.FinalePending) s.RunFinale(o);
                 if (!sawPass) continue;
                 Assert.AreEqual(SessionState.Won, s.State);
                 Assert.AreEqual(0, s.MovesLeft, "the planner, like a player chasing stars, used every move");

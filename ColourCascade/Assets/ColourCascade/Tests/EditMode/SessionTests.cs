@@ -195,8 +195,13 @@ namespace ColourCascade.Tests
                         Assert.IsTrue(Bots.Choose(s.Board, BotKind.Casual, rng, finder, groups, out var pick));
                         Assert.IsTrue(s.TryPlay(pick, o));
                         TestUtil.AssertBoardInvariants(s.Board, spec.Layout);
-                        Assert.AreEqual(stones, s.Board.CountType(CellType.Stone), "matching never removes stones");
+                        int now = s.Board.CountType(CellType.Stone);
+                        // Matching never removes stones; only a special's blast can (docs/MECHANICS.md §2.6).
+                        if (o.SpecialsFired.Count == 0) Assert.AreEqual(stones, now, "matching never removes stones");
+                        Assert.LessOrEqual(now, stones, "stones never appear");
+                        stones = now;
                     }
+                    if (s.FinalePending) s.RunFinale(o);
                     Assert.IsTrue(s.IsOver);
                 }
             }
@@ -321,7 +326,8 @@ namespace ColourCascade.Tests
             Assert.IsTrue(r.Ok);
             Assert.IsTrue(r.Outcome.Cleared[0].WasStone);
             Assert.AreEqual(CellType.Colour, s.Board[2, 2].Type, "the freed cell refills");
-            Assert.AreEqual(0, s.Score, "breaking stones scores nothing");
+            Assert.AreEqual(s.Scoring.stonePoints, s.Score, "a stone destroyed scores its points");
+            Assert.AreEqual(s.Scoring.stonePoints, s.Breakdown.Stones);
         }
 
         [Test]

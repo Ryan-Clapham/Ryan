@@ -152,12 +152,18 @@ namespace ColourCascade.Core
         public int MovesLeft;
         /// <summary>Campaign: every goal was met at some point (the level was passed).</summary>
         public bool Passed;
+        /// <summary>Where the score came from (the spare-move bonus is LeftoverBonus).</summary>
+        public ScoreBreakdown Breakdown = new ScoreBreakdown();
+        /// <summary>First win of a power-up's introduction: the power-up, and how many unused free uses were kept.</summary>
+        public PowerUpDefinition KeptPowerUp;
+        public int KeptPowerUps;
         public int Stage;
         public string PeriodKey = "";
         /// <summary>Endless: the player's Endless level before and after this run, and mechanics it unlocked.</summary>
         public int EndlessLevelBefore;
         public int EndlessLevel;
-        public MechanicSet NewUnlocks;
+        /// <summary>Endless: the best stage before this run (a higher Stage is a new best).</summary>
+        public int BestStageBefore;
         public RewardSummary Rewards = new RewardSummary();
     }
 
@@ -270,14 +276,15 @@ namespace ColourCascade.Core
         public MechanicSet CampaignMechanics => Mechanics.FromCampaign(Campaign.HighestUnlocked, Catalog.Schedule);
 
         /// <summary>Mechanics unlocked in Endless by the player's Endless level.</summary>
-        public MechanicSet EndlessMechanics => Mechanics.FromEndless(Data.Endless.Level, Config.Endless.mechanics);
 
         /// <summary>Every Endless run gets a brand-new seed, so no two runs start with the same board. It starts with the
         /// original tiles; each new stage adds the mechanics unlocked in Endless.</summary>
         public SessionSetup CreateEndlessRun()
         {
             var e = Config.Endless;
-            var pool = EndlessMechanics;
+            // Every run walks the Endless journey (docs/DESIGN.md §4): its stages bring stones, ice, chains, specials,
+            // treasure and moss in turn, then mix them. The board starts clean.
+            var pool = Mechanics.EndlessObstacles | MechanicSet.Rockets | MechanicSet.Bombs | MechanicSet.Prisms;
             var spec = new LevelSpec
             {
                 Id = "endless",
@@ -289,7 +296,7 @@ namespace ColourCascade.Core
                 Moves = Math.Max(1, e.startMoves),
                 Note = "Big groups earn extra moves",
                 Pool = pool,
-                Specials = Mechanics.Tier(pool),
+                Specials = EndlessJourney.SpecialsAt(1, e.journey),
             };
             return new SessionSetup { Mode = GameMode.Endless, Level = spec, Scoring = Config.Scoring, Endless = e, BoardSeed = FreshSeed() };
         }
@@ -324,6 +331,7 @@ namespace ColourCascade.Core
         {
             if (session != null && session.Mode == GameMode.Campaign && !session.IsOver && session.MovesMade > 0)
                 Campaign.RecordAttempt(session.Level.Number, session.Score);
+            PowerUpUse.ClearRunLoans();
             Activity.EndRun();
             Save();
         }
@@ -335,6 +343,9 @@ namespace ColourCascade.Core
         /// </summary>
         public RunResult FinishRun(PuzzleSession s)
         {
+            // Specials left on the board go off before a result is recorded (the game screen runs this itself to
+            // animate it; this is the safety net).
+            if (s != null && s.FinalePending) s.RunFinale(new MoveOutcome());
             if (s == null || !s.IsOver) throw new InvalidOperationException("Run has not ended");
             var key = Tuple.Create(s, s.State, s.MovesMade, s.PowerUpsUsed);
             if (lastFinishedKey != null && lastFinishedKey.Equals(key)) return lastFinishedResult;
@@ -355,6 +366,7 @@ namespace ColourCascade.Core
                 MovesMade = s.MovesMade,
                 MovesLeft = s.MovesLeft,
                 Passed = s.Passed,
+                Breakdown = s.Breakdown.Clone(),
                 Stage = s.Stage,
             };
 
@@ -373,6 +385,13 @@ namespace ColourCascade.Core
                         r.NewBest = win.NewBest;
                         r.UnlockedNext = win.UnlockedNext;
                         r.Rewards = Rewards.ForCampaignWin(level, r.Stars);
+                        // A power-up's introduction: unused free uses are kept on the first win only (replays lend them).
+                        var intro = PowerUps.IntroducedAt(level.Number);
+                        if (intro != null)
+                        {
+                            r.KeptPowerUp = intro;
+                            r.KeptPowerUps = Rewards.KeepTutorialPowerUps(intro, PowerUpUse.Lent(intro.id), Inventory);
+                        }
                     }
                     else
                     {
@@ -428,18 +447,23 @@ namespace ColourCascade.Core
                         }
                         if (s.BiggestGroup > e.BestGroup) e.BestGroup = s.BiggestGroup;
                         if (s.MovesMade > e.BestMoves) e.BestMoves = s.MovesMade;
+                        r.BestStageBefore = e.BestStage;
                         if (s.Stage > e.BestStage) e.BestStage = s.Stage;
-                        // Endless progression: one level for every stage reached this run, unlocking mechanics.
-                        var before = EndlessMechanics;
+                        // Lifetime progress: one Endless level for every stage reached in any run (kept from earlier
+                        // versions; mechanics now arrive with the stages of each run instead).
                         r.EndlessLevelBefore = e.Level;
                         e.Level = Math.Max(1, e.Level) + Math.Max(0, s.Stage - 1);
                         r.EndlessLevel = e.Level;
-                        r.NewUnlocks = EndlessMechanics & ~before;
                         r.Rewards = Rewards.ForEndless(s.Score);
                         break;
                     }
             }
 
+            // The run is over: free uses lent for it never outlive it (the next level's bar shows only real ones). A
+            // campaign level that ran out of moves can still be revived with Extra Moves, so its loan waits until the
+            // player leaves (AbandonRun / the next run).
+            bool revivable = s.Mode == GameMode.Campaign && s.State == SessionState.Failed && s.EndReason == EndReason.OutOfMoves;
+            if (!revivable) PowerUpUse.ClearRunLoans();
             Activity.EndRun();
             Save();
             lastFinishedKey = key;
@@ -475,9 +499,9 @@ namespace ColourCascade.Core
 
         /// <summary>
         /// Starts a campaign attempt's power-up demonstration: if a power-up is introduced at this level, its free uses
-        /// are lent for this run only, on every attempt (first play, retry or replay, also after the game was closed).
-        /// They are never saved or added to the inventory, so replaying can't collect them. Clears any earlier loan.
-        /// Returns the power-up introduced here, or null.
+        /// are lent for this run, on every attempt (first play, retry or replay, also after the game was closed). They
+        /// are never saved; the ones left unused are kept in the inventory only on the level's first win (FinishRun),
+        /// so replaying can't collect them. Clears any earlier loan. Returns the power-up introduced here, or null.
         /// </summary>
         public PowerUpDefinition LendIntroPowerUpFor(int level)
         {

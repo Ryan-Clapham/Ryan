@@ -54,6 +54,8 @@ namespace ColourCascade.Core
         public int mossPoints = 100;
         /// <summary>Points for each treasure collected.</summary>
         public int treasurePoints = 500;
+        /// <summary>Points for each stone destroyed (by a rocket, a bomb or Tile Breaker; docs/MECHANICS.md §2.6).</summary>
+        public int stonePoints = 100;
         /// <summary>Group sizes that earn special tiles, and the points specials score (campaign only).</summary>
         public SpecialRules specials = new SpecialRules();
         public int praiseGoodSize = 5;
@@ -185,13 +187,19 @@ namespace ColourCascade.Core
         /// <summary>Clearing a group at least this big earns the matching number of bonus moves.</summary>
         public int[] bonusGroupSizes = { 6, 9, 13 };
         public int[] bonusMoves = { 1, 2, 3 };
-        /// <summary>Score needed to reach each stage (index 0 = stage 1).</summary>
-        public int[] stageScores = { 0, 2000, 5000, 10000, 17000, 26000, 38000 };
-        public int stageScoreStepAfter = 15000;
+        /// <summary>
+        /// Score needed to reach each stage (index 0 = stage 1). The gaps widen as stages rise. Tuned so a relaxed
+        /// player's run reaches about stage 6 and a strong one 10-12, through the journey's introductions
+        /// (docs/DESIGN.md §4; it was 2,000 / 5,000 / 10,000 / 17,000 / 26,000 / 38,000, +15,000, when runs stopped
+        /// around stage 4-5).
+        /// </summary>
+        public int[] stageScores = { 0, 1200, 2800, 4800, 7200, 10000, 13500, 17500, 22000, 27000, 32500 };
+        public int stageScoreStepAfter = 6000;
         /// <summary>Colours in play for each stage; the last entry applies to all later stages.</summary>
-        public int[] stageColours = { 4, 4, 5, 5, 5, 6, 6 };
-        /// <summary>When each tile mechanic joins Endless, by Endless level (one level per stage reached in any run).</summary>
-        public EndlessMilestones mechanics = new EndlessMilestones();
+        /// <summary>Colours stay at five while the journey introduces things (stages 4-11); six from stage 12.</summary>
+        public int[] stageColours = { 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 6 };
+        /// <summary>What each stage of a run brings: one new mechanic at a time, breathers, then mixes (docs/DESIGN.md §4).</summary>
+        public EndlessJourneyConfig journey = new EndlessJourneyConfig();
         /// <summary>Bonus moves for each treasure brought down in Endless.</summary>
         public int treasureBonusMoves = 3;
         /// <summary>One-time coin rewards for reaching these run scores for the first time ever.</summary>

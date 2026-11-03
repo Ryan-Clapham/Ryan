@@ -735,8 +735,9 @@ namespace ColourCascade.App
                 {
                     var add = a;
                     var fxPos = CellInFx(add.Pos);
-                    if (add.IsTreasure)
+                    if (add.IsTreasure || add.IsStone || add.Special != SpecialKind.None)
                     {
+                        // Something new takes a tile's place: treasure, a stone or a special (Endless stages).
                         TileView old;
                         if (views.TryGetValue(add.ReplacedTileId, out old))
                         {
@@ -744,7 +745,9 @@ namespace ColourCascade.App
                             var gone = old;
                             Tw.Scale(gone.Rt, 0f, 0.15f, Ease.InQuad, at).OnComplete(() => Recycle(gone));
                         }
-                        var t = new Tile { Type = CellType.Treasure, Id = add.TileId, Colour = -1 };
+                        var t = add.IsTreasure ? new Tile { Type = CellType.Treasure, Id = add.TileId, Colour = -1 }
+                              : add.IsStone ? new Tile { Type = CellType.Stone, Id = add.TileId, Colour = -1 }
+                              : new Tile { Type = CellType.Special, Special = add.Special, Id = add.TileId, Colour = -1 };
                         var v = CreateView(t, add.Pos);
                         v.Rt.localScale = Vector3.zero;
                         Tw.Scale(v.Rt, 1f, 0.35f, Ease.OutBackStrong, at + 0.12f);
@@ -842,7 +845,7 @@ namespace ColourCascade.App
                 if (bomb)
                 {
                     bool doubleBomb = sf.Kind == SpecialKind.Bomb && sf.ComboWith == SpecialKind.Bomb;
-                    Fx.Ring(origin, new Color(1f, 0.55f, 0.35f, 1f), cell * (doubleBomb ? 6.5f : 4f));
+                    Fx.Ring(origin, new Color(1f, 0.55f, 0.35f, 1f), cell * (doubleBomb ? 7.5f : 5.2f));
                     Fx.Burst(origin, gold, 14, cell * 6f, ArtNames.ParticleSpark, cell * 0.25f);
                 }
             }, this);

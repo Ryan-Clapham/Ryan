@@ -72,11 +72,12 @@ namespace ColourCascade.App
             var stars = StarRow.Create(body, 150, 18, true);
             stars.Layout(preferredHeight: 200);
             float t = stars.Reveal(result.Stars, 0.35f, App.GlobalFx);
-            string caption = result.LeftoverBonus > 0
-                ? NumberFormat.Thousands(result.Score) + " + " + NumberFormat.Thousands(result.LeftoverBonus) + " bonus for " + result.MovesLeft + (result.MovesLeft == 1 ? " spare move" : " spare moves")
-                : "Final score";
-            ScoreBlock(result.FinalScore, caption, t);
+            ScoreBlock(result.FinalScore, "Final score", t);
+            // Where the points came from, the spare-move bonus as its own line (docs/MECHANICS.md §5).
+            Breakdown(t);
             if (result.NewBest) Badge("New best score!", Theme.Gold);
+            if (result.KeptPowerUps > 0 && result.KeptPowerUp != null)
+                Badge("Kept " + result.KeptPowerUps + " free " + result.KeptPowerUp.displayName + (result.KeptPowerUps == 1 ? "" : "s"), Theme.Teal);
             // Every star's requirement, ticked, with the real result against it, and why the next star was missed.
             StarList(t);
             string why = StarChecklist.WhyNotNext(level, result.FinalScore, result.Stars, result.EndReason == EndReason.FinishedEarly, result.MovesLeft);
@@ -144,6 +145,10 @@ namespace ColourCascade.App
             var block = Ctx.PowerUpUse.CanSelect(session, PowerUpId.ExtraMoves);
             if (def != null && (block == UseBlock.None || block == UseBlock.NoneOwned))
             {
+                // The player's coins, before they decide (the counter follows the wallet, so a purchase shows at once).
+                coins = CoinCounter.Create(Content, null, 80);
+                ((RectTransform)coins.transform).Place(new Vector2(0.5f, 1), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(250, 80));
+                coins.Show(Ctx.Wallet.Balance);
                 bool owned = block == UseBlock.None;
                 var check = Ctx.Shop.Check(PowerUpId.ExtraMoves);
                 string label = owned ? "Use Extra Moves (+" + def.amount + ")" : "+" + def.amount + " moves for " + NumberFormat.Thousands(def.price);
@@ -190,9 +195,13 @@ namespace ColourCascade.App
             ScoreBlock(result.Score, result.NewBest ? "" : "Best " + NumberFormat.Thousands(Mathf.Max(result.PreviousBest, result.Score)), 0.1f);
             if (result.NewBest) Badge("New personal best!", Theme.Gold);
             StatsRow(("Moves", result.MovesMade.ToString()), ("Biggest group", result.BiggestGroup.ToString()), ("Stage", result.Stage.ToString()));
-            // Endless progression: one level per stage reached; levels unlock tile mechanics for future runs.
-            if (result.EndlessLevel > result.EndlessLevelBefore) Badge("Endless level " + result.EndlessLevel + "  (+" + (result.EndlessLevel - result.EndlessLevelBefore) + ")", Theme.Teal);
-            if (result.NewUnlocks != MechanicSet.None) Badge("New in Endless: " + Mechanics.Names(result.NewUnlocks) + "!", Theme.Gold);
+            // The journey: how far this run got, and the stage it reached.
+            var plan = EndlessJourney.For(result.Stage, Ctx.Config.Endless.journey);
+            if (result.Stage > result.BestStageBefore && result.BestStageBefore > 0) Badge("New best: stage " + result.Stage + " (" + plan.Title + ")", Theme.Gold);
+            else Badge("Reached stage " + result.Stage + ": " + plan.Title, Theme.Teal);
+            MechanicSet next;
+            int nextAt = EndlessJourney.NextIntroduction(result.Stage, Ctx.Config.Endless.journey, out next);
+            if (nextAt > 0) Para("Stage " + nextAt + " brings " + JourneyNames(next) + ". Big groups earn moves to get there.", Theme.FontSmall);
             Rewards(0.6f);
             FooterButton("Play Again", ButtonStyle.Primary, () =>
             {
@@ -271,7 +280,8 @@ namespace ColourCascade.App
         {
             var items = StarChecklist.For(result.Level, session != null ? session.Goals : null, result.Passed, result.FinalScore, result.Stars);
             var list = UI.Rect("StarChecklist", body);
-            bool tip = result.Stars < 3;
+            // The line under the list says what the next star needed; the tip only shows when it has nothing to say.
+            bool tip = result.Stars < 3 && StarChecklist.WhyNotNext(result.Level, result.FinalScore, result.Stars, false, 0) == null;
             list.Layout(preferredHeight: items.Count * 64 + 6 + (tip ? 64 : 0));
             UI.VStack(list, 4);
             foreach (var item in items)
@@ -306,6 +316,59 @@ namespace ColourCascade.App
             }
             list.localScale = new Vector3(1f, 0f, 1f);
             Tw.Scale(list, 1f, 0.3f, Ease.OutCubic, delay + 0.1f);
+        }
+
+        /// <summary>The score broken down by source, two to a row, only the lines that scored.</summary>
+        void Breakdown(float delay)
+        {
+            var b = result.Breakdown;
+            if (b == null) return;
+            var lines = new System.Collections.Generic.List<(string label, int points)>();
+            void Line(string label, int points)
+            {
+                if (points > 0) lines.Add((label, points));
+            }
+            Line("Groups", b.Groups);
+            Line("Special tiles", b.Specials);
+            Line("Combo bonus", b.ComboBonus);
+            Line("Power-ups", b.PowerUps);
+            Line("Ice, chains, moss", b.Obstacles);
+            Line("Stones", b.Stones);
+            Line("Treasure", b.Treasure);
+            Line("Specials at the end", b.Finale);
+            Line("Spare moves (" + result.MovesLeft + ")", result.LeftoverBonus);
+            if (lines.Count == 0) return;
+            int rows = (lines.Count + 1) / 2;
+            var grid = UI.Rect("Breakdown", body);
+            grid.Layout(preferredHeight: rows * 52 + (rows - 1) * 6);
+            UI.VStack(grid, 6);
+            for (int r = 0; r < rows; r++)
+            {
+                var row = UI.Rect("Row" + r, grid);
+                row.Layout(preferredHeight: 52);
+                UI.HStack(row, 10);
+                for (int k = 0; k < 2; k++)
+                {
+                    int i = r * 2 + k;
+                    var cell = UI.Rect("Cell" + k, row);
+                    if (i >= lines.Count) continue;
+                    UI.Rounded(cell, new Color(0, 0, 0, 0.2f), 24, "Bg").rectTransform.Fill();
+                    var label = UI.FitText(cell, lines[i].label, Theme.FontSmall - 6, Theme.TextSecondary, TextAnchor.MiddleLeft, true, "Label");
+                    label.rectTransform.Fill(20, 0, 130, 0);
+                    var value = UI.FitText(cell, NumberFormat.Thousands(lines[i].points), Theme.FontSmall - 4, Theme.Text, TextAnchor.MiddleRight, true, "Value");
+                    value.rectTransform.Fill(0, 0, 18, 0);
+                    value.rectTransform.anchorMin = new Vector2(1, 0);
+                    value.rectTransform.offsetMin = new Vector2(-130, 0);
+                }
+            }
+            grid.localScale = new Vector3(1f, 0f, 1f);
+            Tw.Scale(grid, 1f, 0.3f, Ease.OutCubic, delay);
+        }
+
+        static string JourneyNames(MechanicSet set)
+        {
+            if (set.Has(MechanicSet.Rockets) || set.Has(MechanicSet.Bombs)) return "rockets and bombs";
+            return Mechanics.Names(set);
         }
 
         void Para(string text, int fontSize = Theme.FontBody - 2)

@@ -90,7 +90,7 @@ namespace ColourCascade.Tests
                         Assert.IsTrue(o.Cleared.All(c => c.Pos.Row == 2), at);
                         break;
                     case Kind.Bombs:
-                        Assert.AreEqual(8, o.Cleared.Count, at);
+                        Assert.AreEqual(15, o.Cleared.Count, at);
                         break;
                     case Kind.Prisms:
                         Assert.IsTrue(o.Cleared.Count > 0 && o.Cleared.All(c => c.Colour == 1), at);
@@ -165,20 +165,52 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void EndlessMilestonesAreConfigurable()
+        public void TheEndlessJourneyBringsOneThingPerStage()
         {
-            var m = new EndlessMilestones();
-            Assert.AreEqual(new[] { 5, 10, 15, 20, 25, 30, 40 }, new[] { m.iceAtLevel, m.rocketsAtLevel, m.bombsAtLevel, m.chainsAtLevel, m.prismsAtLevel, m.treasureAtLevel, m.mossAtLevel });
-            Assert.AreEqual(MechanicSet.None, Mechanics.FromEndless(4, m), "Endless starts with the original tiles");
-            Assert.AreEqual(MechanicSet.Ice, Mechanics.FromEndless(5, m));
-            Assert.IsTrue(Mechanics.FromEndless(20, m).Has(MechanicSet.Chains));
-            Assert.IsFalse(Mechanics.FromEndless(20, m).Has(MechanicSet.Prisms));
-            Assert.AreEqual(MechanicSet.All & ~MechanicSet.ColourGoals, Mechanics.FromEndless(40, m));
-            Assert.AreEqual(MechanicSet.Rockets, Mechanics.NextEndlessUnlock(5, m, out int at));
-            Assert.AreEqual(10, at);
-            m.iceAtLevel = 2;
-            m.mossAtLevel = 3;
-            Assert.IsTrue(Mechanics.FromEndless(3, m).Has(MechanicSet.Moss), "milestones come from the config");
+            var j = new EndlessJourneyConfig();
+            var expected = new[]
+            {
+                (1, EndlessStep.WarmUp, MechanicSet.None), (2, EndlessStep.Introduce, MechanicSet.Stones), (3, EndlessStep.Introduce, MechanicSet.Ice),
+                (4, EndlessStep.Breather, MechanicSet.None), (5, EndlessStep.Introduce, MechanicSet.Chains),
+                (6, EndlessStep.Introduce, MechanicSet.Rockets | MechanicSet.Bombs), (7, EndlessStep.Introduce, MechanicSet.Treasure),
+                (8, EndlessStep.Breather, MechanicSet.None), (9, EndlessStep.Introduce, MechanicSet.Moss), (10, EndlessStep.Introduce, MechanicSet.Prisms),
+            };
+            foreach (var (stage, step, what) in expected)
+            {
+                var plan = EndlessJourney.For(stage, j);
+                Assert.AreEqual(step, plan.Step, "stage " + stage);
+                if (step == EndlessStep.Introduce) Assert.AreEqual(what, plan.Mechanics, "stage " + stage);
+                Assert.IsFalse(string.IsNullOrEmpty(plan.Title), "stage " + stage + " says what it is");
+            }
+            Assert.AreEqual(SpecialTier.None, EndlessJourney.SpecialsAt(5, j), "no specials before they are introduced");
+            Assert.AreEqual(SpecialTier.Bombs, EndlessJourney.SpecialsAt(6, j));
+            Assert.AreEqual(SpecialTier.Prisms, EndlessJourney.SpecialsAt(10, j));
+            Assert.Greater(EndlessJourney.For(4, j).BonusMoves, 0, "a breather gives moves");
+
+            // From 11 every stage mixes what came before: more kinds and more of each as stages rise, a breather every 4.
+            int lastKinds = 0, lastDensity = 0;
+            for (int stage = 11; stage <= 30; stage++)
+            {
+                var plan = EndlessJourney.For(stage, j);
+                if (plan.Step == EndlessStep.Breather) continue;
+                Assert.AreEqual(EndlessStep.Mix, plan.Step, "stage " + stage);
+                Assert.GreaterOrEqual(plan.Kinds, 2);
+                Assert.GreaterOrEqual(plan.Kinds, lastKinds);
+                Assert.GreaterOrEqual(plan.DensityPercent, lastDensity);
+                Assert.IsTrue((plan.Mechanics & ~(Mechanics.EndlessObstacles)) == MechanicSet.None);
+                lastKinds = plan.Kinds;
+                lastDensity = plan.DensityPercent;
+            }
+            Assert.AreEqual(EndlessStep.Breather, EndlessJourney.For(14, j).Step);
+            Assert.AreEqual(EndlessStep.Breather, EndlessJourney.For(18, j).Step);
+            Assert.AreEqual(4, EndlessJourney.For(23, j).Kinds);
+            Assert.AreEqual(5, EndlessJourney.NextIntroduction(3, j, out var next));
+            Assert.AreEqual(MechanicSet.Chains, next);
+            Assert.AreEqual(0, EndlessJourney.NextIntroduction(10, j, out _), "everything has arrived by stage 10");
+
+            j.iceAt = 2;
+            j.stonesAt = 3;
+            Assert.AreEqual(MechanicSet.Ice, EndlessJourney.For(2, j).Mechanics, "the order comes from the config");
         }
 
         // ------------------------------------------------------------------ Daily Challenge
@@ -344,86 +376,122 @@ namespace ColourCascade.Tests
             var w = ctx.CreateWeeklyRun().Level;
             Assert.AreEqual(MechanicSet.None, OnBoard(w.Layout));
             Assert.AreEqual(ctx.Config.Rush.tierScores[0], w.Target);
+            // Endless no longer waits for unlocks: every run starts plain and its stages bring the mechanics in turn
+            // (docs/DESIGN.md §4).
             var e = ctx.CreateEndlessRun().Level;
-            Assert.AreEqual(MechanicSet.None, e.Pool);
-            Assert.AreEqual(SpecialTier.None, e.Specials);
+            Assert.IsFalse(e.Layout.HasObstacles);
+            Assert.AreEqual(SpecialTier.None, e.Specials, "no specials until the journey brings them");
         }
 
         // ------------------------------------------------------------------ Endless
 
         [Test]
-        public void EndlessProgressionIsSavedAndUnlocksMechanics()
+        public void EndlessProgressIsSaved()
         {
             var store = new MemorySaveStorage();
             var ctx = TestUtil.Context(null, store);
             Assert.AreEqual(1, ctx.Data.Endless.Level);
-            int runs = 0;
-            while (ctx.Data.Endless.Level < 5 && runs < 20)
+            int best = 0;
+            for (int run = 0; run < 3; run++)
             {
                 var setup = ctx.CreateEndlessRun();
-                setup.BoardSeed = (ulong)(runs + 1);
+                setup.BoardSeed = (ulong)(run + 1);
                 var s = new PuzzleSession(setup);
                 s.Start();
                 ctx.BeginRun(s);
-                Bots.PlayOut(s, BotKind.Greedy, new Rng((ulong)runs), 2000);
+                Bots.PlayOut(s, BotKind.Greedy, new Rng((ulong)run), 2000);
                 int before = ctx.Data.Endless.Level;
                 var r = ctx.FinishRun(s);
-                Assert.AreEqual(before + s.Stage - 1, ctx.Data.Endless.Level, "one level per stage reached");
-                Assert.AreEqual(before, r.EndlessLevelBefore);
-                if (before < 5 && r.EndlessLevel >= 5) Assert.IsTrue(r.NewUnlocks.Has(MechanicSet.Ice), "frozen tiles unlock at level 5");
-                runs++;
+                Assert.AreEqual(before + s.Stage - 1, ctx.Data.Endless.Level, "one Endless level per stage reached");
+                Assert.AreEqual(best, r.BestStageBefore);
+                best = System.Math.Max(best, s.Stage);
+                Assert.AreEqual(best, ctx.Data.Endless.BestStage);
             }
-            Assert.GreaterOrEqual(ctx.Data.Endless.Level, 5);
-            Assert.IsTrue(ctx.CreateEndlessRun().Level.Pool.Has(MechanicSet.Ice));
+            Assert.GreaterOrEqual(best, 3, "a greedy player gets a few stages in");
             Assert.IsTrue(ctx.Save());
             var reloaded = TestUtil.Context(null, store);
             Assert.AreEqual(ctx.Data.Endless.Level, reloaded.Data.Endless.Level, "the Endless level survives a restart");
-            Assert.IsTrue(reloaded.EndlessMechanics.Has(MechanicSet.Ice));
+            Assert.AreEqual(best, reloaded.Data.Endless.BestStage);
         }
 
         [Test]
-        public void EndlessStagesAddCombinationsOfUnlockedMechanics()
+        public void EndlessStagesBringTheJourney()
         {
-            var e = new EndlessConfig();
-            int waves = 0, maxKinds = 0, treasure = 0;
-            for (ulong seed = 1; seed <= 12; seed++)
+            var ctx = TestUtil.Context();
+            var j = ctx.Config.Endless.journey;
+            // Long runs, so every seed gets well into the mixing stages.
+            ctx.Config.Endless.startMoves = 160;
+            int waves = 0, mixes = 0, maxKinds = 0, stones = 0, breathers = 0;
+            int bestStage = 0;
+            for (ulong seed = 1; seed <= 10; seed++)
             {
-                var spec = new LevelSpec
-                {
-                    Id = "endless", Mode = GameMode.Endless, Layout = LevelLayout.Open(e.columns, e.rows), Colours = e.ColoursForStage(1),
-                    AssistPermille = e.assistPermille, Moves = e.startMoves, Pool = MechanicSet.All & ~MechanicSet.ColourGoals, Specials = SpecialTier.Prisms,
-                };
-                var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Endless, Level = spec, Scoring = new ScoringRules(), Endless = e, BoardSeed = seed });
+                var setup = ctx.CreateEndlessRun();
+                setup.BoardSeed = seed;
+                var s = new PuzzleSession(setup);
                 s.Start();
-                Assert.IsFalse(spec.Layout.HasObstacles, "a run starts with the original tiles");
+                Assert.IsFalse(setup.Level.Layout.HasObstacles, "a run starts with the original tiles");
                 var bot = new PlannerBot();
                 var o = new MoveOutcome();
-                for (int step = 0; step < 400 && s.AcceptsMoves; step++)
+                for (int step = 0; step < 500 && s.AcceptsMoves; step++)
                 {
+                    int stageBefore = s.Stage, movesBefore = s.MovesLeft;
                     bot.Choose(s, out var pick, out var colour);
                     Assert.IsTrue(s.TryPlay(pick, o, colour));
-                    if (!o.StageUp) Assert.AreEqual(0, o.Added.Count, "mechanics only arrive with a new stage");
-                    if (o.Added.Count == 0) continue;
-                    waves++;
-                    var kinds = new HashSet<string>(o.Added.Select(a => a.IsTreasure ? "treasure" : a.Obstacle.ToString()));
-                    Assert.LessOrEqual(kinds.Count, 1 + (s.Stage - 2) / 2, "one kind on stages 2-3, two on 4-5, three from 6");
-                    maxKinds = System.Math.Max(maxKinds, kinds.Count);
-                    treasure += o.Added.Count(a => a.IsTreasure);
-                    foreach (var a in o.Added)
+                    if (o.HasCreated)
                     {
-                        var t = s.Board[Play.Find(s.Board, a.TileId)];
-                        if (a.IsTreasure) Assert.AreEqual(CellType.Treasure, t.Type);
+                        Assert.GreaterOrEqual(s.Stage, j.specialsAt, "specials only once the journey has brought them");
+                        if (o.Created.Kind == SpecialKind.Prism) Assert.GreaterOrEqual(s.Stage, j.prismsAt);
                     }
-                    TestUtil.AssertBoardInvariants(s.Board, spec.Layout);
+                    if (!o.StageUp)
+                    {
+                        Assert.AreEqual(0, o.Added.Count, "things only arrive with a new stage");
+                        continue;
+                    }
+                    for (int st = stageBefore + 1; st <= s.Stage; st++)
+                    {
+                        var plan = EndlessJourney.For(st, j);
+                        if (plan.Step == EndlessStep.Breather) breathers++;
+                        if (plan.Step == EndlessStep.Mix) mixes++;
+                    }
+                    if (s.Stage == stageBefore + 1)
+                    {
+                        var plan = EndlessJourney.For(s.Stage, j);
+                        var kinds = new HashSet<string>(o.Added.Select(a => a.IsTreasure ? "treasure" : a.IsStone ? "stone" : a.Special != SpecialKind.None ? "special" : a.Obstacle.ToString()));
+                        switch (plan.Step)
+                        {
+                            case EndlessStep.Breather:
+                                Assert.AreEqual(0, o.Added.Count, "a breather adds nothing");
+                                Assert.GreaterOrEqual(s.MovesLeft, movesBefore - 1 + plan.BonusMoves, "and gives moves");
+                                break;
+                            case EndlessStep.Introduce:
+                                Assert.LessOrEqual(kinds.Count, 1, "one new thing at a time");
+                                if (plan.Mechanics == MechanicSet.Stones) Assert.IsTrue(kinds.Count == 0 || kinds.Contains("stone"));
+                                if (plan.Mechanics == MechanicSet.Ice) Assert.IsTrue(kinds.Count == 0 || kinds.Contains("Ice"));
+                                if (plan.Mechanics.Has(MechanicSet.Rockets)) Assert.IsTrue(kinds.Count == 0 || kinds.Contains("special"), "the first rocket is placed to try");
+                                break;
+                            case EndlessStep.Mix:
+                                Assert.LessOrEqual(kinds.Count, plan.Kinds);
+                                maxKinds = System.Math.Max(maxKinds, kinds.Count);
+                                break;
+                        }
+                    }
+                    if (o.Added.Count > 0) waves++;
+                    stones += o.Added.Count(a => a.IsStone);
+                    TestUtil.AssertBoardInvariants(s.Board, setup.Level.Layout);
+                    Assert.LessOrEqual(s.Board.CountType(CellType.Stone), s.Board.Width, "never more stones than columns");
                 }
+                bestStage = System.Math.Max(bestStage, s.Stage);
             }
-            TestContext.WriteLine("waves " + waves + ", most kinds in one wave " + maxKinds + ", treasure placed " + treasure);
-            Assert.Greater(waves, 12);
+            TestContext.WriteLine("best stage " + bestStage + ", waves " + waves + ", mixes " + mixes + ", most kinds in a mix " + maxKinds + ", stones placed " + stones + ", breathers " + breathers);
+            Assert.Greater(waves, 10);
+            Assert.Greater(stones, 0, "stones arrive in stage 2");
+            Assert.Greater(breathers, 0);
+            Assert.GreaterOrEqual(bestStage, j.mixFrom, "a thoughtful player reaches the mixing stages");
             Assert.GreaterOrEqual(maxKinds, 2, "later stages combine mechanics");
         }
 
         [Test]
-        public void EndlessWithNothingUnlockedPlaysExactlyAsBefore()
+        public void TheFirstStageOfEndlessIsPlainMatching()
         {
             var ctx = TestUtil.Context();
             var setup = ctx.CreateEndlessRun();
@@ -434,14 +502,15 @@ namespace ColourCascade.Tests
             var rng = new Rng(9);
             var finder = new GroupFinder();
             var groups = new List<GroupInfo>();
-            while (s.AcceptsMoves && s.MovesMade < 300)
+            while (s.AcceptsMoves && s.Stage == 1)
             {
                 Bots.Choose(s.Board, BotKind.Greedy, rng, finder, groups, out var pick);
                 s.TryPlay(pick, o);
+                if (s.Stage > 1) break;
                 Assert.AreEqual(0, o.Added.Count);
-                Assert.IsFalse(o.HasCreated);
+                Assert.IsFalse(o.HasCreated, "no specials in the warm-up");
             }
-            Assert.IsFalse(s.Board.CountObstacle(ObstacleKind.Ice) + s.Board.CountObstacle(ObstacleKind.Chain) + s.Board.CountObstacle(ObstacleKind.Moss) > 0);
+            Assert.AreEqual(SpecialTier.None, setup.Level.Specials);
         }
 
         [Test]

@@ -58,6 +58,8 @@ namespace ColourCascade.Core
         public int SpecialAmount;
         /// <summary>A special tile placed on the board at the start ('-', '|', '*' or '@'), or '\0' for none.</summary>
         public char StartSpecial;
+        /// <summary>The level is played on a board with stone barriers (an obstacle "on stones" combination).</summary>
+        public bool StoneLayout;
         public string TutorialKey = "";
         public string Note = "";
         /// <summary>A practice level straight after an introduction: kept gentle.</summary>
@@ -255,10 +257,18 @@ namespace ColourCascade.Core
                 return r;
             }
             Mechanic? practice = PracticeFocus(n, s);
+            var showcase = Showcase(n, s);
             if (practice.HasValue)
             {
                 r.Practice = true;
                 r.Mechanics.Add(practice.Value);
+            }
+            else if (showcase != null)
+            {
+                // A combination of obstacles met for the first time (docs/DESIGN.md §3.1).
+                r.Mechanics.AddRange(showcase.Value.mechanics);
+                r.StoneLayout = showcase.Value.stones;
+                r.Note = showcase.Value.note;
             }
             else
             {
@@ -280,7 +290,8 @@ namespace ColourCascade.Core
                 // goals about special tiles (make two rockets, set off a bomb, fire a combination) and, a little later,
                 // a score to reach as well. Three goals from the prisms.
                 Add(pool, weights, Mechanic.Specials, n >= s.rocketsFromLevel, Recent(n, s.rocketsFromLevel) ? 30 : 20);
-                Add(pool, weights, Mechanic.Score, n >= s.rocketsFromLevel + 4, 12);
+                // Combined "goals and a score" levels grow more common later on (docs/DESIGN.md §3.3).
+                Add(pool, weights, Mechanic.Score, n >= s.rocketsFromLevel + 4, n < 61 ? 12 : n < 121 ? 18 : 30);
                 int comboChance = n <= s.colourGoalsFromLevel + s.practiceLevels ? 0 : n < s.rocketsFromLevel ? 450 : n < s.bombsFromLevel ? 550 : n < 121 ? 650 : n < 201 ? 700 : 750;
                 if (n % 10 == 0) comboChance += 300;
                 if (pool.Count > 1 && rng.ChancePermille(comboChance))
@@ -288,6 +299,10 @@ namespace ColourCascade.Core
                     int i = pool.IndexOf(first);
                     pool.RemoveAt(i);
                     weights.RemoveAt(i);
+                    // Once chains are known, a second obstacle is the likeliest partner, so boards mix obstacles.
+                    if (n > s.chainsFromLevel + s.practiceLevels)
+                        for (int w = 0; w < pool.Count; w++)
+                            if (IsObstacle(pool[w])) weights[w] *= 2;
                     var second = Pick(pool, weights, rng);
                     r.Mechanics.Add(second);
                     int threeChance = n < s.prismsFromLevel ? 0 : n < s.chainsFromLevel ? 100 : n < 121 ? 150 : 250;
@@ -388,6 +403,32 @@ namespace ColourCascade.Core
         }
 
         static bool Recent(int n, int introLevel) => n >= introLevel && n < introLevel + 15;
+
+        static bool IsObstacle(Mechanic m) => m == Mechanic.Ice || m == Mechanic.Chains || m == Mechanic.Treasure || m == Mechanic.Moss;
+
+        /// <summary>
+        /// The levels where combinations of obstacles first appear, one new pairing at a time once both halves have
+        /// been taught and practised (then three together), so mixed boards arrive gradually rather than all at once.
+        /// Stones (the board's barriers, which only rockets and bombs break) count as a partner. Treasure never sits
+        /// on a stone board (it needs open columns).
+        /// </summary>
+        static (Mechanic[] mechanics, bool stones, string note)? Showcase(int n, MechanicSchedule s)
+        {
+            int c = s.chainsFromLevel, t = s.treasureFromLevel, m = s.mossFromLevel;
+            if (n == c + 4) return (new[] { Mechanic.Ice, Mechanic.Chains }, false, "Frozen and chained");
+            if (n == c + 7) return (new[] { Mechanic.Chains }, true, "Chains among the stones");
+            if (n == t + 4) return (new[] { Mechanic.Treasure, Mechanic.Chains }, false, "Treasure and chains");
+            if (n == t + 8) return (new[] { Mechanic.Treasure, Mechanic.Ice }, false, "Treasure under the ice");
+            if (n == m + 4) return (new[] { Mechanic.Moss }, true, "Moss among the stones");
+            if (n == m + 7) return (new[] { Mechanic.Moss, Mechanic.Ice }, false, "Moss and ice");
+            if (n == m + 11) return (new[] { Mechanic.Moss, Mechanic.Chains }, false, "Moss and chains");
+            if (n == m + 14) return (new[] { Mechanic.Treasure, Mechanic.Moss }, false, "Treasure in the moss");
+            if (n == m + 24) return (new[] { Mechanic.Ice, Mechanic.Chains }, true, "Ice, chains and stones");
+            if (n == m + 34) return (new[] { Mechanic.Treasure, Mechanic.Chains, Mechanic.Ice }, false, "Treasure, chains and ice");
+            if (n == m + 44) return (new[] { Mechanic.Moss, Mechanic.Ice, Mechanic.Chains }, false, "Moss, ice and chains");
+            if (n == m + 54) return (new[] { Mechanic.Moss, Mechanic.Chains, Mechanic.Treasure }, false, "Moss, chains and treasure");
+            return null;
+        }
 
         static void Add(List<Mechanic> pool, List<int> weights, Mechanic m, bool unlocked, int weight)
         {
@@ -558,6 +599,7 @@ namespace ColourCascade.Core
                 SpecialKind = r.SpecialKind,
                 SpecialAmount = Math.Max(r.SpecialAmount > 0 ? 1 : 0, r.SpecialAmount * percent / 100),
                 StartSpecial = r.StartSpecial,
+                StoneLayout = r.StoneLayout,
                 TutorialKey = r.TutorialKey,
                 Note = r.Note,
                 Practice = r.Practice,
@@ -577,6 +619,7 @@ namespace ColourCascade.Core
         public static string NoteFor(LevelRecipe r)
         {
             if (r == null || r.Mechanics.Count == 0) return "";
+            if (!string.IsNullOrEmpty(r.Note)) return r.Note;
             var parts = new List<string>();
             foreach (var m in r.Mechanics)
             {

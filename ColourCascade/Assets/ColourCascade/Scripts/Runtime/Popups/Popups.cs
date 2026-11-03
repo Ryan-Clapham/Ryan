@@ -258,13 +258,15 @@ namespace ColourCascade.App
                         title.text = "Endless";
                         badge.color = Theme.Teal;
                         badgeIcon.sprite = ArtLibrary.Instance.Icon(Icon.Infinity);
-                        Para("A fresh board every run and no timer. Each group costs a move, and big groups of 6 or more win bonus moves. How long can you keep the cascade going?");
+                        Para("A fresh board every run and no timer. Each stage brings something new (stones, frozen tiles, chains, specials, treasure, moss) and then mixes them. Big groups of 6 or more win bonus moves.");
                         var e = Ctx.Data.Endless;
                         LevelPopup.InfoRow(body, Icon.Trophy, "Best score", e.BestScore > 0 ? NumberFormat.Thousands(e.BestScore) : "—");
-                        LevelPopup.InfoRow(body, Icon.Star, "Biggest group", e.BestGroup > 0 ? e.BestGroup + " tiles" : "—");
-                        int at;
-                        var next = Mechanics.NextEndlessUnlock(e.Level, Ctx.Config.Endless.mechanics, out at);
-                        LevelPopup.InfoRow(body, Icon.Bolt, "Endless level " + e.Level, next != MechanicSet.None ? "Next: " + Mechanics.Name(next) + " at " + at : "Everything unlocked");
+                        // The journey: every run brings a new mechanic per stage, then mixes them.
+                        var j = Ctx.Config.Endless.journey;
+                        LevelPopup.InfoRow(body, Icon.Bolt, "Best stage", e.BestStage > 0 ? e.BestStage + "  ·  " + EndlessJourney.For(e.BestStage, j).Title : "—");
+                        MechanicSet next;
+                        int nextAt = EndlessJourney.NextIntroduction(Math.Max(1, e.BestStage), j, out next);
+                        LevelPopup.InfoRow(body, Icon.Star, nextAt > 0 ? "Next new thing" : "Every mechanic met", nextAt > 0 ? "Stage " + nextAt + ": " + EndlessJourney.TitleFor(next) : "stages now mix them");
                         LevelPopup.InfoRow(body, Icon.Gift, "Score milestones", "one-time coin rewards");
                         break;
                     }
@@ -362,8 +364,10 @@ namespace ColourCascade.App
             heading.text = replay ? "Power-up practice" : "New Power-up!";
             nameText.text = def.displayName;
             desc.text = def.description;
-            // Lent for this attempt only: unused ones are not kept (docs/DESIGN.md §7).
-            trial.text = def.trialUses == 1 ? "1 free use on this level" : def.trialUses + " free uses on this level";
+            // Lent for this attempt; on the first win the unused ones are kept (docs/DESIGN.md §7).
+            bool settled = Ctx.Rewards.TutorialPowerUpsSettled(def.id);
+            string uses = def.trialUses == 1 ? "1 free use" : def.trialUses + " free uses";
+            trial.text = settled ? uses + " for this attempt" : uses + ": keep any left when you win";
             AudioService.Sfx(SfxNames.Unlock);
             circle.transform.localScale = Vector3.zero;
             Tw.Scale(circle.transform, 1f, 0.5f, Ease.OutBackStrong, 0.15f);

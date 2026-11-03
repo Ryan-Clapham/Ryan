@@ -23,26 +23,18 @@ namespace ColourCascade.Core
         /// <summary>Collect-a-colour goals (campaign and Daily Challenge).</summary>
         ColourGoals = 256,
         All = Ice | ThickIce | Rockets | Bombs | Prisms | Chains | Treasure | Moss | ColourGoals,
-    }
-
-    /// <summary>When each mechanic unlocks in Endless: by the player's Endless level (config: endless → mechanics).</summary>
-    [Serializable]
-    public class EndlessMilestones
-    {
-        public int iceAtLevel = 5;
-        public int rocketsAtLevel = 10;
-        public int thickIceAtLevel = 12;
-        public int bombsAtLevel = 15;
-        public int chainsAtLevel = 20;
-        public int prismsAtLevel = 25;
-        public int treasureAtLevel = 30;
-        public int mossAtLevel = 40;
+        /// <summary>Stone blocks added during play (Endless stages). Not a campaign unlock: campaign boards have stones in
+        /// their layout from level 8, so this is not part of All.</summary>
+        Stones = 512,
     }
 
     public static class Mechanics
     {
         /// <summary>The obstacle-type mechanics, in the order boards add them.</summary>
         public static readonly MechanicSet[] Obstacles = { MechanicSet.Ice, MechanicSet.Chains, MechanicSet.Treasure, MechanicSet.Moss };
+
+        /// <summary>Everything an Endless stage can add to the board.</summary>
+        public const MechanicSet EndlessObstacles = MechanicSet.Stones | MechanicSet.Ice | MechanicSet.ThickIce | MechanicSet.Chains | MechanicSet.Treasure | MechanicSet.Moss;
 
         public static bool Has(this MechanicSet set, MechanicSet m) => (set & m) == m && m != MechanicSet.None;
 
@@ -64,43 +56,6 @@ namespace ColourCascade.Core
             if (highestUnlocked > s.treasureFromLevel) set |= MechanicSet.Treasure;
             if (highestUnlocked > s.mossFromLevel) set |= MechanicSet.Moss;
             return set;
-        }
-
-        /// <summary>Mechanics unlocked in Endless at this Endless level.</summary>
-        public static MechanicSet FromEndless(int endlessLevel, EndlessMilestones m)
-        {
-            var set = MechanicSet.None;
-            if (m == null) return set;
-            if (endlessLevel >= m.iceAtLevel) set |= MechanicSet.Ice;
-            if (endlessLevel >= m.thickIceAtLevel && endlessLevel >= m.iceAtLevel) set |= MechanicSet.ThickIce;
-            if (endlessLevel >= m.rocketsAtLevel) set |= MechanicSet.Rockets;
-            if (endlessLevel >= m.bombsAtLevel) set |= MechanicSet.Bombs;
-            if (endlessLevel >= m.chainsAtLevel) set |= MechanicSet.Chains;
-            if (endlessLevel >= m.prismsAtLevel) set |= MechanicSet.Prisms;
-            if (endlessLevel >= m.treasureAtLevel) set |= MechanicSet.Treasure;
-            if (endlessLevel >= m.mossAtLevel) set |= MechanicSet.Moss;
-            return set;
-        }
-
-        /// <summary>The next Endless unlock after this level (None and 0 when everything is unlocked).</summary>
-        public static MechanicSet NextEndlessUnlock(int endlessLevel, EndlessMilestones m, out int atLevel)
-        {
-            int found = 0;
-            var best = MechanicSet.None;
-            var steps = new[]
-            {
-                (MechanicSet.Ice, m.iceAtLevel), (MechanicSet.Rockets, m.rocketsAtLevel), (MechanicSet.ThickIce, m.thickIceAtLevel),
-                (MechanicSet.Bombs, m.bombsAtLevel), (MechanicSet.Chains, m.chainsAtLevel), (MechanicSet.Prisms, m.prismsAtLevel),
-                (MechanicSet.Treasure, m.treasureAtLevel), (MechanicSet.Moss, m.mossAtLevel),
-            };
-            foreach (var step in steps)
-            {
-                if (step.Item2 <= endlessLevel || (found != 0 && step.Item2 >= found)) continue;
-                found = step.Item2;
-                best = step.Item1;
-            }
-            atLevel = found;
-            return best;
         }
 
         /// <summary>The special tiles big groups create with these mechanics.</summary>
@@ -133,6 +88,7 @@ namespace ColourCascade.Core
                 case MechanicSet.Treasure: return "treasure";
                 case MechanicSet.Moss: return "moss";
                 case MechanicSet.ColourGoals: return "colour goals";
+                case MechanicSet.Stones: return "stones";
                 default: return "";
             }
         }
@@ -141,7 +97,7 @@ namespace ColourCascade.Core
         public static string Names(MechanicSet set, bool includeSpecials = true)
         {
             var parts = new List<string>();
-            foreach (MechanicSet m in new[] { MechanicSet.Ice, MechanicSet.ThickIce, MechanicSet.Chains, MechanicSet.Treasure, MechanicSet.Moss, MechanicSet.Rockets, MechanicSet.Bombs, MechanicSet.Prisms })
+            foreach (MechanicSet m in new[] { MechanicSet.Stones, MechanicSet.Ice, MechanicSet.ThickIce, MechanicSet.Chains, MechanicSet.Treasure, MechanicSet.Moss, MechanicSet.Rockets, MechanicSet.Bombs, MechanicSet.Prisms })
             {
                 if (!set.Has(m)) continue;
                 if (!includeSpecials && (m == MechanicSet.Rockets || m == MechanicSet.Bombs || m == MechanicSet.Prisms)) continue;

@@ -124,7 +124,7 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void ARowRocketHitsEverythingInItsRow()
+        public void ARowRocketHitsEverythingInItsRowAndBreaksStones()
         {
             // Row 1: frozen 0, the rocket, chained 1 (2 links), mossy 2, a stone and a treasure.
             var s = Play.Specials(new[] { "343434", "0-12#$", "434343" }, new[] { "......", "i.2m..", "......" });
@@ -137,25 +137,30 @@ namespace ColourCascade.Tests
             Assert.AreEqual(0, s.GroupsCleared);
             Assert.AreEqual(1, o.SpecialsFired.Count);
             Assert.AreEqual(SpecialKind.RocketRow, o.SpecialsFired[0].Kind);
-            Assert.AreEqual(1, o.Cleared.Count, "only the mossy tile leaves the board");
-            Assert.AreEqual(new GridPos(3, 1), o.Cleared[0].Pos);
+            Assert.AreEqual(2, o.Cleared.Count, "the mossy tile and the stone leave the board");
+            Assert.IsTrue(o.Cleared.Any(c => c.Pos == new GridPos(3, 1) && !c.WasStone));
+            Assert.IsTrue(o.Cleared.Any(c => c.Pos == new GridPos(4, 1) && c.WasStone), "rockets break stones in their path");
             Assert.AreEqual(3, o.ObstacleHits.Count);
             Assert.IsTrue(o.ObstacleHits.Any(h => h.Kind == ObstacleKind.Ice && h.Freed && h.Cause == HitCause.Area));
             Assert.IsTrue(o.ObstacleHits.Any(h => h.Kind == ObstacleKind.Chain && h.StrengthAfter == 1));
             Assert.IsTrue(o.ObstacleHits.Any(h => h.Kind == ObstacleKind.Moss && h.Freed));
-            Assert.AreEqual(CellType.Stone, s.Board[4, 1].Type, "stones stop nothing and are not broken");
-            Assert.AreEqual(treasure, s.Board[5, 1].Id, "treasure is untouched");
-            Assert.AreEqual(20 + 100 + 150 + 100, o.ScoreGained, "one tile at 20, plus ice, chain and moss");
+            Assert.AreEqual(0, s.Board.CountType(CellType.Stone), "the stone is gone and its cell refilled");
+            Assert.IsTrue(Play.CountPieces(s.Board, CellType.Treasure) == 1, "treasure is untouched");
+            Assert.AreEqual(50 + 100 + 150 + 100 + 100, o.ScoreGained, "one tile at 50, plus ice, chain, moss and the stone");
+            Assert.AreEqual(50, s.Breakdown.Specials);
+            Assert.AreEqual(350, s.Breakdown.Obstacles);
+            Assert.AreEqual(100, s.Breakdown.Stones);
         }
 
         [Test]
-        public void ABombHitsTheThreeByThreeSquare()
+        public void ABombHitsAFourByFourSquare()
         {
+            // On a 5 x 5 board the square around the middle cell leans to the larger side: columns and rows 1-4.
             var s = Play.Specials(Checker(5, (2, 2, '*')), null);
             var o = Play.Tap(s, 2, 2);
-            Assert.AreEqual(8, o.Cleared.Count);
-            Assert.IsTrue(o.Cleared.All(c => System.Math.Abs(c.Pos.Col - 2) <= 1 && System.Math.Abs(c.Pos.Row - 2) <= 1));
-            Assert.AreEqual(8 * 20, o.ScoreGained);
+            Assert.AreEqual(15, o.Cleared.Count);
+            Assert.IsTrue(o.Cleared.All(c => c.Pos.Col >= 1 && c.Pos.Col <= 4 && c.Pos.Row >= 1 && c.Pos.Row <= 4));
+            Assert.AreEqual(15 * 50, o.ScoreGained);
         }
 
         [Test]
@@ -187,7 +192,9 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SpecialKind.RocketColumn, o.SpecialsFired[0].ComboWith);
             Assert.AreEqual(7, o.Cleared.Count, "row 2 and column 2, without the two rockets");
             Assert.IsTrue(o.Cleared.All(c => c.Pos.Row == 2 || c.Pos.Col == 2));
-            Assert.AreEqual(7 * 40, o.ScoreGained, "combinations score double");
+            Assert.AreEqual(7 * 75, o.ScoreGained, "combinations pay 1.5 times the special rate");
+            Assert.AreEqual(7 * 50, s.Breakdown.Specials);
+            Assert.AreEqual(7 * 25, s.Breakdown.ComboBonus);
             Assert.AreEqual(0, Play.CountPieces(s.Board, CellType.Special), "both rockets are used up");
         }
 
@@ -202,13 +209,13 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void TwoBombsTogetherClearFiveByFive()
+        public void TwoBombsTogetherClearSixBySix()
         {
             var s = Play.Specials(Checker(7, (3, 3, '*'), (4, 3, '*')), null);
             var o = Play.Tap(s, 3, 3);
-            Assert.AreEqual(23, o.Cleared.Count);
-            Assert.IsTrue(o.Cleared.All(c => System.Math.Abs(c.Pos.Col - 3) <= 2 && System.Math.Abs(c.Pos.Row - 3) <= 2));
-            Assert.AreEqual(23 * 40, o.ScoreGained);
+            Assert.AreEqual(34, o.Cleared.Count, "36 cells less the two bombs");
+            Assert.IsTrue(o.Cleared.All(c => c.Pos.Col >= 1 && c.Pos.Col <= 6 && c.Pos.Row >= 1 && c.Pos.Row <= 6));
+            Assert.AreEqual(34 * 75, o.ScoreGained);
         }
 
         [Test]
@@ -221,7 +228,7 @@ namespace ColourCascade.Tests
                     if (s.Board[c, r].Type == CellType.Colour && (s.Board[c, r].Colour == 0 || c == 3)) expected.Add(new GridPos(c, r));
             var o = Play.Tap(s, 2, 2, 0);
             CollectionAssert.AreEquivalent(expected, o.Cleared.Select(c => c.Pos));
-            Assert.AreEqual(expected.Count * 40, o.ScoreGained);
+            Assert.AreEqual(expected.Count * 75, o.ScoreGained);
         }
 
         [Test]
@@ -254,8 +261,8 @@ namespace ColourCascade.Tests
             Assert.AreEqual(SpecialKind.Bomb, o.SpecialsFired[1].Kind);
             Assert.AreEqual(1, o.SpecialsFired[1].Wave);
             Assert.AreEqual(3, o.Cleared.Count(c => c.Wave == 0));
-            Assert.AreEqual(6, o.Cleared.Count(c => c.Wave == 1));
-            Assert.AreEqual(9 * 20, o.ScoreGained);
+            Assert.AreEqual(12, o.Cleared.Count(c => c.Wave == 1), "the bomb's 4 x 4, less itself and the row the rocket already cleared");
+            Assert.AreEqual(15 * 50, o.ScoreGained, "each tile scores once, whichever special removed it");
 
             // Rockets that reach each other fire once each.
             var t = Play.Specials(Checker(5, (0, 2, '-'), (4, 2, '|'), (4, 0, '-')), null);
@@ -287,7 +294,8 @@ namespace ColourCascade.Tests
             int primary = blast.Cleared.Count(c => c.Wave == 0);
             int bySpecial = blast.Cleared.Count(c => c.Wave == 1);
             Assert.AreEqual(8, primary);
-            Assert.AreEqual(s.Scoring.PowerUpPoints(primary) + bySpecial * 20, blast.ScoreGained);
+            Assert.AreEqual(12, bySpecial);
+            Assert.AreEqual(s.Scoring.PowerUpPoints(primary) + bySpecial * s.Scoring.specials.pointsPerTile, blast.ScoreGained, "the power-up's tiles at its rate, the bomb's at the special rate");
 
             // Tile Breaker fires a special.
             var t = Play.Specials(Checker(5, (2, 2, '-')), null);

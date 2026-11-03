@@ -204,7 +204,26 @@ namespace ColourCascade.Core
             return summary;
         }
 
-        /// <summary>Grants the free trial uses for a newly introduced power-up, exactly once. Returns uses granted.</summary>
+        /// <summary>
+        /// The first win of a power-up's introduction level: the free uses lent for that attempt and left unused are
+        /// kept, in the normal inventory, once ever (docs/DESIGN.md §7). Uses the same claim as the free trials older
+        /// versions granted at the start of that level, so nobody gets them twice. Returns the uses kept.
+        /// </summary>
+        public int KeepTutorialPowerUps(PowerUpDefinition def, int unused, Inventory inventory)
+        {
+            if (def == null) return 0;
+            string key = RewardKeys.PowerUpTrial(def.id);
+            if (data.Claims.Contains(key)) return 0;
+            data.Claims.Add(key);
+            if (unused <= 0) return 0;
+            inventory.AddOwned(def.id, unused);
+            return unused;
+        }
+
+        /// <summary>Whether a power-up's tutorial reward has been settled (kept, or granted by an older version).</summary>
+        public bool TutorialPowerUpsSettled(PowerUpId id) => data.Claims.Contains(RewardKeys.PowerUpTrial(id));
+
+        /// <summary>Older versions: grants the free trial uses for a newly introduced power-up, exactly once. Returns uses granted.</summary>
         public int GrantTrial(PowerUpDefinition def, Inventory inventory)
         {
             if (def == null || def.trialUses <= 0) return 0;

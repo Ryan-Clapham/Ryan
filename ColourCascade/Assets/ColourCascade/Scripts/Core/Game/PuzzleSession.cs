@@ -47,6 +47,14 @@ namespace ColourCascade.Core
         readonly HashSet<int> firedThisAction = new HashSet<int>();
         readonly List<GridPos> effectCells = new List<GridPos>();
         int actionSpecialPoints;
+        // The extra a combination pays on top of the single-special rate, and stones destroyed, this action.
+        int actionComboPoints;
+        int actionStonePoints;
+        // True while a special's blast is landing: specials (unlike power-ups and groups) break stones.
+        bool specialHitting;
+        // The end-of-level finale is running (specials left on the board going off; docs/MECHANICS.md §4.4).
+        bool inFinale;
+        bool finaleDone;
         int nextWave;
         // Wave of the special firing right now (0 outside special effects); stamped on obstacle hits.
         int hitWave;
@@ -55,8 +63,12 @@ namespace ColourCascade.Core
         bool mossGrewLastMove;
         int startingMoss;
         int mossCap;
-        // Endless: a new stage was reached this action; it adds a wave of unlocked mechanics once tiles have fallen.
+        // Endless: a new stage was reached this action; its wave (docs/DESIGN.md §4) arrives once tiles have fallen.
         bool pendingWave;
+        // Endless: the first stage whose wave has not arrived yet.
+        int waveFromStage = 2;
+        // The special tiles big groups make: the level's, or in Endless the journey's so far (it only goes up).
+        SpecialTier specialTier;
         Rng waveRng;
         readonly List<GridPos> waveCells = new List<GridPos>();
         readonly List<MossGrowth> mossCandidates = new List<MossGrowth>();
@@ -99,6 +111,13 @@ namespace ColourCascade.Core
         public bool Passed { get; private set; }
         /// <summary>Moves made when the level was passed, or -1.</summary>
         public int PassedAtMove { get; private set; } = -1;
+        /// <summary>
+        /// The moves have run out (or the player chose Finish) with special tiles still on the board: they go off
+        /// before the result is decided. No moves are accepted until RunFinale has run (docs/MECHANICS.md §4.4).
+        /// </summary>
+        public bool FinalePending { get; private set; }
+        /// <summary>Where the score came from (docs/MECHANICS.md §5); Breakdown.Total is always Score.</summary>
+        public ScoreBreakdown Breakdown { get; } = new ScoreBreakdown();
         /// <summary>Progress towards the level's goals (campaign completion; tracked in every mode).</summary>
         public GoalTracker Goals { get; private set; }
         public double TimeLeft { get; private set; }
@@ -106,6 +125,8 @@ namespace ColourCascade.Core
         public bool Paused { get; private set; }
 
         public bool HasMoveLimit => Level.Moves > 0;
+        /// <summary>The special tiles big groups make right now (Endless: they arrive with its stages).</summary>
+        public SpecialTier Specials => specialTier;
         public bool IsTimed => Level.TimeLimitSeconds > 0;
         public int Target => Level.Target;
         public int FinalScore => Score + LeftoverBonus;
@@ -164,7 +185,7 @@ namespace ColourCascade.Core
         {
             get
             {
-                if (State != SessionState.Playing || Paused) return false;
+                if (State != SessionState.Playing || Paused || FinalePending) return false;
                 if (IsTimed && (!TimerRunning || TimeLeft <= 0)) return false;
                 return true;
             }
@@ -179,6 +200,7 @@ namespace ColourCascade.Core
             mossRng = rng.Fork(3);
             waveRng = rng.Fork(4);
             Board = BoardGenerator.Generate(Level.Layout, source);
+            specialTier = Mode == GameMode.Endless && setup.Endless.journey != null ? EndlessJourney.SpecialsAt(1, setup.Endless.journey) : Level.Specials;
             Goals = new GoalTracker(Level.EffectiveGoals(), Board);
             startingMoss = Board.CountObstacle(ObstacleKind.Moss);
             mossCap = Level.MossCap > 0 ? Level.MossCap : startingMoss + 2;
@@ -258,19 +280,19 @@ namespace ColourCascade.Core
         {
             if (!combo)
             {
-                SpecialEffects.Single(Board, p, kind, colour, cells);
+                SpecialEffects.Single(Board, p, kind, colour, cells, Scoring.specials);
                 return;
             }
             bool onePrism = (kind == SpecialKind.Prism) != (partner == SpecialKind.Prism);
             if (!onePrism)
             {
-                SpecialEffects.Combined(Board, p, kind, partner, cells);
+                SpecialEffects.Combined(Board, p, kind, partner, cells, Scoring.specials);
                 return;
             }
             // Prism + another special: the chosen colour everywhere, then the other special from where it sat.
-            SpecialEffects.Single(Board, p, SpecialKind.Prism, colour, cells);
-            if (kind == SpecialKind.Prism) SpecialEffects.Single(Board, partnerPos, partner, colour, cells);
-            else SpecialEffects.Single(Board, p, kind, colour, cells);
+            SpecialEffects.Single(Board, p, SpecialKind.Prism, colour, cells, Scoring.specials);
+            if (kind == SpecialKind.Prism) SpecialEffects.Single(Board, partnerPos, partner, colour, cells, Scoring.specials);
+            else SpecialEffects.Single(Board, p, kind, colour, cells, Scoring.specials);
         }
 
         public int PointsForGroup(int size) => Scoring.GroupPoints(size);
@@ -316,6 +338,7 @@ namespace ColourCascade.Core
 
             int points = Scoring.GroupPoints(size);
             Score += points;
+            Breakdown.Groups += points;
             o.ScoreGained = points;
             o.Praise = Scoring.PraiseFor(size);
             MovesMade++;
@@ -342,7 +365,7 @@ namespace ColourCascade.Core
         /// <summary>A big group earns a special tile in the cell the player tapped (or the nearest cleared cell).</summary>
         void CreateSpecial(GridPos tapped, int size, MoveOutcome o)
         {
-            if (Level.Specials == SpecialTier.None) return;
+            if (specialTier == SpecialTier.None) return;
             int minC = int.MaxValue, maxC = int.MinValue, minR = int.MaxValue, maxR = int.MinValue;
             for (int i = 0; i < groupBuffer.Count; i++)
             {
@@ -352,7 +375,7 @@ namespace ColourCascade.Core
                 minR = Math.Min(minR, g.Row);
                 maxR = Math.Max(maxR, g.Row);
             }
-            var kind = Scoring.specials.KindFor(size, Level.Specials, maxC - minC > maxR - minR);
+            var kind = Scoring.specials.KindFor(size, specialTier, maxC - minC > maxR - minR);
             if (kind == SpecialKind.None) return;
             GridPos at = tapped;
             if (Board[tapped].Type != CellType.Empty)
@@ -417,11 +440,16 @@ namespace ColourCascade.Core
             if (tapped && prism) o.GroupColour = colour;
             effectCells.Clear();
             AreaFor(p, t.Special, combo, partnerPos, combo ? partner.Special : SpecialKind.None, colour, effectCells);
-            int rate = combo ? Scoring.specials.comboPointsPerTile : Scoring.specials.pointsPerTile;
+            // Scored on what the blast actually removes: each colour tile at the special rate (a combination pays
+            // more, counted separately as its bonus); stones, obstacles and treasure score their own points.
+            int rate = Scoring.specials.pointsPerTile;
+            int comboExtra = combo ? Math.Max(0, Scoring.specials.comboPointsPerTile - rate) : 0;
             int before = o.Cleared.Count;
             hitWave = wave;
+            specialHitting = true;
             // Copy: hitting cells can queue more specials but never changes this list.
             for (int i = 0; i < effectCells.Count; i++) HitCell(effectCells[i], o);
+            specialHitting = false;
             hitWave = 0;
             for (int i = before; i < o.Cleared.Count; i++)
             {
@@ -430,6 +458,7 @@ namespace ColourCascade.Core
                 o.Cleared[i] = c;
                 if (c.WasStone) continue;
                 actionSpecialPoints += rate;
+                actionComboPoints += comboExtra;
                 TilesCleared++;
             }
         }
@@ -494,6 +523,7 @@ namespace ColourCascade.Core
             {
                 int points = Scoring.PowerUpPoints(colourTiles);
                 Score += points;
+                Breakdown.PowerUps += points;
                 o.ScoreGained = points;
                 TilesCleared += colourTiles;
                 if (Mode == GameMode.Endless) UpdateEndlessStage(o);
@@ -516,16 +546,50 @@ namespace ColourCascade.Core
         public bool Finish(MoveOutcome o = null)
         {
             if (!CanFinish) return false;
+            o = o ?? new MoveOutcome();
+            o.Reset();
+            // Specials still on the board go off first (their points count), then the spare moves are paid.
+            if (Mode == GameMode.Campaign && !finaleDone && Board.CountType(CellType.Special) > 0) FireFinale(o);
             LeftoverBonus = SpareMoveBonusNow;
             State = SessionState.Won;
             EndReason = EndReason.FinishedEarly;
-            if (o != null)
-            {
-                o.Reset();
-                o.Ended = true;
-                o.EndReason = EndReason;
-            }
+            o.Ended = true;
+            o.EndReason = EndReason;
             return true;
+        }
+
+        /// <summary>
+        /// The end of the level (docs/MECHANICS.md §4.4): the moves have run out and special tiles are still on the
+        /// board. Every one of them goes off (no move is charged), chain reactions resolve, their points and goal
+        /// progress count, and only then is the result decided (a goal met now still passes the level). Returns false
+        /// if there was nothing to run.
+        /// </summary>
+        public bool RunFinale(MoveOutcome o)
+        {
+            o.Reset();
+            if (!FinalePending) return false;
+            FinalePending = false;
+            FireFinale(o);
+            return true;
+        }
+
+        void FireFinale(MoveOutcome o)
+        {
+            finaleDone = true;
+            BeginAction();
+            o.Kind = OutcomeKind.Finale;
+            inFinale = true;
+            // Top to bottom, left to right; each fires alone (combinations need a tap), and any it reaches go off in turn.
+            for (int r = Board.Height - 1; r >= 0; r--)
+                for (int c = 0; c < Board.Width; c++)
+                {
+                    var p = new GridPos(c, r);
+                    if (Board[p].Type != CellType.Special || firedThisAction.Contains(Board[p].Id)) continue;
+                    FireSpecial(p, false, -1, o);
+                    RunSpecialQueue(o);
+                }
+            Resolve(o, true, false);
+            inFinale = false;
         }
 
         /// <summary>Adds moves (Extra Moves). Revives a campaign level that has just run out of moves.</summary>
@@ -539,6 +603,9 @@ namespace ColourCascade.Core
             }
             if (State != SessionState.Playing) return false;
             MovesLeft += amount;
+            // More moves: specials made from now on go off again if these run out too.
+            finaleDone = false;
+            FinalePending = false;
             return true;
         }
 
@@ -564,9 +631,21 @@ namespace ColourCascade.Core
                 return true;
             }
             if (TileRules.HasObstacle(t)) return HitObstacle(p, HitCause.Area, o);
+            if (t.Type == CellType.Stone && specialHitting)
+            {
+                // Rockets and bombs break stones in their path (docs/MECHANICS.md §2.6); power-up areas don't.
+                BreakStone(p, o);
+                return true;
+            }
             if (!TileRules.IsFree(t)) return false;
             RemoveTile(p, o);
             return true;
+        }
+
+        void BreakStone(GridPos p, MoveOutcome o)
+        {
+            RemoveTile(p, o);
+            actionStonePoints += Scoring.stonePoints;
         }
 
         /// <summary>Tile Breaker: removes a free colour tile, a mossy tile or a stone; strips every layer or link from ice
@@ -587,7 +666,12 @@ namespace ColourCascade.Core
                 return true;
             }
             if (TileRules.HasObstacle(t)) return HitObstacle(p, HitCause.Strong, o);
-            if (!TileRules.IsFree(t) && t.Type != CellType.Stone) return false;
+            if (t.Type == CellType.Stone)
+            {
+                BreakStone(p, o);
+                return true;
+            }
+            if (!TileRules.IsFree(t)) return false;
             RemoveTile(p, o);
             return true;
         }
@@ -631,6 +715,9 @@ namespace ColourCascade.Core
             hitThisAction.Clear();
             actionObstaclePoints = 0;
             actionSpecialPoints = 0;
+            actionComboPoints = 0;
+            actionStonePoints = 0;
+            specialHitting = false;
             specialQueue.Clear();
             firedThisAction.Clear();
             nextWave = 0;
@@ -730,9 +817,19 @@ namespace ColourCascade.Core
         void Resolve(MoveOutcome o, bool boardChanged, bool costsMove)
         {
             if (boardChanged) ApplyAdjacentHits(o);
-            int extra = actionObstaclePoints + actionSpecialPoints;
+            int extra = actionObstaclePoints + actionSpecialPoints + actionComboPoints + actionStonePoints;
+            if (inFinale) Breakdown.Finale += extra;
+            else
+            {
+                Breakdown.Obstacles += actionObstaclePoints;
+                Breakdown.Specials += actionSpecialPoints;
+                Breakdown.ComboBonus += actionComboPoints;
+                Breakdown.Stones += actionStonePoints;
+            }
             actionObstaclePoints = 0;
             actionSpecialPoints = 0;
+            actionComboPoints = 0;
+            actionStonePoints = 0;
             if (extra > 0)
             {
                 Score += extra;
@@ -745,6 +842,8 @@ namespace ColourCascade.Core
                 {
                     int points = o.Treasures.Count * Scoring.treasurePoints;
                     Score += points;
+                    if (inFinale) Breakdown.Finale += points;
+                    else Breakdown.Treasure += points;
                     o.ScoreGained += points;
                     if (Mode == GameMode.Endless && HasMoveLimit && setup.Endless.treasureBonusMoves > 0)
                     {
@@ -754,11 +853,13 @@ namespace ColourCascade.Core
                     }
                 }
                 if (costsMove) SpreadMoss(o);
-                if (pendingWave) ApplyEndlessWave(o);
+                if (pendingWave && !inFinale) ApplyEndlessWave(o);
             }
             pendingWave = false;
+            if (inFinale && Mode == GameMode.Endless) UpdateEndlessStage(o);
             if (Goals != null) o.GoalsChanged = Goals.Record(o, Score, Board);
-            if (boardChanged) Recover(o);
+            // No reshuffle once the level is ending: nobody plays the board again.
+            if (boardChanged && !inFinale) Recover(o);
             EvaluateEnd(o);
         }
 
@@ -779,56 +880,139 @@ namespace ColourCascade.Core
         }
 
         /// <summary>
-        /// Endless: each new stage adds a wave of the mechanics the player has unlocked there (Level.Pool), more of
-        /// them together as stages go up: one kind on stages 2-3, two on 4-5, three from 6 (docs/MECHANICS.md §9).
-        /// Placed on free tiles with the session's own seeded generator, after tiles have fallen.
+        /// Endless (docs/DESIGN.md §4): each stage reached brings its step of the journey, once tiles have fallen: a new
+        /// mechanic, a breather with bonus moves, or a mix of what came before (which ones, and where they land, from
+        /// the run's own seeded generator). If one action jumps several stages, each arrives in turn.
         /// </summary>
         void ApplyEndlessWave(MoveOutcome o)
         {
-            var pool = Mechanics.ObstaclesIn(Level.Pool);
-            if (pool.Count == 0) return;
-            int kinds = Math.Min(pool.Count, 1 + Math.Max(0, Stage - 2) / 2);
-            for (int i = pool.Count - 1; i > 0; i--)
+            var j = setup.Endless.journey;
+            if (j == null) return;
+            for (; waveFromStage <= Stage; waveFromStage++) ApplyStage(EndlessJourney.For(waveFromStage, j), o);
+        }
+
+        void ApplyStage(EndlessStagePlan plan, MoveOutcome o)
+        {
+            if ((int)plan.Specials > (int)specialTier) specialTier = plan.Specials;
+            switch (plan.Step)
             {
-                int j = waveRng.Next(i + 1);
-                var t = pool[i];
-                pool[i] = pool[j];
-                pool[j] = t;
-            }
-            for (int k = 0; k < kinds; k++)
-            {
-                switch (pool[k])
-                {
-                    case MechanicSet.Ice:
+                case EndlessStep.Breather:
+                    if (HasMoveLimit && plan.BonusMoves > 0)
+                    {
+                        MovesLeft += plan.BonusMoves;
+                        o.BonusMoves += plan.BonusMoves;
+                    }
+                    break;
+                case EndlessStep.Introduce:
+                    if (plan.Mechanics.Has(MechanicSet.Rockets)) PlaceSpecial(SpecialKind.RocketRow, o);
+                    else if (plan.Mechanics.Has(MechanicSet.Prisms)) PlaceSpecial(SpecialKind.Prism, o);
+                    else AddWave(plan.Mechanics, 100, plan.Stage, false, o);
+                    break;
+                case EndlessStep.Mix:
+                    {
+                        var pool = new List<MechanicSet>();
+                        foreach (var m in new[] { MechanicSet.Stones, MechanicSet.Ice, MechanicSet.Chains, MechanicSet.Treasure, MechanicSet.Moss })
+                            if (plan.Mechanics.Has(m)) pool.Add(m);
+                        for (int k = 0; k < plan.Kinds && pool.Count > 0; k++)
                         {
-                            int n = Math.Min(10, 3 + Stage);
-                            bool thick = Level.Pool.Has(MechanicSet.ThickIce);
-                            foreach (var p in PickFreeCells(n, 1, Board.Height - 2, false))
-                                AddObstacle(p, ObstacleKind.Ice, thick && waveRng.ChancePermille(300) ? 2 : 1, o);
-                            break;
+                            int i = waveRng.Next(pool.Count);
+                            AddWave(pool[i], plan.DensityPercent, plan.Stage, plan.Mechanics.Has(MechanicSet.ThickIce), o);
+                            pool.RemoveAt(i);
                         }
-                    case MechanicSet.Chains:
-                        {
-                            int n = Math.Min(8, 2 + Stage / 2);
-                            int maxLinks = Math.Min(3, 1 + Stage / 3);
-                            foreach (var p in PickFreeCells(n, 1, Board.Height - 2, false))
-                                AddObstacle(p, ObstacleKind.Chain, 1 + waveRng.Next(maxLinks), o);
-                            break;
-                        }
-                    case MechanicSet.Moss:
-                        {
-                            int moss = Board.CountObstacle(ObstacleKind.Moss);
-                            int seeds = moss == 0 ? 2 : 1;
-                            foreach (var p in PickFreeCells(seeds, 1, Board.Height / 2, true))
-                                AddObstacle(p, ObstacleKind.Moss, 1, o);
-                            mossCap = Math.Max(mossCap, Board.CountObstacle(ObstacleKind.Moss) + 2);
-                            break;
-                        }
-                    case MechanicSet.Treasure:
-                        PlaceTreasure(Stage >= 6 ? 2 : 1, o);
                         break;
-                }
+                    }
             }
+        }
+
+        /// <summary>One mechanic's share of a stage wave; percent scales the introduction amount. Never past a third of
+        /// the board covered, so a run never chokes.</summary>
+        void AddWave(MechanicSet m, int percent, int stage, bool thick, MoveOutcome o)
+        {
+            int Scale(int v) => Math.Max(1, v * percent / 100);
+            int room = Math.Max(0, Board.CellCount / 3 - CountObstacles());
+            switch (m)
+            {
+                case MechanicSet.Stones:
+                    PlaceStones(Math.Min(room, Math.Min(Scale(3), Board.Width - Board.CountType(CellType.Stone))), o);
+                    break;
+                case MechanicSet.Ice:
+                    foreach (var p in PickFreeCells(Math.Min(room, Scale(5)), 1, Board.Height - 2, false))
+                        AddObstacle(p, ObstacleKind.Ice, thick && waveRng.ChancePermille(300) ? 2 : 1, o);
+                    break;
+                case MechanicSet.Chains:
+                    {
+                        int maxLinks = Math.Min(3, 1 + Math.Max(0, stage - setup.Endless.journey.mixFrom) / 4);
+                        foreach (var p in PickFreeCells(Math.Min(room, Scale(4)), 1, Board.Height - 2, false))
+                            AddObstacle(p, ObstacleKind.Chain, 1 + waveRng.Next(maxLinks), o);
+                        break;
+                    }
+                case MechanicSet.Moss:
+                    {
+                        int seeds = Board.CountObstacle(ObstacleKind.Moss) == 0 ? 2 : 1;
+                        foreach (var p in PickFreeCells(Math.Min(room, seeds), 1, Board.Height / 2, true))
+                            AddObstacle(p, ObstacleKind.Moss, 1, o);
+                        mossCap = Math.Max(mossCap, Board.CountObstacle(ObstacleKind.Moss) + 2);
+                        break;
+                    }
+                case MechanicSet.Treasure:
+                    PlaceTreasure(percent >= 150 ? 2 : 1, o);
+                    break;
+            }
+        }
+
+        int CountObstacles()
+        {
+            int n = 0;
+            for (int i = 0; i < Board.CellCount; i++)
+            {
+                var t = Board.GetByIndex(i);
+                if (TileRules.HasObstacle(t) || t.Type == CellType.Stone || t.Type == CellType.Treasure) n++;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// Stones appear on free tiles in the middle rows, one per column at most and never under treasure, so every
+        /// section above and below still refills and treasure still has a way down.
+        /// </summary>
+        void PlaceStones(int n, MoveOutcome o)
+        {
+            waveCells.Clear();
+            for (int r = 2; r <= Board.Height - 3; r++)
+                for (int c = 0; c < Board.Width; c++)
+                    if (TileRules.IsFree(Board[c, r]) && !ColumnHasStoneOrTreasure(c)) waveCells.Add(new GridPos(c, r));
+            for (int k = 0; k < n && waveCells.Count > 0; k++)
+            {
+                int i = waveRng.Next(waveCells.Count);
+                var p = waveCells[i];
+                waveCells.RemoveAll(q => q.Col == p.Col);
+                int replaced = Board[p].Id;
+                var stone = Board.NewStone();
+                Board[p] = stone;
+                o.Added.Add(new TileChange { TileId = stone.Id, Pos = p, IsStone = true, ReplacedTileId = replaced });
+            }
+        }
+
+        bool ColumnHasStoneOrTreasure(int c)
+        {
+            for (int r = 0; r < Board.Height; r++)
+            {
+                var t = Board[c, r].Type;
+                if (t == CellType.Stone || t == CellType.Treasure) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The first rocket (or prism) of a run, placed on a free tile so the player can try it at once.</summary>
+        void PlaceSpecial(SpecialKind kind, MoveOutcome o)
+        {
+            var cells = PickFreeCells(1, 1, Board.Height - 3, true);
+            if (cells.Count == 0) return;
+            var p = cells[0];
+            int replaced = Board[p].Id;
+            var tile = Board.NewSpecial(kind);
+            Board[p] = tile;
+            o.Added.Add(new TileChange { TileId = tile.Id, Pos = p, Special = kind, ReplacedTileId = replaced });
         }
 
         /// <summary>Up to n free tiles in rows [fromRow, toRow], chosen at random; interior keeps them off the edges.</summary>
@@ -894,7 +1078,7 @@ namespace ColourCascade.Core
             Stage = stage;
             o.StageUp = true;
             o.NewStage = stage;
-            if (Level.Pool != MechanicSet.None) pendingWave = true;
+            if (setup.Endless.journey != null) pendingWave = true;
             source.Configure(setup.Endless.ColoursForStage(stage), Level.ColourWeights);
         }
 
@@ -917,6 +1101,17 @@ namespace ColourCascade.Core
                 LeftoverBonus = SpareMoveBonusNow;
                 State = SessionState.Won;
                 EndReason = EndReason.TargetReached;
+            }
+            // Moves gone with specials left on the board: they go off before the result (RunFinale). Not in the timed
+            // Weekly Rush, and only once per run of moves.
+            if (State == SessionState.Playing && !inFinale && !finaleDone && HasMoveLimit && MovesLeft <= 0 && Mode != GameMode.WeeklyRush &&
+                Board.CountType(CellType.Special) > 0)
+            {
+                FinalePending = true;
+                o.FinalePending = true;
+                o.Ended = false;
+                o.EndReason = EndReason.None;
+                return;
             }
             if (State == SessionState.Playing)
             {

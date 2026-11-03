@@ -500,6 +500,7 @@ namespace ColourCascade.App
     {
         static CoachMark current;
         RectTransform hand;
+        float flip = 1f;
         CanvasGroup group;
 
         public static void Hide()
@@ -538,12 +539,20 @@ namespace ColourCascade.App
 
             if (pointAt.HasValue)
             {
-                var handImg = UI.Sprite(rt, ArtNames.Hand, 170);
+                const float size = 170f;
+                var handImg = UI.Sprite(rt, ArtNames.Hand, size);
                 cm.hand = handImg.rectTransform;
                 Vector2 local;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(rt, RectTransformUtility.WorldToScreenPoint(null, pointAt.Value), null, out local);
-                cm.hand.anchoredPosition = local + new Vector2(30, -60);
-                cm.StartCoroutine(cm.Bob(local + new Vector2(30, -60)));
+                // The fingertip (not the picture's centre) goes on the target, whatever the screen's shape.
+                float x, y;
+                bool flip;
+                Core.HandPointer.Place(local.x, local.y, size, rt.rect.width * 0.5f, out x, out y, out flip);
+                cm.flip = flip ? -1f : 1f;
+                var basePos = new Vector2(x, y);
+                cm.hand.anchoredPosition = basePos;
+                cm.hand.localScale = new Vector3(cm.flip, 1f, 1f);
+                cm.StartCoroutine(cm.Bob(basePos, size * Core.HandPointer.Rest));
             }
             cm.group.alpha = 0;
             Tw.Fade(cm.group, 1f, 0.25f);
@@ -553,17 +562,23 @@ namespace ColourCascade.App
             return cm;
         }
 
-        System.Collections.IEnumerator Bob(Vector2 basePos)
+        /// <summary>Taps: the fingertip rises from its resting place onto the target and back.</summary>
+        System.Collections.IEnumerator Bob(Vector2 basePos, float reach)
         {
             float t = 0;
             while (hand != null)
             {
                 t += Time.unscaledDeltaTime;
                 float press = Mathf.Abs(Mathf.Sin(t * 3.2f));
-                hand.anchoredPosition = basePos + new Vector2(0, press * 28f);
-                hand.localScale = Vector3.one * (1f - (1f - press) * 0.08f);
+                hand.anchoredPosition = basePos + new Vector2(0, press * reach);
+                float scale = 1f - (1f - press) * 0.08f;
+                hand.localScale = new Vector3(flip * scale, scale, 1f);
                 yield return null;
             }
         }
+
+        /// <summary>The visual centre of a UI element in world space (its transform position is its pivot, which for a
+        /// button anchored to an edge is that edge).</summary>
+        public static Vector3 CentreOf(RectTransform rt) => rt.TransformPoint(rt.rect.center);
     }
 }

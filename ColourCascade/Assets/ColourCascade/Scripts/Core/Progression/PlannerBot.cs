@@ -17,8 +17,8 @@ namespace ColourCascade.Core
         /// <summary>Value of one step towards freeing an obstacle that a goal needs.</summary>
         public const int ObstacleStepValue = 150;
         // Values are kept in half-points (×2) so the lookahead's weight of one half stays an integer.
-        /// <summary>Value of earning a rocket, bomb or prism (roughly what firing it later is worth).</summary>
-        public const int RocketValue = 350, BombValue = 500, PrismValue = 800;
+        /// <summary>Value of earning a rocket, bomb or prism (roughly what firing it later is worth at 50 points a tile).</summary>
+        public const int RocketValue = 400, BombValue = 750, PrismValue = 900;
         /// <summary>Cost of letting moss grow (a move that clears none while moss must be cleared).</summary>
         public const int MossGrowthCost = 250;
 
@@ -114,7 +114,7 @@ namespace ColourCascade.Core
             removed.Clear();
             for (int k = 0; k < cells.Count; k++)
                 if (!TileRules.StaysWhenItsGroupClears(board[cells[k]])) removed.Add(cells[k]);
-            var tier = s.Level.Specials;
+            var tier = s.Specials;
             candCreated = tier != SpecialTier.None ? s.Scoring.specials.KindFor(g.Size, tier, false) : SpecialKind.None;
             candFired = candPartner = SpecialKind.None;
             candAt = g.Anchor;

@@ -121,6 +121,73 @@ namespace ColourCascade.Tests
         }
 
         [Test]
+        public void ObstacleCombinationsArriveOneShowcaseAtATime()
+        {
+            // Update 2.1: each pairing of obstacles has a level where it first appears, after both halves are taught.
+            var cat = Catalog();
+            var s = cat.Schedule;
+            var showcases = new (int level, ObstacleKind[] obstacles, bool treasure, bool stones)[]
+            {
+                (s.chainsFromLevel + 4, new[] { ObstacleKind.Ice, ObstacleKind.Chain }, false, false),
+                (s.chainsFromLevel + 7, new[] { ObstacleKind.Chain }, false, true),
+                (s.treasureFromLevel + 4, new[] { ObstacleKind.Chain }, true, false),
+                (s.treasureFromLevel + 8, new[] { ObstacleKind.Ice }, true, false),
+                (s.mossFromLevel + 4, new[] { ObstacleKind.Moss }, false, true),
+                (s.mossFromLevel + 7, new[] { ObstacleKind.Moss, ObstacleKind.Ice }, false, false),
+                (s.mossFromLevel + 11, new[] { ObstacleKind.Moss, ObstacleKind.Chain }, false, false),
+                (s.mossFromLevel + 14, new[] { ObstacleKind.Moss }, true, false),
+                (s.mossFromLevel + 24, new[] { ObstacleKind.Ice, ObstacleKind.Chain }, false, true),
+                (s.mossFromLevel + 34, new[] { ObstacleKind.Ice, ObstacleKind.Chain }, true, false),
+                (s.mossFromLevel + 44, new[] { ObstacleKind.Moss, ObstacleKind.Ice, ObstacleKind.Chain }, false, false),
+                (s.mossFromLevel + 54, new[] { ObstacleKind.Moss, ObstacleKind.Chain }, true, false),
+            };
+            foreach (var (level, obstacles, treasure, stones) in showcases)
+            {
+                var spec = cat.Get(level);
+                string at = "level " + level + " (" + spec.Note + ")";
+                foreach (var k in obstacles) Assert.Greater(spec.Layout.ObstacleCount(k), 0, at + ": " + k);
+                Assert.AreEqual(treasure, spec.Layout.TreasureCount > 0, at + ": treasure");
+                if (stones) Assert.Greater(spec.Layout.StoneCount, 0, at + ": on a stone board");
+                if (treasure) Assert.AreEqual(0, spec.Layout.StoneCount, at + ": treasure needs open columns");
+            }
+            // And mixed boards are common afterwards: most levels from 121 with goals have two kinds of obstacle or more.
+            int mixed = 0, goalLevels = 0;
+            for (int n = 121; n <= 200; n++)
+            {
+                var l = cat.Get(n).Layout;
+                int kinds = (l.ObstacleCount(ObstacleKind.Ice) > 0 ? 1 : 0) + (l.ObstacleCount(ObstacleKind.Chain) > 0 ? 1 : 0) +
+                            (l.ObstacleCount(ObstacleKind.Moss) > 0 ? 1 : 0) + (l.TreasureCount > 0 ? 1 : 0) + (l.StoneCount > 0 ? 1 : 0);
+                if (l.HasObstacles || l.TreasureCount > 0) goalLevels++;
+                if (kinds >= 2) mixed++;
+            }
+            TestContext.WriteLine(mixed + " of " + goalLevels + " obstacle levels from 121 mix two or more kinds (stones included)");
+            Assert.GreaterOrEqual(mixed * 2, goalLevels);
+        }
+
+        [Test]
+        public void TheCampaignHasObjectiveOnlyScoreOnlyAndCombinedLevels()
+        {
+            // Update 2.1: score is mandatory only where the level asks for it; it always counts towards the stars.
+            var cat = Catalog();
+            int objectiveOnly = 0, scoreOnly = 0, combined = 0;
+            for (int n = 21; n <= 200; n++)
+            {
+                var spec = cat.Get(n);
+                var goals = spec.EffectiveGoals();
+                bool score = goals.Any(g => g.kind == GoalKind.Score);
+                bool other = goals.Any(g => g.kind != GoalKind.Score);
+                if (score && other) combined++;
+                else if (score) scoreOnly++;
+                else objectiveOnly++;
+                if (!score) Assert.Greater(spec.Star2, 0, "level " + n + ": score still earns stars");
+            }
+            TestContext.WriteLine("levels 21-200: " + objectiveOnly + " objective-only, " + scoreOnly + " score, " + combined + " combined");
+            Assert.Greater(objectiveOnly, 100);
+            Assert.Greater(scoreOnly, 15);
+            Assert.Greater(combined, 8);
+        }
+
+        [Test]
         public void GeneratedLevelsAreValidAndTheirGoalsCanBeMet()
         {
             var cat = Catalog();

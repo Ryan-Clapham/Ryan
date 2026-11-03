@@ -296,11 +296,14 @@ namespace ColourCascade.App
             runClosed = true;
             if (!session.IsOver) Ctx.AbandonRun(session);
             else Ctx.Activity.EndRun();
+            Ctx.PowerUpUse.ClearRunLoans();
         }
 
         void StartRun()
         {
             CloseRun();
+            // Free uses lent for an earlier run never show on this one (they used to linger on the bar, unusable).
+            Ctx.PowerUpUse.ClearRunLoans();
             Tw.Kill(this);
             CoachMark.Hide();
             CancelTargeting();
@@ -657,7 +660,7 @@ namespace ColourCascade.App
             else
             {
                 previewText.text = "+" + NumberFormat.Thousands(session.PointsForGroup(n));
-                var special = Ctx.Config.Scoring.specials.KindFor(n, session.Level.Specials, false);
+                var special = Ctx.Config.Scoring.specials.KindFor(n, session.Specials, false);
                 if (special != SpecialKind.None) previewText.text += "  " + SpecialName(special);
                 previewText.color = n >= Ctx.Config.Scoring.praiseGoodSize ? Theme.Gold : Theme.Text;
             }
@@ -806,7 +809,36 @@ namespace ColourCascade.App
             AfterMoveTutorials();
             if (outcome.JustPassed) OnLevelPassed(duration);
             RefreshFinishButton();
+            if (outcome.FinalePending) PlayFinale(duration + 0.3f);
             if (outcome.Ended) ScheduleEnd(duration + 0.35f);
+        }
+
+        /// <summary>
+        /// Out of moves with specials still on the board: they all go off (no move charged) before the result, and
+        /// what they score and clear counts (docs/MECHANICS.md §4.4).
+        /// </summary>
+        void PlayFinale(float delay)
+        {
+            board.InputEnabled = false;
+            board.CancelPress();
+            CancelTargeting();
+            Tw.Delay(delay, () =>
+            {
+                if (session == null || !session.FinalePending) return;
+                int specials = session.Board.CountType(CellType.Special);
+                ShowBanner(specials == 1 ? "Out of moves! Your special goes off" : "Out of moves! Your " + specials + " specials go off", 1.3f);
+                Tw.Delay(0.7f, () =>
+                {
+                    if (session == null || !session.RunFinale(outcome)) return;
+                    float d = board.Animate(outcome);
+                    Haptics.Heavy();
+                    ShakeBoard(16f);
+                    ShowMoveFeedback(outcome);
+                    RefreshHud(true);
+                    RefreshFinishButton();
+                    if (outcome.Ended) ScheduleEnd(d + 0.5f);
+                }, this);
+            }, this);
         }
 
         /// <summary>A star was just earned during play (score levels light it on the bar, goal levels under the score).</summary>
@@ -858,6 +890,8 @@ namespace ColourCascade.App
             int stars = session.StarsIfFinishedNow;
             string body = session.MovesLeft + (session.MovesLeft == 1 ? " spare move adds " : " spare moves add ") + NumberFormat.Thousands(bonus) +
                           " points: " + NumberFormat.Thousands(session.Score + bonus) + " in all, " + stars + (stars == 1 ? " star." : " stars.");
+            int specials = session.Board.CountType(CellType.Special);
+            if (specials > 0) body += " Your " + (specials == 1 ? "special tile goes" : specials + " special tiles go") + " off first.";
             if (stars < 3) body += "\n\n" + NextStarText(session, false) + ". Playing on usually scores more than the bonus.";
             var popup = Nav.Open<ConfirmPopup>();
             popup.Setup("Finish now?", body, "Finish", FinishNow, ButtonStyle.Primary, "Keep playing");
@@ -868,9 +902,17 @@ namespace ColourCascade.App
         {
             if (session == null || endScheduled) return;
             if (!session.Finish(outcome)) return;
+            // Specials still on the board went off as part of finishing: show them going.
+            float d = outcome.Kind == OutcomeKind.Finale ? board.Animate(outcome) : 0f;
+            if (d > 0f)
+            {
+                Haptics.Heavy();
+                ShakeBoard(16f);
+                ShowMoveFeedback(outcome);
+            }
             RefreshHud(true);
             RefreshFinishButton();
-            ScheduleEnd(0.35f);
+            ScheduleEnd(d + 0.35f);
         }
 
         void ShowMoveFeedback(MoveOutcome o)
@@ -902,8 +944,31 @@ namespace ColourCascade.App
             }
             if (o.StageUp)
             {
-                string added = AddedNames(o);
-                ShowBanner("Stage " + o.NewStage + (added.Length > 0 ? "  ·  " + added + " appear" : Ctx.Config.Endless.ColoursForStage(o.NewStage) > Ctx.Config.Endless.ColoursForStage(o.NewStage - 1) ? "  ·  a new colour appears" : ""), 1.6f);
+                // The Endless journey: say what this stage brings (docs/DESIGN.md §4).
+                var plan = EndlessJourney.For(o.NewStage, Ctx.Config.Endless.journey);
+                string what;
+                switch (plan.Step)
+                {
+                    case EndlessStep.Introduce:
+                        what = plan.Mechanics.Has(MechanicSet.Rockets) ? "Rockets and bombs: big groups make them now"
+                             : plan.Mechanics.Has(MechanicSet.Prisms) ? "Prisms: groups of " + Ctx.Config.Scoring.specials.prismGroupSize + "+ make them"
+                             : "New: " + plan.Title.ToLowerInvariant();
+                        break;
+                    case EndlessStep.Breather:
+                        what = plan.Title;
+                        break;
+                    case EndlessStep.Mix:
+                        {
+                            string added = AddedNames(o);
+                            what = added.Length > 0 ? "Mix: " + added : "Mix";
+                            break;
+                        }
+                    default:
+                        what = "";
+                        break;
+                }
+                if (Ctx.Config.Endless.ColoursForStage(o.NewStage) > Ctx.Config.Endless.ColoursForStage(o.NewStage - 1)) what += what.Length > 0 ? ", and a new colour" : "A new colour";
+                ShowBanner("Stage " + o.NewStage + (what.Length > 0 ? "  ·  " + what : ""), 2f);
                 AudioService.Sfx(SfxNames.Unlock, 0.7f);
             }
         }
@@ -915,6 +980,7 @@ namespace ColourCascade.App
             foreach (var a in o.Added)
             {
                 if (a.IsTreasure) set |= MechanicSet.Treasure;
+                else if (a.IsStone) set |= MechanicSet.Stones;
                 else if (a.Obstacle == ObstacleKind.Ice) set |= MechanicSet.Ice;
                 else if (a.Obstacle == ObstacleKind.Chain) set |= MechanicSet.Chains;
                 else if (a.Obstacle == ObstacleKind.Moss) set |= MechanicSet.Moss;
@@ -1287,7 +1353,7 @@ namespace ColourCascade.App
             foreach (var s in slots)
             {
                 if (s.Def.id != def.id) continue;
-                CoachMark.Show("Tap " + def.displayName + ", then choose where to use it", s.Button.transform.position, -380f, 5f);
+                CoachMark.Show("Tap " + def.displayName + ", then choose where to use it", CoachMark.CentreOf((RectTransform)s.Button.transform), -380f, 5f);
                 s.Root.localScale = Vector3.one * 1.25f;
                 Tw.Scale(s.Root, 1f, 0.5f, Ease.OutElastic);
             }
@@ -1330,7 +1396,7 @@ namespace ColourCascade.App
                     return;
                 case TutorialKeys.Symbols:
                     Ctx.Tutorials.MarkSeen(key);
-                    CoachMark.Show("Tip: tap the eye button to give every colour its own shape", symbolsButton.transform.position, OverlayYAbove(board.Frame, 110f), 6f);
+                    CoachMark.Show("Tip: tap the eye button to give every colour its own shape", CoachMark.CentreOf((RectTransform)symbolsButton.transform), OverlayYAbove(board.Frame, 110f), 6f);
                     return;
                 case TutorialKeys.Stones:
                     {
@@ -1344,7 +1410,7 @@ namespace ColourCascade.App
                                     stone = board.CellWorld(new GridPos(c, r));
                                     break;
                                 }
-                        CoachMark.Show("Stones never move. Tiles can't fall through them, so each section refills on its own.", stone, OverlayYAbove(board.Frame, 110f), 7f);
+                        CoachMark.Show("Stones hold tiles up, so each section refills on its own. Only rockets, bombs and Tile Breaker can break them.", stone, OverlayYAbove(board.Frame, 110f), 7f);
                         return;
                     }
                 default:
@@ -1573,6 +1639,7 @@ namespace ColourCascade.App
                     return false;
                 }
                 AudioService.Sfx(SfxNames.Purchase);
+                Toast.Show("Extra Moves bought: " + NumberFormat.Thousands(Ctx.Wallet.Balance) + " coins left", Icon.Shop, Theme.Gold);
             }
             ApplyPowerUp(PowerUpRequest.Instant(PowerUpId.ExtraMoves));
             if (session.State != SessionState.Playing) return false;

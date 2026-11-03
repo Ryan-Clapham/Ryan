@@ -87,6 +87,8 @@ namespace ColourCascade.Core
                 if (!session.TryPlay(pick, outcome, colour)) break;
                 moves++;
             }
+            // Specials left on the board when the moves run out go off before the result.
+            if (session.FinalePending) session.RunFinale(outcome);
             return session.FinalScore;
         }
     }
