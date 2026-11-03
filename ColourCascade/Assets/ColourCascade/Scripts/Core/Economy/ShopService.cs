@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ColourCascade.Core
 {
@@ -112,6 +113,9 @@ namespace ColourCascade.Core
         readonly PowerUpCatalog catalog;
         readonly Inventory inventory;
         readonly Func<int> highestUnlocked;
+        // Free uses for the current run only: a power-up's introduction level lends its demonstration uses on every
+        // attempt. Never saved and never added to the inventory, so they can't be collected by replaying.
+        readonly Dictionary<PowerUpId, int> runDemos = new Dictionary<PowerUpId, int>();
 
         public PowerUpService(PowerUpCatalog catalog, Inventory inventory, Func<int> highestUnlocked)
         {
@@ -121,6 +125,26 @@ namespace ColourCascade.Core
         }
 
         public event Action<PowerUpId> Used;
+
+        /// <summary>Lends free uses of a power-up for the current run only (replaces any lent before).</summary>
+        public void LendForRun(PowerUpId id, int uses)
+        {
+            runDemos.Clear();
+            if (uses > 0) runDemos[id] = uses;
+        }
+
+        /// <summary>Takes back every unused loan (call when a run starts or ends).</summary>
+        public void ClearRunLoans() => runDemos.Clear();
+
+        /// <summary>Free uses lent for this run that are still unused.</summary>
+        public int Lent(PowerUpId id)
+        {
+            int n;
+            return runDemos.TryGetValue(id, out n) ? n : 0;
+        }
+
+        /// <summary>Uses available right now: lent for this run, then free trials and owned ones.</summary>
+        public int Available(PowerUpId id) => Lent(id) + inventory.Available(id);
 
         /// <summary>Whether this power-up should appear in the in-game bar for this mode.</summary>
         public bool IsVisibleIn(PowerUpId id, GameMode mode)
@@ -139,7 +163,7 @@ namespace ColourCascade.Core
             if (!ActionPolicy.IsUnlocked(def, highestUnlocked())) return UseBlock.Locked;
             bool revive = id == PowerUpId.ExtraMoves && session.State == SessionState.Failed && session.EndReason == EndReason.OutOfMoves;
             if (!session.AcceptsMoves && !revive) return UseBlock.NotPlaying;
-            if (!ignoreOwnership && inventory.Available(id) <= 0) return UseBlock.NoneOwned;
+            if (!ignoreOwnership && Available(id) <= 0) return UseBlock.NoneOwned;
             return UseBlock.None;
         }
 
@@ -156,7 +180,14 @@ namespace ColourCascade.Core
             if (request.Amount <= 0) request.Amount = def.amount;
             if (!session.TryApplyPowerUp(request, outcome, out failure)) return false;
             bool usedTrial;
-            inventory.TryConsume(request.Id, out usedTrial);
+            int lent = Lent(request.Id);
+            if (lent > 0)
+            {
+                // A use lent for this run goes first and never touches the inventory.
+                runDemos[request.Id] = lent - 1;
+                usedTrial = true;
+            }
+            else inventory.TryConsume(request.Id, out usedTrial);
             outcome.UsedTrial = usedTrial;
             Used?.Invoke(request.Id);
             return true;

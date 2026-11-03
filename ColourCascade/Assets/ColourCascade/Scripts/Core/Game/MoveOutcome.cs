@@ -6,9 +6,9 @@ namespace ColourCascade.Core
     {
         Ready = 0,
         Playing = 1,
-        /// <summary>Campaign target reached.</summary>
+        /// <summary>Campaign level over and passed: every goal was met, then the moves ran out or the player chose to finish.</summary>
         Won = 2,
-        /// <summary>Campaign ran out of moves before the target.</summary>
+        /// <summary>Campaign ran out of moves before every goal was met.</summary>
         Failed = 3,
         /// <summary>Endless, Daily or Weekly Rush run completed.</summary>
         Finished = 4,
@@ -23,6 +23,8 @@ namespace ColourCascade.Core
         OutOfMoves = 2,
         TimeUp = 3,
         BoardStuck = 4,
+        /// <summary>Campaign: the player finished a cleared level before using every move (spare-move bonus paid).</summary>
+        FinishedEarly = 5,
     }
 
     public enum OutcomeKind
@@ -157,6 +159,8 @@ namespace ColourCascade.Core
         public bool UsedTrial;
         /// <summary>Some goal's progress changed during this action.</summary>
         public bool GoalsChanged;
+        /// <summary>Campaign: this action completed the level's last goal. The level is now passed and play goes on.</summary>
+        public bool JustPassed;
         /// <summary>A group clear earned a special tile (see Created).</summary>
         public bool HasCreated;
         public SpecialCreated Created;
@@ -194,6 +198,7 @@ namespace ColourCascade.Core
             EndReason = EndReason.None;
             UsedTrial = false;
             GoalsChanged = false;
+            JustPassed = false;
             HasCreated = false;
             Created = default;
             SpecialsFired.Clear();

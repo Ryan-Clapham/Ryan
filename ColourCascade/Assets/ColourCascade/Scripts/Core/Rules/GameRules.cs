@@ -151,11 +151,22 @@ namespace ColourCascade.Core
         /// <summary>Keyframes: level -> target as a fraction (permille) of the reference bot's median score.</summary>
         public int[] targetCurveLevels = { 1, 4, 7, 10, 20, 35, 50, 75, 100, 150 };
         public int[] targetCurvePermille = { 330, 420, 450, 500, 560, 620, 670, 720, 760, 800 };
-        /// <summary>Star thresholds as a multiple (permille) of the target, applied to the final score.</summary>
+        /// <summary>Opening score levels (before the first mechanic): star thresholds as a multiple (permille) of the target.</summary>
         public int star2Permille = 1250;
         public int star3Permille = 1500;
-        /// <summary>Leftover moves are converted to bonus points: each one is worth target / moves × this permille.</summary>
+        /// <summary>Opening score levels: finishing early pays each unused move target / moves × this permille.</summary>
         public int leftoverBonusPermille = 1000;
+        /// <summary>
+        /// Calibrated stars, every level from the first mechanic on (docs/DESIGN.md §3.2). Bots play every move, as a
+        /// player chasing stars would. Two stars sit halfway between a casual player's median final score and this
+        /// percentile of a thoughtful player's (Planner bot); three stars at star3Percentile of the thoughtful player's.
+        /// </summary>
+        public int star2Percentile = 35;
+        public int star3Percentile = 60;
+        /// <summary>Calibrated levels: finishing early pays each unused move this permille of a thoughtful player's average move.</summary>
+        public int spareMoveBonusPermille = 500;
+        /// <summary>"...and reach a score" goals: this percentile of casual players' final scores among those who meet the other goals.</summary>
+        public int scoreGoalPercentile = 20;
         public int calibrationRuns = 16;
         /// <summary>Bot games used to size a goal level's moves and stars (more is steadier but slower to generate).</summary>
         public int goalCalibrationRuns = 10;

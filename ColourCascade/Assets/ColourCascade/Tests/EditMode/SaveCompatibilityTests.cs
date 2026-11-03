@@ -124,7 +124,10 @@ namespace ColourCascade.Tests
                     var s = new PuzzleSession(setup);
                     s.Start();
                     ctx.BeginRun(s);
-                    Bots.PlayOut(s, BotKind.Greedy, new Rng((ulong)(n * 10 + attempt)));
+                    // Finishing as soon as the level is passed is exactly how levels ended before play could go on
+                    // after the goals (same moment, same spare-move bonus), so the save must come out identical.
+                    Bots.PlayOut(s, BotKind.Greedy, new Rng((ulong)(n * 10 + attempt)), 10000, true);
+                    s.Finish();
                     ctx.FinishRun(s);
                 }
             }

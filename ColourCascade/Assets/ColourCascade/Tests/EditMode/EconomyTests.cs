@@ -164,6 +164,8 @@ namespace ColourCascade.Tests
             s.Start();
             ctx.BeginRun(s);
             s.TryPlay(new GridPos(0, 2), new MoveOutcome());
+            Assert.IsTrue(s.Passed);
+            Assert.IsTrue(s.Finish());
             Assert.AreEqual(SessionState.Won, s.State);
             return ctx.FinishRun(s);
         }
@@ -228,6 +230,7 @@ namespace ColourCascade.Tests
             var s = TestUtil.Session(GameMode.Campaign, 3, 10, 3, "000", "111", "222");
             ctx.BeginRun(s);
             s.TryPlay(new GridPos(0, 2), new MoveOutcome());
+            s.Finish();
             var a = ctx.FinishRun(s);
             int balance = ctx.Wallet.Balance;
             int games = ctx.Data.Stats.GamesPlayed;
@@ -286,16 +289,57 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void PowerUpTrialsAreGrantedExactlyOnce()
+        public void TheIntroducedPowerUpIsLentOnEveryAttemptAndNeverKept()
+        {
+            // Playtest bug: replaying the Colour Burst level gave no free Colour Burst (it was granted once, ever).
+            var store = new MemorySaveStorage();
+            var ctx = TestUtil.Context(null, store);
+            ctx.Data.HighestUnlocked = 61;
+            ctx.Inventory.AddOwned(PowerUpId.ColourBurst, 2);
+            int burstLevel = ctx.PowerUps.Get(PowerUpId.ColourBurst).unlockLevel;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                var def = ctx.LendIntroPowerUpFor(burstLevel);
+                Assert.IsNotNull(def, "attempt " + attempt);
+                Assert.AreEqual(PowerUpId.ColourBurst, def.id);
+                Assert.AreEqual(1, ctx.PowerUpUse.Lent(PowerUpId.ColourBurst), "lent again on every attempt");
+                Assert.AreEqual(3, ctx.PowerUpUse.Available(PowerUpId.ColourBurst));
+                var s = TestUtil.Session(GameMode.Campaign, 20, 1000000, 4, "0123", "1230", "2301");
+                var o = new MoveOutcome();
+                Assert.IsTrue(ctx.PowerUpUse.TryUse(s, new PowerUpRequest { Id = PowerUpId.ColourBurst, A = new GridPos(0, 0) }, o, out var block, out var failure));
+                Assert.IsTrue(o.UsedTrial, "the lent use goes first");
+                Assert.AreEqual(0, ctx.PowerUpUse.Lent(PowerUpId.ColourBurst));
+                Assert.AreEqual(2, ctx.Inventory.Owned(PowerUpId.ColourBurst), "the player's own power-ups are untouched");
+                Assert.AreEqual(0, ctx.Inventory.Trials(PowerUpId.ColourBurst), "nothing was added to the inventory");
+            }
+            // An unused loan never outlives its run: the next level takes it back.
+            ctx.LendIntroPowerUpFor(burstLevel);
+            Assert.IsNull(ctx.LendIntroPowerUpFor(burstLevel + 1));
+            Assert.AreEqual(0, ctx.PowerUpUse.Lent(PowerUpId.ColourBurst));
+            Assert.AreEqual(2, ctx.Inventory.Available(PowerUpId.ColourBurst));
+
+            // Closing and reopening the game: nothing about loans is saved, and the level lends again.
+            Assert.IsTrue(ctx.Save());
+            var reopened = TestUtil.Context(null, store);
+            Assert.AreEqual(0, reopened.PowerUpUse.Lent(PowerUpId.ColourBurst));
+            Assert.AreEqual(2, reopened.Inventory.Owned(PowerUpId.ColourBurst));
+            Assert.IsNotNull(reopened.LendIntroPowerUpFor(burstLevel));
+            Assert.AreEqual(1, reopened.PowerUpUse.Lent(PowerUpId.ColourBurst));
+            Assert.IsFalse(store.Main.Contains("pu.trial."), "no once-only claim is recorded any more");
+        }
+
+        [Test]
+        public void EveryPowerUpIntroductionLendsItsDemonstration()
         {
             var ctx = TestUtil.Context();
-            var def = ctx.GrantIntroTrialsFor(10);
-            Assert.IsNotNull(def);
-            Assert.AreEqual(PowerUpId.Blast, def.id);
-            Assert.AreEqual(2, ctx.Inventory.Trials(PowerUpId.Blast));
-            Assert.IsNull(ctx.GrantIntroTrialsFor(10));
-            Assert.AreEqual(2, ctx.Inventory.Trials(PowerUpId.Blast));
-            Assert.IsNull(ctx.GrantIntroTrialsFor(11));
+            ctx.Data.HighestUnlocked = 200;
+            foreach (var def in ctx.PowerUps.All)
+            {
+                if (def.unlockLevel <= 0 || def.trialUses <= 0) continue;
+                Assert.AreEqual(def.id, ctx.LendIntroPowerUpFor(def.unlockLevel).id, def.displayName);
+                Assert.AreEqual(def.trialUses, ctx.PowerUpUse.Lent(def.id), def.displayName);
+                Assert.AreEqual(0, ctx.Inventory.Trials(def.id), def.displayName);
+            }
         }
 
         [Test]

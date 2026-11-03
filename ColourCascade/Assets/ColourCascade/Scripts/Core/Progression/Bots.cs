@@ -65,15 +65,18 @@ namespace ColourCascade.Core
             }
         }
 
-        /// <summary>Plays until the session stops accepting moves or maxMoves is reached. Returns the final score.</summary>
-        public static int PlayOut(PuzzleSession session, BotKind kind, Rng rng, int maxMoves = 10000)
+        /// <summary>
+        /// Plays until the session stops accepting moves or maxMoves is reached. A passed campaign level is played on
+        /// to its last move (as a player chasing stars would), unless stopWhenPassed is set. Returns the final score.
+        /// </summary>
+        public static int PlayOut(PuzzleSession session, BotKind kind, Rng rng, int maxMoves = 10000, bool stopWhenPassed = false)
         {
             var finder = new GroupFinder();
             var groups = new List<GroupInfo>();
             var outcome = new MoveOutcome();
             var planner = kind == BotKind.Planner ? new PlannerBot() : null;
             int moves = 0;
-            while (session.AcceptsMoves && moves < maxMoves)
+            while (session.AcceptsMoves && moves < maxMoves && !(stopWhenPassed && session.Passed))
             {
                 GridPos pick;
                 int colour = -1;
@@ -138,10 +141,14 @@ namespace ColourCascade.Core
         static ulong BoardSeedFor(LevelSpec spec, int i) => spec.FixedSeed ? spec.Seed : StableHash.Combine(spec.Seed, (ulong)(i + 1));
 
         /// <summary>
-        /// Median number of moves a bot needs to complete every goal, given a generous budget. Games that run out
-        /// (or get stuck) count as budget + 10, so a level the bot can't finish reads as needing more than the budget.
+        /// Median number of moves a bot needs to complete every goal, given a generous budget (it stops as soon as the
+        /// level is passed). Games that run out (or get stuck) count as budget + 10, so a level the bot can't finish
+        /// reads as needing more than the budget.
         /// </summary>
-        public static int MedianMovesNeeded(LevelSpec spec, ScoringRules scoring, int runs, int budget, BotKind kind)
+        public static int MedianMovesNeeded(LevelSpec spec, ScoringRules scoring, int runs, int budget, BotKind kind) => MovesNeeded(spec, scoring, runs, budget, kind, 50);
+
+        /// <summary>As MedianMovesNeeded, at another percentile of the games (75: three games in four pass within it).</summary>
+        public static int MovesNeeded(LevelSpec spec, ScoringRules scoring, int runs, int budget, BotKind kind, int percentile)
         {
             if (runs < 1) runs = 1;
             var needed = new int[runs];
@@ -149,18 +156,20 @@ namespace ColourCascade.Core
             {
                 var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, budget), Scoring = scoring, BoardSeed = BoardSeedFor(spec, i) });
                 session.Start();
-                Bots.PlayOut(session, kind, new Rng(StableHash.Combine(spec.Seed, (ulong)(2000 + i))));
-                needed[i] = session.State == SessionState.Won ? session.MovesMade : budget + 10;
+                Bots.PlayOut(session, kind, new Rng(StableHash.Combine(spec.Seed, (ulong)(2000 + i))), 10000, true);
+                needed[i] = session.Passed ? session.PassedAtMove : budget + 10;
             }
             System.Array.Sort(needed);
-            return needed[runs / 2];
+            return needed[System.Math.Min(runs - 1, runs * percentile / 100)];
         }
 
         public struct GameResult
         {
-            /// <summary>Score when the level was completed (before the spare-move bonus).</summary>
+            /// <summary>Final score of a passed game played to its last move (spare-move bonus included if the board
+            /// ran out of moves first).</summary>
             public int Score;
-            public int MovesLeft;
+            /// <summary>Moves made when every goal was met.</summary>
+            public int PassedAtMove;
         }
 
         /// <summary>Median Weekly Rush score after a fixed number of moves by the Mixed bot (the clock is not run).</summary>
@@ -179,19 +188,22 @@ namespace ColourCascade.Core
             return scores[runs / 2];
         }
 
-        /// <summary>Completed games by the Planner bot with the level's own moves, sorted by score.</summary>
-        public static List<GameResult> PlannerResults(LevelSpec spec, ScoringRules scoring, int runs)
+        /// <summary>Passed games by a bot with the level's own moves, every move played, sorted by final score.</summary>
+        public static List<GameResult> PassedResults(LevelSpec spec, ScoringRules scoring, int runs, BotKind kind, int seedOffset = 100)
         {
             var results = new List<GameResult>();
             for (int i = 0; i < runs; i++)
             {
-                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, spec.Moves), Scoring = scoring, BoardSeed = BoardSeedFor(spec, 100 + i) });
+                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, spec.Moves), Scoring = scoring, BoardSeed = BoardSeedFor(spec, seedOffset + i) });
                 session.Start();
-                Bots.PlayOut(session, BotKind.Planner, null);
-                if (session.State == SessionState.Won) results.Add(new GameResult { Score = session.Score, MovesLeft = session.MovesLeft });
+                Bots.PlayOut(session, kind, kind == BotKind.Planner ? null : new Rng(StableHash.Combine(spec.Seed, (ulong)(4000 + seedOffset + i))));
+                if (session.State == SessionState.Won) results.Add(new GameResult { Score = session.FinalScore, PassedAtMove = session.PassedAtMove });
             }
             results.Sort((a, b) => a.Score.CompareTo(b.Score));
             return results;
         }
+
+        /// <summary>Passed games by the Planner bot (see PassedResults).</summary>
+        public static List<GameResult> PlannerResults(LevelSpec spec, ScoringRules scoring, int runs) => PassedResults(spec, scoring, runs, BotKind.Planner);
     }
 }

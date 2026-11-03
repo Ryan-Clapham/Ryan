@@ -34,6 +34,10 @@ namespace ColourCascade.Core
         Treasure,
         Moss,
         Colour,
+        /// <summary>A goal about special tiles: make some, set some off, or fire a combination.</summary>
+        Specials,
+        /// <summary>A score to reach as well as the other goals (its amount is calibrated with the level's moves).</summary>
+        Score,
     }
 
     /// <summary>What a generated level contains, decided from its number before the board is decorated.</summary>
@@ -48,6 +52,12 @@ namespace ColourCascade.Core
         public int TreasureCount;
         public int MossSeeds;
         public int CollectAmount;
+        /// <summary>Mechanic.Specials: CreateSpecial, FireSpecial or FireCombo, which special (None = any) and how many.</summary>
+        public GoalKind SpecialGoal = GoalKind.CreateSpecial;
+        public SpecialKind SpecialKind;
+        public int SpecialAmount;
+        /// <summary>A special tile placed on the board at the start ('-', '|', '*' or '@'), or '\0' for none.</summary>
+        public char StartSpecial;
         public string TutorialKey = "";
         public string Note = "";
         /// <summary>A practice level straight after an introduction: kept gentle.</summary>
@@ -177,10 +187,13 @@ namespace ColourCascade.Core
                 },
                 new LevelOverride
                 {
-                    level = s.combosFromLevel, colours = 5, moves = 18, tutorial = TutorialKeys.Combos, note = "New: special combos",
+                    // The two rockets show what a combination does (their cross frees 10 of the ice at once). Four more
+                    // frozen tiles sit out of their reach, so the level still takes ordinary play to finish: it was once
+                    // a one-tap win (docs/DESIGN.md §3.2).
+                    level = s.combosFromLevel, colours = 5, moves = 20, tutorial = TutorialKeys.Combos, note = "New: special combos",
                     layout = new[] { "........", "........", "........", "........", "...-|...", "........", "........", "........", "........" },
-                    obstacles = new[] { "........", "...i....", "...i....", "........", "iii..iii", "........", "...i....", "...i....", "........" },
-                    goals = new[] { GoalSpec.FreeIce(10) },
+                    obstacles = new[] { "........", "...i....", "...i....", "........", "iii..iii", "........", ".i.i..i.", ".i.i..i.", "........" },
+                    goals = new[] { GoalSpec.FireCombo(1), GoalSpec.FreeIce(14) },
                 },
                 new LevelOverride
                 {
@@ -205,9 +218,10 @@ namespace ColourCascade.Core
                 new LevelOverride
                 {
                     // Each mossy tile starts next to a tile of its own colour, so the first clears show how moss goes.
+                    // Four patches in two rows, so clearing it takes a few moves (two went in a move or two).
                     level = s.mossFromLevel, colours = 4, moves = 22, tutorial = TutorialKeys.Moss, note = "New: moss",
-                    layout = new[] { "........", "........", "........", "........", "........", "........", ".RR..BB.", "........", "........" },
-                    obstacles = new[] { "........", "........", "........", "........", "........", "........", ".m....m.", "........", "........" },
+                    layout = new[] { "........", "........", "........", "..GG.YY.", "........", "........", ".RR..BB.", "........", "........" },
+                    obstacles = new[] { "........", "........", "........", "...m.m..", "........", "........", ".m....m.", "........", "........" },
                     goals = new[] { GoalSpec.ClearMoss() },
                 },
             };
@@ -232,14 +246,19 @@ namespace ColourCascade.Core
         {
             if (n < s.iceFromLevel) return null;
             var r = new LevelRecipe();
+            if (IsSpecialsPractice(n, s))
+            {
+                // Practice for a new special tile: make it or set it off, alongside a goal the player already knows.
+                r.Practice = true;
+                PracticeSpecials(r, n, s);
+                Size(r, n, s, rng);
+                return r;
+            }
             Mechanic? practice = PracticeFocus(n, s);
             if (practice.HasValue)
             {
                 r.Practice = true;
                 r.Mechanics.Add(practice.Value);
-                // Special tiles have no goal of their own: their practice levels ask for a colour and some ice, which
-                // big groups (and the specials they make) clear fastest.
-                if (IsSpecialsPractice(n, s)) r.Mechanics.Add(Mechanic.Ice);
             }
             else
             {
@@ -252,13 +271,17 @@ namespace ColourCascade.Core
                 Add(pool, weights, Mechanic.Moss, n >= s.mossFromLevel, Recent(n, s.mossFromLevel) ? 30 : 10);
 
                 // A breather now and then: a plain score level (levels ending in 6, and a share of the rest).
-                if (n % 10 == 6 || rng.ChancePermille(n < 61 ? 220 : 120)) return null;
+                if (n % 10 == 6 || rng.ChancePermille(n < 61 ? 200 : 120)) return null;
 
                 var first = Pick(pool, weights, rng);
                 r.Mechanics.Add(first);
                 // Mixed goals ("free 3 frozen tiles and collect 10 blue"): from the colour-goal introduction on, about half
-                // the levels combine two kinds of goal, more later on; milestones nearly always do. Three goals from 61.
-                int comboChance = n <= s.colourGoalsFromLevel + s.practiceLevels ? 0 : n < s.bombsFromLevel ? 450 : n < 121 ? 550 : n < 201 ? 650 : 700;
+                // the levels combine two kinds of goal, more later on; milestones nearly always do. Partners can also be
+                // goals about special tiles (make two rockets, set off a bomb, fire a combination) and, a little later,
+                // a score to reach as well. Three goals from the prisms.
+                Add(pool, weights, Mechanic.Specials, n >= s.rocketsFromLevel, Recent(n, s.rocketsFromLevel) ? 30 : 20);
+                Add(pool, weights, Mechanic.Score, n >= s.rocketsFromLevel + 4, 12);
+                int comboChance = n <= s.colourGoalsFromLevel + s.practiceLevels ? 0 : n < s.rocketsFromLevel ? 450 : n < s.bombsFromLevel ? 550 : n < 121 ? 650 : n < 201 ? 700 : 750;
                 if (n % 10 == 0) comboChance += 300;
                 if (pool.Count > 1 && rng.ChancePermille(comboChance))
                 {
@@ -267,7 +290,7 @@ namespace ColourCascade.Core
                     weights.RemoveAt(i);
                     var second = Pick(pool, weights, rng);
                     r.Mechanics.Add(second);
-                    int threeChance = n < s.chainsFromLevel ? 0 : n < 121 ? 150 : 250;
+                    int threeChance = n < s.prismsFromLevel ? 0 : n < s.chainsFromLevel ? 100 : n < 121 ? 150 : 250;
                     if (pool.Count > 1 && rng.ChancePermille(threeChance))
                     {
                         int j = pool.IndexOf(second);
@@ -277,8 +300,91 @@ namespace ColourCascade.Core
                     }
                 }
             }
+            if (r.Has(Mechanic.Specials)) ChooseSpecialGoal(r, n, s, rng);
             Size(r, n, s, rng);
             return r;
+        }
+
+        /// <summary>The three practice levels after rockets, bombs, combinations and prisms: make the new special, set it
+        /// off, then both, each with a goal the player already knows.</summary>
+        static void PracticeSpecials(LevelRecipe r, int n, MechanicSchedule s)
+        {
+            int k;
+            SpecialKind kind;
+            if (After(n, s.prismsFromLevel, s.practiceLevels)) { k = n - s.prismsFromLevel; kind = SpecialKind.Prism; }
+            else if (After(n, s.combosFromLevel, s.practiceLevels)) { k = n - s.combosFromLevel; kind = SpecialKind.None; }
+            else if (After(n, s.bombsFromLevel, s.practiceLevels)) { k = n - s.bombsFromLevel; kind = SpecialKind.Bomb; }
+            else { k = n - s.rocketsFromLevel; kind = SpecialKind.RocketRow; }
+            r.Mechanics.Add(Mechanic.Specials);
+            r.Mechanics.Add(k == 2 ? Mechanic.Colour : Mechanic.Ice);
+            r.SpecialKind = kind;
+            if (kind == SpecialKind.None)
+            {
+                // Combination practice starts with a rocket on the board: make a special next to it, then tap.
+                r.SpecialGoal = GoalKind.FireCombo;
+                r.SpecialAmount = k == 3 ? 2 : 1;
+                r.StartSpecial = k == 2 ? '|' : '-';
+                return;
+            }
+            if (kind == SpecialKind.Prism)
+            {
+                // A prism takes a group of 12: too rare to ask for this early. Its practice starts with one on the
+                // board to aim at the ice, then asks for specials of any kind.
+                if (k == 1)
+                {
+                    r.StartSpecial = '@';
+                    r.SpecialGoal = GoalKind.FireSpecial;
+                    r.SpecialAmount = 1;
+                    return;
+                }
+                r.SpecialKind = SpecialKind.None;
+                r.SpecialGoal = k == 2 ? GoalKind.FireSpecial : GoalKind.CreateSpecial;
+                r.SpecialAmount = 3;
+                return;
+            }
+            r.SpecialGoal = k == 2 ? GoalKind.FireSpecial : GoalKind.CreateSpecial;
+            r.SpecialAmount = kind == SpecialKind.RocketRow ? 2 : 1;
+            // "Set off 2 bombs" starts with one on the board: the player makes the second.
+            if (kind == SpecialKind.Bomb && k == 2)
+            {
+                r.StartSpecial = '*';
+                r.SpecialAmount = 2;
+            }
+        }
+
+        /// <summary>A special-tile goal for a mixed level, from the specials the player knows (the newest most often).</summary>
+        static void ChooseSpecialGoal(LevelRecipe r, int n, MechanicSchedule s, Rng rng)
+        {
+            var options = new List<int>();
+            var weights = new List<int>();
+            // Encoded as goal kind * 10 + special kind.
+            void Opt(GoalKind g, SpecialKind k, bool ok, int w)
+            {
+                if (!ok) return;
+                options.Add((int)g * 10 + (int)k);
+                weights.Add(w);
+            }
+            // Bombs (groups of 9+) and prisms (12+) depend too much on the board to be asked for by name in a mixed
+            // level (simulation): those levels ask for rockets, specials of any kind, or a combination.
+            Opt(GoalKind.CreateSpecial, SpecialKind.RocketRow, true, 20);
+            Opt(GoalKind.FireSpecial, SpecialKind.RocketRow, true, 14);
+            Opt(GoalKind.CreateSpecial, SpecialKind.None, n >= s.bombsFromLevel, 14);
+            Opt(GoalKind.FireSpecial, SpecialKind.None, n >= s.bombsFromLevel, 12);
+            Opt(GoalKind.FireCombo, SpecialKind.None, n >= s.combosFromLevel, Recent(n, s.combosFromLevel) ? 22 : 12);
+            int total = 0;
+            foreach (var w in weights) total += w;
+            int x = rng.Next(total), pick = options[0];
+            for (int i = 0; i < options.Count; i++)
+            {
+                x -= weights[i];
+                if (x < 0)
+                {
+                    pick = options[i];
+                    break;
+                }
+            }
+            r.SpecialGoal = (GoalKind)(pick / 10);
+            r.SpecialKind = (SpecialKind)(pick % 10);
         }
 
         static bool Recent(int n, int introLevel) => n >= introLevel && n < introLevel + 15;
@@ -303,15 +409,13 @@ namespace ColourCascade.Core
             return pool[pool.Count - 1];
         }
 
-        /// <summary>The mechanic a practice level focuses on, or null when n is not a practice level.</summary>
+        /// <summary>The mechanic a practice level focuses on, or null when n is not a practice level (special tiles'
+        /// practice levels are handled by PracticeSpecials).</summary>
         static Mechanic? PracticeFocus(int n, MechanicSchedule s)
         {
             int p = Math.Max(0, s.practiceLevels);
             if (After(n, s.iceFromLevel, p) || After(n, s.thickIceFromLevel, p)) return Mechanic.Ice;
             if (After(n, s.colourGoalsFromLevel, p)) return Mechanic.Colour;
-            // Specials have no goal of their own: their practice levels are colour goals, which reward big groups.
-            if (After(n, s.rocketsFromLevel, p) || After(n, s.bombsFromLevel, p) || After(n, s.prismsFromLevel, p) || After(n, s.combosFromLevel, p))
-                return Mechanic.Colour;
             if (After(n, s.chainsFromLevel, p)) return Mechanic.Chains;
             if (After(n, s.treasureFromLevel, p)) return Mechanic.Treasure;
             if (After(n, s.mossFromLevel, p)) return Mechanic.Moss;
@@ -331,13 +435,13 @@ namespace ColourCascade.Core
         {
             int band = n <= 60 ? 0 : n <= 120 ? 1 : n <= 200 ? 2 : 3;
             bool two = r.Mechanics.Count > 1;
-            int pct = r.Mechanics.Count > 2 ? 50 : two ? 65 : r.Practice ? 75 : 100;
+            int pct = r.Mechanics.Count > 2 ? 50 : two ? 65 : r.Practice ? 85 : 100;
             int Scale(int v) => Math.Max(1, v * pct / 100);
             int collectPct = two ? 65 : 100;
 
             if (r.Has(Mechanic.Ice))
             {
-                int[] lo = { 5, 7, 9, 11 }, hi = { 8, 11, 13, 15 };
+                int[] lo = { 6, 8, 10, 12 }, hi = { 9, 12, 14, 16 };
                 r.IceCount = Scale(lo[band] + rng.Next(hi[band] - lo[band] + 1));
                 r.ThickPermille = n < s.thickIceFromLevel ? 0 : band == 0 ? 150 : band == 1 ? 300 : 450;
             }
@@ -352,13 +456,26 @@ namespace ColourCascade.Core
                 r.TreasureCount = band <= 1 ? 1 + rng.Next(2) : 2 + rng.Next(2);
                 if (two) r.TreasureCount = Math.Max(1, r.TreasureCount - 1);
             }
-            if (r.Has(Mechanic.Moss)) r.MossSeeds = band <= 1 ? 3 : 3 + rng.Next(3);
+            // Moss needs several separate patches to be a goal at all: two or three side by side go in a move or two.
+            if (r.Has(Mechanic.Moss)) r.MossSeeds = Math.Max(4, Scale(band <= 1 ? 5 + rng.Next(2) : 6 + rng.Next(3)));
             if (r.Has(Mechanic.Colour))
             {
                 int[] lo = { 16, 20, 24, 28 }, hi = { 24, 28, 32, 36 };
                 r.CollectAmount = Math.Max(1, (lo[band] + rng.Next(hi[band] - lo[band] + 1)) * collectPct / 100);
             }
-            if (n == s.thickIceFromLevel + 1 && r.Has(Mechanic.Ice)) r.ThickPermille = Math.Max(r.ThickPermille, 300);
+            if (r.Has(Mechanic.Specials) && r.SpecialAmount <= 0)
+            {
+                // Rockets come from groups of 6+, bombs 9+, prisms 12+: fewer of the bigger ones.
+                bool rocket = SpecialEffects.IsRocket(r.SpecialKind);
+                int amount;
+                if (r.SpecialGoal == GoalKind.FireCombo) amount = 1 + (band >= 1 && rng.ChancePermille(400) ? 1 : 0);
+                else if (rocket) amount = 2 + rng.Next(band >= 1 ? 3 : 2);
+                else amount = 3 + rng.Next(band >= 1 ? 3 : 2);
+                if (r.Mechanics.Count > 2) amount = Math.Max(1, amount * 2 / 3);
+                r.SpecialAmount = amount;
+            }
+            // Thick-ice practice really has thick ice (with a little, four frozen tiles went in two moves).
+            if (After(n, s.thickIceFromLevel, s.practiceLevels) && r.Has(Mechanic.Ice)) r.ThickPermille = Math.Max(r.ThickPermille, 400);
         }
 
         // ------------------------------------------------------------------ Decorating a generated board
@@ -377,7 +494,7 @@ namespace ColourCascade.Core
             }
             if (r.Has(Mechanic.Moss))
             {
-                int placed = BoardDecorator.PlaceMoss(layout, r.MossSeeds, rng);
+                int placed = BoardDecorator.PlaceMossSpread(layout, r.MossSeeds, rng);
                 if (placed > 0) goals.Add(GoalSpec.ClearMoss(placed));
             }
             if (r.Has(Mechanic.Ice))
@@ -399,7 +516,28 @@ namespace ColourCascade.Core
                 if (common.Count == 0) common.Add(0);
                 goals.Add(GoalSpec.Collect(common[rng.Next(common.Count)], r.CollectAmount));
             }
+            if (r.StartSpecial != '\0') PlaceStartSpecial(layout, r.StartSpecial, rng);
+            // Special-tile goals ride along with a board goal (a level of nothing but "make 2 rockets" is a score level
+            // in disguise), so they are only added when something else was placed.
+            if (r.Has(Mechanic.Specials) && r.SpecialAmount > 0 && goals.Count > 0)
+            {
+                if (r.SpecialGoal == GoalKind.FireCombo) goals.Add(GoalSpec.FireCombo(r.SpecialAmount));
+                else if (r.SpecialGoal == GoalKind.FireSpecial) goals.Add(GoalSpec.FireSpecial(r.SpecialKind, r.SpecialAmount));
+                else goals.Add(GoalSpec.CreateSpecial(r.SpecialKind, r.SpecialAmount));
+            }
             return goals.ToArray();
+        }
+
+        /// <summary>One special tile somewhere in the middle of the board, on a free cell.</summary>
+        static void PlaceStartSpecial(LevelLayout layout, char piece, Rng rng)
+        {
+            for (int guard = 0; guard < 200; guard++)
+            {
+                int c = 1 + rng.Next(Math.Max(1, layout.Width - 2)), r = 1 + rng.Next(Math.Max(1, layout.Height - 3));
+                if (!BoardDecorator.Free(layout, c, r)) continue;
+                layout.SetPiece(c, r, piece);
+                return;
+            }
         }
 
         /// <summary>A copy with every amount scaled (used when a level turns out to need more moves than its band allows).</summary>
@@ -407,19 +545,33 @@ namespace ColourCascade.Core
         {
             var c = new LevelRecipe
             {
-                IceCount = Math.Max(r.IceCount > 0 ? 2 : 0, r.IceCount * percent / 100),
-                ThickPermille = r.ThickPermille * percent / 100,
-                ChainCount = Math.Max(r.ChainCount > 0 ? 2 : 0, r.ChainCount * percent / 100),
+                IceCount = Math.Max(r.IceCount > 0 ? 4 : 0, r.IceCount * percent / 100),
+                // Fewer frozen tiles, and only a little less of them thick (75% at half size): thinning both as much
+                // left trivial levels, keeping all of it left some too hard (simulation).
+                ThickPermille = r.ThickPermille * (100 + percent) / 200,
+                ChainCount = Math.Max(r.ChainCount > 0 ? 3 : 0, r.ChainCount * percent / 100),
                 MaxLinks = percent < 80 ? Math.Max(1, r.MaxLinks - 1) : r.MaxLinks,
                 TreasureCount = Math.Max(r.TreasureCount > 0 ? 1 : 0, r.TreasureCount * percent / 100),
-                MossSeeds = Math.Max(r.MossSeeds > 0 ? 2 : 0, r.MossSeeds * percent / 100),
-                CollectAmount = Math.Max(r.CollectAmount > 0 ? 8 : 0, r.CollectAmount * percent / 100),
+                MossSeeds = Math.Max(r.MossSeeds > 0 ? 3 : 0, r.MossSeeds * percent / 100),
+                CollectAmount = Math.Max(r.CollectAmount > 0 ? 10 : 0, r.CollectAmount * percent / 100),
+                SpecialGoal = r.SpecialGoal,
+                SpecialKind = r.SpecialKind,
+                SpecialAmount = Math.Max(r.SpecialAmount > 0 ? 1 : 0, r.SpecialAmount * percent / 100),
+                StartSpecial = r.StartSpecial,
                 TutorialKey = r.TutorialKey,
                 Note = r.Note,
                 Practice = r.Practice,
             };
             c.Mechanics.AddRange(r.Mechanics);
             return c;
+        }
+
+        static string SpecialName(SpecialKind k)
+        {
+            if (SpecialEffects.IsRocket(k)) return "Rockets";
+            if (k == SpecialKind.Bomb) return "Bombs";
+            if (k == SpecialKind.Prism) return "Prisms";
+            return "Specials";
         }
 
         public static string NoteFor(LevelRecipe r)
@@ -435,6 +587,8 @@ namespace ColourCascade.Core
                     case Mechanic.Treasure: parts.Add("Treasure"); break;
                     case Mechanic.Moss: parts.Add("Moss"); break;
                     case Mechanic.Colour: parts.Add("Collect"); break;
+                    case Mechanic.Specials: parts.Add(r.SpecialGoal == GoalKind.FireCombo ? "Combos" : SpecialName(r.SpecialKind)); break;
+                    case Mechanic.Score: parts.Add("Score"); break;
                 }
             }
             return string.Join(" + ", parts.ToArray());

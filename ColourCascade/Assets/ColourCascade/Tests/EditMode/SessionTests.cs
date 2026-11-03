@@ -33,13 +33,17 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void CampaignEndsAsWonWhenTargetReachedWithLeftoverBonus()
+        public void CampaignPassesAtTheTargetAndFinishingPaysTheLeftoverBonus()
         {
             var s = TestUtil.Session(GameMode.Campaign, 5, 90, 3, Stripes);
             var o = new MoveOutcome();
             s.TryPlay(new GridPos(0, 2), o);
+            Assert.IsTrue(o.JustPassed);
+            Assert.IsFalse(o.Ended, "the target is reached with 4 moves left: play goes on");
+            Assert.AreEqual(SessionState.Playing, s.State);
+            Assert.IsTrue(s.Finish(o));
             Assert.AreEqual(SessionState.Won, s.State);
-            Assert.AreEqual(EndReason.TargetReached, s.EndReason);
+            Assert.AreEqual(EndReason.FinishedEarly, s.EndReason);
             Assert.IsTrue(o.Ended);
             Assert.AreEqual(4 * 100, s.LeftoverBonus);
             Assert.AreEqual(90 + 400, s.FinalScore);

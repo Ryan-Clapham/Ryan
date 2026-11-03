@@ -93,7 +93,7 @@ namespace ColourCascade.Tests
                             if (goal.kind == GoalKind.CollectTreasure) Assert.AreEqual(collected, s.Goals.Progress(g));
                             if (goal.kind == GoalKind.ClearMoss) Assert.AreEqual(s.Board.CountObstacle(ObstacleKind.Moss), s.Goals.Remaining(g));
                         }
-                        if (s.Goals.AllComplete) Assert.AreEqual(SessionState.Won, s.State, "complete goals win at once");
+                        if (s.Goals.AllComplete) Assert.IsTrue(s.Passed, "complete goals pass the level at once");
                     }
                     treasures += collected;
                     iceFreed += freedIce;

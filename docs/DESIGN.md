@@ -62,9 +62,12 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
   takes the biggest group) plays it 16 times. The target is a percentage of its median score. These levels are
   unchanged by the campaign mechanics (a test checks them against the pre-mechanics build).
 * **From level 21, every level is sized from simulated players** (details in 3.1).
-* **Win and stars:** reaching the target **wins immediately**. Each unused move is converted into bonus
-  points (worth target ÷ moves), so finishing efficiently earns more. Stars use the final score:
-  ★ target, ★★ 125% of target, ★★★ 150% of target.
+* **Passing and stars:** reaching the target (or meeting every goal) **passes** the level and earns ★, but play
+  goes on: the moves left raise the score towards ★★ and ★★★, and the stars light up on the game screen as they
+  are earned. The player can tap **Finish** at any time after passing; each unused move then adds a small bonus.
+  Out of moves after passing = won with the stars of the final score; out of moves before = failed, whatever the
+  score (docs/MECHANICS.md §4.3). Levels 1–20: ★★ 125% and ★★★ 150% of the target, finishing early pays target ÷
+  moves per unused move. From 21: see 3.2.
 * **Losing:** running out of moves shows "Out of Moves" with Try Again. If Extra Moves is unlocked, the
   player may choose to use one they own, or explicitly buy one for 200 coins. Nothing is ever spent automatically.
 * **Regions:** 20 levels each, cycling through six themes (Sunrise Meadow, Coral Lagoon, Crystal Caverns,
@@ -80,60 +83,94 @@ sized.
   special combos 47, prisms 51, chains 61, treasure 71, moss 101 (config: campaign → mechanics). Each has a
   hand-made level with a tutorial card and a pointer, then three practice levels focused on it, then it mixes with
   the others. Special tiles are earned from their introduction on: rockets from 31, bombs from 41, prisms from 51.
+  Introductions and power-up introductions show their lesson on **every** attempt, replays included.
 * **Bands:** Learn 1–20, Develop 21–60, Combine 61–120, Advanced 121–200, Expert 201+. Each band has a move range
   (Develop 16–30, Combine 20–35, Advanced 24–40, Expert 28–45; treasure levels may go 5 over) and a share of
   spare room (20%, 18%, 15%, 11%; lowered from 30/25/20/13% after a player found the 40s easy).
 * **Ten-level rhythm:** levels ending 1–3 are generous (+10% moves), 4–5 medium, 6 a breather (+15%, or a plain
   score level), 7–9 harder (−5%), 0 a milestone, often combining two mechanics.
 * **Recipes:** a generated level picks one mechanic from those taught so far, and often a second ("free 3 frozen
-  tiles and collect 10 blue"): about 45% of levels 29–40, 55% to 120, 65% to 200, nearly every milestone; from
-  level 61 some levels have three goals. The practice levels after each special-tile introduction ask for a colour
-  and some ice. Amounts are set by band (fewer of each when combined). Obstacles are placed with mirror
-  symmetry away from the top row; treasure only in open columns; moss away from stones and edges. A level whose
-  board would need more moves than its band allows is scaled down (70%, then 50%) and tried again.
+  tiles and collect 10 blue"): about 45% of levels 29–30, 55% of 31–40, 65% to 120, 70% to 200, nearly every
+  milestone; from level 51 some levels have three goals. Partners include special-tile goals from 31 ("make 2
+  rockets", "set off 3 specials", "fire a combination") and a score to reach from 35 (MECHANICS.md §4.2). The
+  practice levels after each special-tile introduction ask the player to make or set off that special next to a
+  goal they know (bombs, prisms and combinations on four-colour boards; some start with one on the board). Amounts
+  are set by band (fewer of each when combined). Obstacles are placed with mirror symmetry away from the top row;
+  treasure only in open columns; moss in separate patches away from stones and edges. A level whose board would
+  need more moves than its band allows is scaled down (80%, 65%, then 50%, never below 4 ice, 3 chains, 3 moss or
+  10 tiles to collect) and tried again. Goal levels use at most five colours (four with chains, bombs, prisms or
+  combinations).
 * **Moves** = what a casual player needs (median of 10 Casual-bot games with plenty of moves) × (1 + the band's
-  spare room + the rhythm), within the band's range. Built-in introductions keep their hand-set moves unless
-  calibration says a casual player needs more.
-* **Stars** on goal levels: completing every goal is one star; two and three stars are the 35th and 75th
-  percentiles of the Planner bot's final scores (spare-move bonus included), so a thoughtful player usually gets
-  two and sometimes three. Score levels from 21 on take their target from Casual-bot scores at a percentile set
-  by band and rhythm.
-* **Same on every device:** generation and calibration use fixed seeds and integer arithmetic only. A level
-  takes 2–36 ms to generate (mean 6.5 ms in the .NET harness).
+  spare room + the rhythm), within the band's range. Levels with a special-tile goal are sized from the Planner
+  bot instead (its 75th-percentile game, +30%), since a casual player never aims for big groups. Built-in
+  introductions keep their hand-set moves unless calibration says more are needed.
+* **Stars:** see 3.2. Score levels from 21 on take their target from Casual-bot scores at a percentile set by band
+  and rhythm.
+* **Same on every device:** generation and calibration use fixed seeds and integer arithmetic only (generation
+  time: 3.2).
 
-**Simulation results** (docs/campaign-simulation.csv; 24 Casual and 24 Planner games per level on fresh
-boards; "Casual" picks groups at random weighted by size, roughly a relaxed beginner; "Planner" is goal-aware
-with one move of lookahead):
+**Simulation results** (docs/campaign-simulation.csv; 12 Casual and 12 Planner games per level on fresh
+boards, every move played; "Casual" picks groups at random weighted by size, roughly a relaxed beginner who never
+aims for specials; "Planner" is goal-aware with one move of lookahead):
 
-| Band | Levels | Casual win rate | Planner win rate | Average moves |
-|---|---|---|---|---|
-| Learn | 1–20 | 85% | 100% | 17.5 |
-| Develop | 21–60 | 76% | 96% | 23.9 |
-| Combine | 61–120 | 66% | 95% | 28.8 |
-| Advanced | 121–200 | 57% | 89% | 34.3 |
+| Band | Levels | Casual pass | Planner pass | Planner ★★ / ★★★ | Casual ★★ / ★★★ | Average moves |
+|---|---|---|---|---|---|---|
+| Learn | 1–20 | 83% | 100% | 100% / 99% | 68% / 52% | 17.5 |
+| Develop | 21–60 | 62% | 94% | 79% / 41% | 16% / 3% | 23.6 |
+| Combine | 61–120 | 60% | 94% | 80% / 44% | 14% / 5% | 28.6 |
+| Advanced | 121–200 | 56% | 92% | 78% / 40% | 13% / 2% | 32.1 |
 
-Levels 21–200: 73 with one goal, 67 with two, 11 with three, 29 score levels.
+Before this update (goals ended the level, stars came from early finishes) the pass rates were Develop 76% / 96%,
+Combine 66% / 95%, Advanced 57% / 89%: levels 21–60 are now harder for a casual player (more combined goals,
+special-tile goals) while a thoughtful player passes about as often.
+
+Levels 21–200: 61 with one goal, 81 with two, 10 with three, 28 score levels; 32 have a special-tile goal and 11 a
+score to reach as well as another goal.
 
 | Main mechanic | Levels | Casual | Planner |
 |---|---|---|---|
-| Collect a colour | 10 | 80% | 97% |
-| Score | 49 | 73% | 99% |
-| Ice | 47 | 72% | 95% |
-| Moss | 22 | 61% | 96% |
-| Chains | 39 | 60% | 90% |
-| Treasure | 33 | 53% | 84% |
+| Score | 28 | 68% | 98% |
+| Moss | 20 | 60% | 97% |
+| Collect a colour | 14 | 61% | 96% |
+| Chains | 28 | 60% | 94% |
+| Ice | 59 | 55% | 90% |
+| Treasure | 30 | 54% | 89% |
 
-**Flagged levels (34 of 200):** the report flags a level as *too hard* when the Casual win rate is below the
+**Flagged levels (57 of 200):** the report flags a level as *too hard* when the Casual pass rate is below the
 band's floor (Learn 75%, Develop 55%, Combine 40%, Advanced 30%, introductions 70%), *too easy* above its ceiling,
-and *unfair?* when even the Planner wins under 80%. Most flags are late treasure and chain levels, where finishing
-needs a colour brought next to one particular tile (a person would use power-ups or plan several moves ahead,
-which neither bot does). Score levels 19, 38, 127 and 172 are hard for the Casual bot but won by the Planner
-96–100% of the time. The full list is in the CSV; tune a level by adding an override in the config.
+*unfair?* when even the Planner passes under 80%, *goals trivial* when the Planner meets them by move 2, and
+*3 stars rare* when it never gets three. "Too hard" is expected on special-tile levels (the Casual bot never builds
+specials). 22 levels are *unfair?*, half of them at exactly 9 of 12 Planner games; the clearly hard ones are
+77, 79, 112, 137, 145, 150, 151, 160 and 190 (chains with ice, combinations with ice or chains, treasure),
+where the Planner passes 50–67%. Level 128's moss goal is trivial (its board only fits two patches). The full list
+is in the CSV; tune a level by adding an override in the config.
 
 Changes made because of the simulation: specials at 6/9/12 tiles instead of 7/10/14; moss falls with its tile,
 is scraped off by a neighbouring clear and never grows two moves in a row; treasure only in open interior
 columns; fewer chains, and four colours on chain levels until 121; score levels from 21 calibrated against the
 Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
+
+### 3.2 Stars and difficulty (play on after passing)
+
+* **What stars measure:** ★ passing (every goal, the target included); ★★ and ★★★ the final score, with play going
+  on after the pass. A player who passes in one move with 17 to spare keeps playing those 17 moves for stars. (This
+  is what went wrong on level 47: the level used to end at the pass, 1,160 points + 17 × 70 spare-move bonus =
+  2,350, under its two-star 2,500, so one star.)
+* **Calibration (every level from 21):** bots play the level to its last move, as a player chasing stars would.
+  ★★ = halfway between a casual player's median final score (Casual bot, 16 games) and the 35th percentile of a
+  thoughtful player's (Planner bot, 8 games); ★★★ = the Planner's 60th percentile, never more than 1.45 × ★★.
+  Medians, not extremes, so one lucky calibration game can't put three stars out of reach. Goal levels show a
+  target of ¾ of ★★; levels with a score goal show that score.
+* **Spare-move bonus:** finishing early pays each unused move half of what a thoughtful player's average move
+  scores (levels 1–20: target ÷ moves), so it rewards stopping once three stars are safe but never beats playing.
+* **"...and reach a score":** the 20th percentile of the final scores of Casual games that meet the other goals.
+* **No one-move levels:** the combinations introduction (47) asks for a combination and 14 frozen tiles, 4 of them
+  out of the starting rockets' reach; thick-ice practice always has thick ice; moss comes in separate patches;
+  scaled-down goals keep a working minimum. A test checks that the Planner needs more than two moves to pass every
+  level 21–60, and that its best of a few games reaches ★★★ on most of them and gets within 80% on all.
+* **Level generation time** rose from about 6 ms to about 17 ms on average (max about 100 ms) in the .NET harness,
+  because calibration now plays whole games. Levels are built when first needed (level card, game start) and then
+  cached; on a phone this may show as a short pause the first time a level card opens. Not measured on a device.
 
 ## 4. Endless
 
@@ -197,7 +234,7 @@ Casual bot; gentler introductions for treasure, chains, prisms and colour goals.
 Bought with coins in the Shop (or from the in-game bar) and stored in an inventory. Using one never costs a
 move. A use is only consumed if the effect actually happens; an invalid target costs nothing.
 
-| Power-up | Price | Unlocks | Free trial | How it works |
+| Power-up | Price | Unlocks | Free uses on its level | How it works |
 |---|---|---|---|---|
 | Blast | 100 | Level 10 | 2 | Tap any tile: every colour tile in the 3 × 3 area is cleared (clipped at the edges). Stones and holes are not affected. Must clear at least one tile. |
 | Tile Breaker | 125 | Level 20 | 2 | Tap one tile **or one stone** to break it. The only way to remove a stone. Holes can't be broken. |
@@ -206,9 +243,12 @@ move. A use is only consumed if the effect actually happens; an invalid target c
 | Extra Moves | 200 | Level 50 | 1 | +3 moves. Campaign only (it would bypass Endless's move economy and challenges' fairness). Also offered, as an explicit choice, on the Out of Moves screen. |
 | Colour Burst | 250 | Level 60 | 1 | Tap a tile: every tile of that colour is removed. |
 
-* **Introduction:** the first time the player starts each unlock level, a "New Power-up!" card explains it,
-  grants the free uses (stored as separate trial charges, spent before bought ones, granted exactly once)
-  and points at its button.
+* **Introduction:** every attempt at a power-up's unlock level (first play, retry or replay, also after the
+  game is closed and reopened) shows its card ("New Power-up!", or "Power-up practice" on a replay), points at its
+  button and **lends** its free uses for that attempt only: they are spent before the player's own, are never
+  saved or added to the inventory, and any left over are taken back when the run ends, so replaying can't collect
+  power-ups. Free trial uses granted by older versions stay in the inventory. Future power-ups with an unlock
+  level get the same treatment automatically.
 * **Where they work:** Campaign and Endless only (Extra Moves: Campaign only). Daily Challenge and Weekly
   Rush block every power-up and every purchase. This is decided in one place (`ActionPolicy`) and enforced
   by the engine and services as well as the UI.

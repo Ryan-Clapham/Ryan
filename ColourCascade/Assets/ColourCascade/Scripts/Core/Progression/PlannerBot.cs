@@ -30,6 +30,11 @@ namespace ColourCascade.Core
         readonly HashSet<GridPos> removed = new HashSet<GridPos>();
         readonly HashSet<GridPos> iceTouched = new HashSet<GridPos>();
         Board scratch;
+        // The move being weighed, for goals about special tiles: the special a group would make (and where), or the
+        // special fired, its combination partner and how many other specials its blast reaches.
+        SpecialKind candCreated, candFired, candPartner;
+        GridPos candAt;
+        int candChained;
 
         /// <summary>Picks the move to play. Returns false when there is none.</summary>
         public bool Choose(PuzzleSession session, out GridPos pick)
@@ -71,6 +76,12 @@ namespace ColourCascade.Core
                 GridPos partner;
                 bool combo;
                 session.PreviewSpecial(p, prismColour, cells, out partner, out combo);
+                candFired = board[p].Special;
+                candPartner = combo ? board[partner].Special : SpecialKind.None;
+                candAt = p;
+                candChained = 0;
+                for (int k = 0; k < cells.Count; k++)
+                    if (cells[k] != p && (!combo || cells[k] != partner) && board[cells[k]].Type == CellType.Special) candChained++;
                 long v = EvaluateSpecial(session, combo);
                 if (v > best)
                 {
@@ -103,16 +114,16 @@ namespace ColourCascade.Core
             removed.Clear();
             for (int k = 0; k < cells.Count; k++)
                 if (!TileRules.StaysWhenItsGroupClears(board[cells[k]])) removed.Add(cells[k]);
+            var tier = s.Level.Specials;
+            candCreated = tier != SpecialTier.None ? s.Scoring.specials.KindFor(g.Size, tier, false) : SpecialKind.None;
+            candFired = candPartner = SpecialKind.None;
+            candAt = g.Anchor;
+            candChained = 0;
             value += GoalValue(s, true);
 
-            var tier = s.Level.Specials;
-            if (tier != SpecialTier.None)
-            {
-                var kind = s.Scoring.specials.KindFor(g.Size, tier, false);
-                if (kind == SpecialKind.Prism) value += 2L * PrismValue;
-                else if (kind == SpecialKind.Bomb) value += 2L * BombValue;
-                else if (kind != SpecialKind.None) value += 2L * RocketValue;
-            }
+            if (candCreated == SpecialKind.Prism) value += 2L * PrismValue;
+            else if (candCreated == SpecialKind.Bomb) value += 2L * BombValue;
+            else if (candCreated != SpecialKind.None) value += 2L * RocketValue;
             return value + Lookahead(s);
         }
 
@@ -120,6 +131,7 @@ namespace ColourCascade.Core
         long EvaluateSpecial(PuzzleSession s, bool combo)
         {
             var board = s.Board;
+            candCreated = SpecialKind.None;
             removed.Clear();
             int tiles = 0;
             for (int k = 0; k < cells.Count; k++)
@@ -215,6 +227,29 @@ namespace ColourCascade.Core
                             if (iceTouched.Count == 0) value -= 2L * MossGrowthCost;
                             break;
                         }
+                    case GoalKind.CreateSpecial:
+                        // Making the special asked for is worth a few goal units: it takes a big group, so it
+                        // must outweigh simply clearing tiles.
+                        if (isGroup && goal.CountsSpecial(candCreated)) value += 2L * 3 * GoalUnitValue;
+                        break;
+                    case GoalKind.FireSpecial:
+                        if (isGroup)
+                        {
+                            // Making one is half the job.
+                            if (goal.CountsSpecial(candCreated)) value += 2L * GoalUnitValue;
+                        }
+                        else
+                        {
+                            int n = (goal.CountsSpecial(candFired) ? 1 : 0) + (goal.CountsSpecial(candPartner) ? 1 : 0);
+                            if (goal.special == SpecialKind.None) n += candChained;
+                            value += 2L * 2 * System.Math.Min(n, remaining) * GoalUnitValue;
+                        }
+                        break;
+                    case GoalKind.FireCombo:
+                        if (!isGroup && candPartner != SpecialKind.None) value += 2L * 4 * GoalUnitValue;
+                        else if (isGroup && candCreated != SpecialKind.None && NextToSpecial(board, candAt)) value += 2L * 2 * GoalUnitValue;
+                        else if (isGroup && candCreated != SpecialKind.None) value += 2L * GoalUnitValue / 2;
+                        break;
                     case GoalKind.CollectTreasure:
                         {
                             // Tiles cleared under a treasure bring it closer to the floor.
@@ -236,6 +271,16 @@ namespace ColourCascade.Core
                 }
             }
             return value;
+        }
+
+        static bool NextToSpecial(Board board, GridPos p)
+        {
+            for (int d = 0; d < 4; d++)
+            {
+                var n = new GridPos(p.Col + Board.DCol[d], p.Row + Board.DRow[d]);
+                if (board.InBounds(n) && board[n].Type == CellType.Special) return true;
+            }
+            return false;
         }
 
         /// <summary>

@@ -18,6 +18,13 @@ namespace ColourCascade.Core
         CollectTreasure = 4,
         /// <summary>Leave no moss on the board. The amount is the starting moss, for display.</summary>
         ClearMoss = 5,
+        /// <summary>Make a number of special tiles from big groups (GoalSpec.special: which kind; None = any).</summary>
+        CreateSpecial = 6,
+        /// <summary>Set off a number of special tiles, by any means: a tap, a chain reaction, a combination or a
+        /// power-up (GoalSpec.special: which kind; None = any). Both specials of a combination count.</summary>
+        FireSpecial = 7,
+        /// <summary>Fire a number of special combinations (a special tapped next to another).</summary>
+        FireCombo = 8,
     }
 
     /// <summary>One goal of a level. Serializable so hand-made levels can list goals in the config asset.</summary>
@@ -28,6 +35,8 @@ namespace ColourCascade.Core
         public int amount;
         /// <summary>The colour for CollectColour goals (TileColours index); unused otherwise.</summary>
         public int colour = -1;
+        /// <summary>CreateSpecial / FireSpecial: which special counts. None = any; either rocket means any rocket.</summary>
+        public SpecialKind special;
 
         public static GoalSpec Score(int amount) => new GoalSpec { kind = GoalKind.Score, amount = amount };
         public static GoalSpec Collect(int colour, int amount) => new GoalSpec { kind = GoalKind.CollectColour, colour = colour, amount = amount };
@@ -36,10 +45,34 @@ namespace ColourCascade.Core
         public static GoalSpec CollectTreasure(int amount) => new GoalSpec { kind = GoalKind.CollectTreasure, amount = amount };
         /// <summary>Clear all moss. Leave the amount at 0 to use the starting moss count.</summary>
         public static GoalSpec ClearMoss(int startingMoss = 0) => new GoalSpec { kind = GoalKind.ClearMoss, amount = startingMoss };
+        /// <summary>Make specials: kind None for any, RocketRow or RocketColumn for any rocket, Bomb, Prism.</summary>
+        public static GoalSpec CreateSpecial(SpecialKind kind, int amount) => new GoalSpec { kind = GoalKind.CreateSpecial, special = Family(kind), amount = amount };
+        /// <summary>Set off specials: kind None for any, RocketRow or RocketColumn for any rocket, Bomb, Prism.</summary>
+        public static GoalSpec FireSpecial(SpecialKind kind, int amount) => new GoalSpec { kind = GoalKind.FireSpecial, special = Family(kind), amount = amount };
+        public static GoalSpec FireCombo(int amount) => new GoalSpec { kind = GoalKind.FireCombo, amount = amount };
 
-        public GoalSpec Clone() => new GoalSpec { kind = kind, amount = amount, colour = colour };
+        /// <summary>Rockets are one family for goals: stored as RocketRow.</summary>
+        static SpecialKind Family(SpecialKind k) => k == SpecialKind.RocketColumn ? SpecialKind.RocketRow : k;
 
-        public override string ToString() => kind == GoalKind.CollectColour ? kind + " " + colour + " x" + amount : kind + " " + amount;
+        /// <summary>Whether a special of kind k counts for this goal's special filter.</summary>
+        public bool CountsSpecial(SpecialKind k)
+        {
+            if (k == SpecialKind.None) return false;
+            if (special == SpecialKind.None) return true;
+            return SpecialEffects.IsRocket(special) ? SpecialEffects.IsRocket(k) : special == k;
+        }
+
+        /// <summary>Goals about special tiles (made or set off); they need a level with specials.</summary>
+        public bool IsSpecialGoal => kind == GoalKind.CreateSpecial || kind == GoalKind.FireSpecial || kind == GoalKind.FireCombo;
+
+        public GoalSpec Clone() => new GoalSpec { kind = kind, amount = amount, colour = colour, special = special };
+
+        public override string ToString()
+        {
+            if (kind == GoalKind.CollectColour) return kind + " " + colour + " x" + amount;
+            if (kind == GoalKind.CreateSpecial || kind == GoalKind.FireSpecial) return kind + " " + (special == SpecialKind.None ? "any" : special.ToString()) + " x" + amount;
+            return kind + " " + amount;
+        }
     }
 
     /// <summary>
@@ -125,6 +158,20 @@ namespace ColourCascade.Core
                         break;
                     case GoalKind.CollectTreasure:
                         progress[i] += o.Treasures.Count;
+                        break;
+                    case GoalKind.CreateSpecial:
+                        if (o.HasCreated && goals[i].CountsSpecial(o.Created.Kind)) progress[i]++;
+                        break;
+                    case GoalKind.FireSpecial:
+                        for (int k = 0; k < o.SpecialsFired.Count; k++)
+                        {
+                            if (goals[i].CountsSpecial(o.SpecialsFired[k].Kind)) progress[i]++;
+                            if (goals[i].CountsSpecial(o.SpecialsFired[k].ComboWith)) progress[i]++;
+                        }
+                        break;
+                    case GoalKind.FireCombo:
+                        for (int k = 0; k < o.SpecialsFired.Count; k++)
+                            if (o.SpecialsFired[k].ComboWith != SpecialKind.None) progress[i]++;
                         break;
                 }
                 if (progress[i] != before) changed = true;

@@ -34,6 +34,8 @@ namespace ColourCascade.App
         Text title;
         Text subtitle;
         CCButton symbolsButton;
+        // Campaign: shown once the level is passed, in place of the symbols button (docs/MECHANICS.md §4.3).
+        CCButton finishButton;
         RectTransform statusCard;
         Text scoreText;
         Text scoreLabel;
@@ -53,6 +55,10 @@ namespace ColourCascade.App
         RectTransform colourPicker;
         GoalsPanel goalsPanel;
         bool goalsMode;
+        // Campaign goal levels: the stars earned so far, under the score (score levels mark them on the bar).
+        StarRow hudStars;
+        Text hudStarCaption;
+        int shownLiveStars;
         // A prism was tapped: the player is choosing its colour (swatches, or tap any tile of that colour).
         bool prismPending;
         GridPos prismCell;
@@ -95,6 +101,9 @@ namespace ColourCascade.App
             ((RectTransform)pause.transform).Place(new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(108, 108));
             symbolsButton = UI.IconButton(top, Icon.Eye, ButtonStyle.Ghost, ToggleSymbols, 108, "Symbols");
             ((RectTransform)symbolsButton.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), Vector2.zero, new Vector2(108, 108));
+            finishButton = UI.Button(top, "Finish", ButtonStyle.Primary, OnFinishTapped, Icon.Check, Theme.FontSmall, 40, 8, "Finish");
+            ((RectTransform)finishButton.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), Vector2.zero, new Vector2(236, 100));
+            finishButton.gameObject.SetActive(false);
             title = UI.FitText(top, "", Theme.FontLarge + 4, Theme.Text, TextAnchor.MiddleCenter, true, "Title");
             title.rectTransform.Fill(140, 46, 140, 0);
             UI.AddShadow(title, -4, 0.35f);
@@ -118,6 +127,12 @@ namespace ColourCascade.App
             goalsPanel = GoalsPanel.Create(card);
             ((RectTransform)goalsPanel.transform).Fill(300, 14, 236, 14);
             goalsPanel.gameObject.SetActive(false);
+            hudStars = StarRow.Create(card, 40, 6);
+            ((RectTransform)hudStars.transform).Place(new Vector2(0, 0), new Vector2(0, 0), new Vector2(38, 20), new Vector2(132, 40));
+            hudStarCaption = UI.FitText(card, "", Theme.FontTiny - 4, Theme.TextSecondary, TextAnchor.MiddleLeft, true, "StarCaption");
+            hudStarCaption.rectTransform.Place(new Vector2(0, 0), new Vector2(0, 0), new Vector2(178, 20), new Vector2(118, 40));
+            hudStars.gameObject.SetActive(false);
+            hudStarCaption.gameObject.SetActive(false);
 
             badge = UI.Rect("Badge", card);
             badge.Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-28, 0), new Vector2(196, 196));
@@ -294,6 +309,7 @@ namespace ColourCascade.App
             invalidHintShown = false;
             shownSecond = -1;
             lastMoves = -1;
+            shownLiveStars = 0;
             banner.gameObject.SetActive(false);
             countdown.gameObject.SetActive(false);
 
@@ -337,14 +353,17 @@ namespace ColourCascade.App
 
             if (args.Mode == GameMode.Campaign)
             {
-                var intro = Ctx.GrantIntroTrialsFor(args.Level);
+                // A power-up's introduction level lends its free demonstration uses on every attempt (first play,
+                // retry or replay), for this run only, and shows its card each time (docs/DESIGN.md §7).
+                var intro = Ctx.LendIntroPowerUpFor(args.Level);
                 if (intro != null)
                 {
                     BuildPowerBar();
                     Tw.Delay(0.6f, () =>
                     {
+                        if (session == null || session.IsOver) return;
                         var popup = Nav.Open<PowerUpIntroPopup>();
-                        popup.Setup(intro);
+                        popup.Setup(intro, Ctx.Campaign.IsCompleted(args.Level));
                         popup.Closed += () => PointAtPowerUp(intro);
                     }, this);
                 }
@@ -355,6 +374,7 @@ namespace ColourCascade.App
             }
             else
             {
+                Ctx.PowerUpUse.ClearRunLoans();
                 Tw.Delay(1.2f, ShowModeTutorial, this);
             }
         }
@@ -365,11 +385,11 @@ namespace ColourCascade.App
             switch (session.Mode)
             {
                 case GameMode.Campaign:
-                    // The level ends the moment the target is reached, so the bar fills to the target.
+                    // Play goes on after the target, so the bar fills to three stars, with a star at each requirement.
                     title.text = "Level " + level.Number;
                     subtitle.text = Ctx.Catalog.RegionForLevel(level.Number).Name.ToUpperInvariant();
                     badgeLabel.text = "MOVES";
-                    progress.SetMarkers(1f);
+                    progress.SetMarkers(level.Target / (float)Mathf.Max(1, level.Star3), level.Star2 / (float)Mathf.Max(1, level.Star3), 1f);
                     break;
                 case GameMode.Endless:
                     title.text = "Endless";
@@ -399,6 +419,25 @@ namespace ColourCascade.App
             targetText.gameObject.SetActive(!goalsMode);
             progress.gameObject.SetActive(!goalsMode);
             if (goalsMode) goalsPanel.Configure(session.Goals, Ctx.Settings.Symbols);
+            bool starsUnderScore = goalsMode && session.Mode == GameMode.Campaign;
+            hudStars.gameObject.SetActive(starsUnderScore);
+            hudStarCaption.gameObject.SetActive(starsUnderScore);
+            hudStars.Set(0);
+            RefreshFinishButton();
+        }
+
+        /// <summary>
+        /// What the next star needs, for the HUD: the target (or "Goals first") until the level is passed, then the
+        /// score for each further star.
+        /// </summary>
+        static string NextStarText(PuzzleSession s, bool shortForm)
+        {
+            var level = s.Level;
+            int live = s.LiveStars;
+            if (!s.Passed) return shortForm ? "Goals first" : "Target " + NumberFormat.Thousands(level.Target);
+            if (live < 2) return (shortForm ? "2nd: " : "2 stars at ") + NumberFormat.Thousands(level.Star2);
+            if (live < 3) return (shortForm ? "3rd: " : "3 stars at ") + NumberFormat.Thousands(level.Star3);
+            return shortForm ? "Top marks!" : "All 3 stars!";
         }
 
         void RefreshHud(bool animate)
@@ -421,21 +460,30 @@ namespace ColourCascade.App
             switch (session.Mode)
             {
                 case GameMode.Campaign:
-                    if (goalsMode)
                     {
-                        var done = goalsPanel.Refresh(session.Goals, animate);
-                        if (done.HasValue)
+                        int live = session.LiveStars;
+                        if (goalsMode)
                         {
-                            AudioService.Sfx(SfxNames.Star(1), 0.7f);
-                            board.Fx.Sparkle(board.Fx.ToLocal(done.Value), Theme.Success, 14, 70f);
+                            var done = goalsPanel.Refresh(session.Goals, animate);
+                            if (done.HasValue)
+                            {
+                                AudioService.Sfx(SfxNames.Star(1), 0.7f);
+                                board.Fx.Sparkle(board.Fx.ToLocal(done.Value), Theme.Success, 14, 70f);
+                            }
+                            hudStars.Set(live);
+                            hudStarCaption.text = NextStarText(session, true);
                         }
+                        else
+                        {
+                            targetText.text = NextStarText(session, false);
+                            progress.SetFraction(score / (float)Mathf.Max(1, level.Star3), animate);
+                            progress.SetColour(session.Passed ? Theme.Success : Theme.Gold);
+                            for (int i = 0; i < 3; i++) progress.SetMarkerLit(i, i < live);
+                        }
+                        if (animate && live > shownLiveStars) CelebrateStar(live);
+                        shownLiveStars = live;
                         break;
                     }
-                    targetText.text = "Target " + NumberFormat.Thousands(level.Target);
-                    progress.SetFraction(score / (float)Mathf.Max(1, level.Target), animate);
-                    progress.SetColour(score >= level.Target ? Theme.Success : Theme.Gold);
-                    progress.SetMarkerLit(0, score >= level.Target);
-                    break;
                 case GameMode.Endless:
                     {
                         int stage = session.Stage;
@@ -756,7 +804,73 @@ namespace ColourCascade.App
             ShowMoveFeedback(outcome);
             RefreshHud(true);
             AfterMoveTutorials();
+            if (outcome.JustPassed) OnLevelPassed(duration);
+            RefreshFinishButton();
             if (outcome.Ended) ScheduleEnd(duration + 0.35f);
+        }
+
+        /// <summary>A star was just earned during play (score levels light it on the bar, goal levels under the score).</summary>
+        void CelebrateStar(int stars)
+        {
+            AudioService.Sfx(SfxNames.Star(Mathf.Clamp(stars, 1, 3)), 0.8f);
+            Haptics.Light();
+            var at = goalsMode ? hudStars.transform.position : progress.transform.position;
+            board.Fx.Sparkle(board.Fx.ToLocal(at), Theme.Gold, 12, 60f);
+        }
+
+        /// <summary>Every goal is met: the level is passed. Say so, and that the moves left can still earn stars.</summary>
+        void OnLevelPassed(float delay)
+        {
+            if (session.MovesLeft <= 0 || session.IsOver) return;
+            Tw.Delay(Mathf.Min(delay, 0.6f), () =>
+            {
+                if (session == null || session.IsOver) return;
+                string next = session.LiveStars >= 3 ? "Finish whenever you like" : "Keep going for more stars, or Finish";
+                ShowBanner("Level passed!  " + next, 2.2f);
+                AudioService.Sfx(SfxNames.Unlock, 0.8f);
+                if (finishButton.gameObject.activeSelf)
+                {
+                    finishButton.transform.localScale = Vector3.one * 1.3f;
+                    Tw.Scale(finishButton.transform, 1f, 0.4f, Ease.OutBackStrong);
+                }
+            }, this);
+        }
+
+        /// <summary>The Finish button replaces the symbols button while a passed level is still in play.</summary>
+        void RefreshFinishButton()
+        {
+            if (finishButton == null) return;
+            bool show = session != null && session.CanFinish && !endScheduled;
+            finishButton.gameObject.SetActive(show);
+            symbolsButton.gameObject.SetActive(!show);
+        }
+
+        void OnFinishTapped()
+        {
+            if (session == null || !session.CanFinish || endScheduled || paused || board.Busy) return;
+            CancelTargeting();
+            if (session.LiveStars >= 3)
+            {
+                FinishNow();
+                return;
+            }
+            int bonus = session.SpareMoveBonusNow;
+            int stars = session.StarsIfFinishedNow;
+            string body = session.MovesLeft + (session.MovesLeft == 1 ? " spare move adds " : " spare moves add ") + NumberFormat.Thousands(bonus) +
+                          " points: " + NumberFormat.Thousands(session.Score + bonus) + " in all, " + stars + (stars == 1 ? " star." : " stars.");
+            if (stars < 3) body += "\n\n" + NextStarText(session, false) + ". Playing on usually scores more than the bonus.";
+            var popup = Nav.Open<ConfirmPopup>();
+            popup.Setup("Finish now?", body, "Finish", FinishNow, ButtonStyle.Primary, "Keep playing");
+        }
+
+        /// <summary>Ends a passed level now; spare moves become bonus points.</summary>
+        void FinishNow()
+        {
+            if (session == null || endScheduled) return;
+            if (!session.Finish(outcome)) return;
+            RefreshHud(true);
+            RefreshFinishButton();
+            ScheduleEnd(0.35f);
         }
 
         void ShowMoveFeedback(MoveOutcome o)
@@ -924,7 +1038,7 @@ namespace ColourCascade.App
         {
             foreach (var s in slots)
             {
-                int trials = Ctx.Inventory.Trials(s.Def.id);
+                int trials = Ctx.PowerUpUse.Lent(s.Def.id) + Ctx.Inventory.Trials(s.Def.id);
                 int owned = Ctx.Inventory.Owned(s.Def.id);
                 if (trials > 0)
                 {
@@ -1158,6 +1272,8 @@ namespace ColourCascade.App
             ShowMoveFeedback(outcome);
             RefreshHud(true);
             RefreshPowerBar();
+            if (outcome.JustPassed) OnLevelPassed(duration);
+            RefreshFinishButton();
             if (revived && session.State == SessionState.Playing)
             {
                 endScheduled = false;
@@ -1189,8 +1305,9 @@ namespace ColourCascade.App
         void ShowLevelTutorial()
         {
             if (session == null || session.IsOver || Nav.AnyPopup) return;
+            // A level's own lesson is shown on every attempt, replays included, so it can always be seen again.
             string key = session.Level.TutorialKey;
-            if (string.IsNullOrEmpty(key) || Ctx.Tutorials.Seen(key)) return;
+            if (string.IsNullOrEmpty(key)) return;
             switch (key)
             {
                 case TutorialKeys.TapGroup:
@@ -1209,7 +1326,7 @@ namespace ColourCascade.App
                     return;
                 case TutorialKeys.Stars:
                     Ctx.Tutorials.MarkSeen(key);
-                    CoachMark.Show("Reach the target before your moves run out. Spare moves become bonus points and stars!", null, OverlayYAbove(board.Frame, 110f), 6.5f);
+                    CoachMark.Show("Reach the target to pass. Then keep going: the points you add with your moves left earn 2 and 3 stars!", null, OverlayYAbove(board.Frame, 110f), 6.5f);
                     return;
                 case TutorialKeys.Symbols:
                     Ctx.Tutorials.MarkSeen(key);
@@ -1424,6 +1541,7 @@ namespace ColourCascade.App
             board.CancelPress();
             CancelTargeting();
             RefreshPowerBar();
+            RefreshFinishButton();
             Tw.Delay(delay, ShowResult, this);
         }
 
@@ -1462,11 +1580,18 @@ namespace ColourCascade.App
             board.InputEnabled = true;
             Ctx.BeginRun(session);
             RefreshPowerBar();
+            RefreshFinishButton();
             return true;
         }
 
         public void RestartRun()
         {
+            // A passed level keeps its pass: it is finished (and saved) before the new attempt starts.
+            if (session != null && session.CanFinish && session.Finish(outcome))
+            {
+                var r = Ctx.FinishRun(session);
+                Toast.Show("Level " + session.Level.Number + " saved with " + r.Stars + (r.Stars == 1 ? " star" : " stars"), Icon.Star, Theme.Gold);
+            }
             StartRun();
         }
 
@@ -1482,9 +1607,17 @@ namespace ColourCascade.App
             StartRun();
         }
 
-        /// <summary>Leaves the game for the map (campaign) or home (other modes), abandoning an unfinished run.</summary>
+        /// <summary>
+        /// Leaves the game for the map (campaign) or home (other modes), abandoning an unfinished run. A passed
+        /// campaign level is finished instead, so its pass and stars are kept and its result shown.
+        /// </summary>
         public void QuitRun()
         {
+            if (session != null && session.CanFinish)
+            {
+                FinishNow();
+                return;
+            }
             CloseRun();
             if (session != null && session.Mode == GameMode.Campaign) ExitTo(ScreenId.Map, new MapArgs { Focus = session.Level.Number });
             else ExitTo(ScreenId.Home, null);
@@ -1506,7 +1639,7 @@ namespace ColourCascade.App
             CoachMark.Hide();
             if (session.IsTimed) board.SetBoardVisible(false);
             var popup = Nav.Open<PausePopup>();
-            popup.Setup(this, session.Mode == GameMode.Campaign ? "Quit to Map" : "Quit to Home");
+            popup.Setup(this, session.CanFinish ? "Finish Level" : session.Mode == GameMode.Campaign ? "Quit to Map" : "Quit to Home");
         }
 
         public void OnPauseClosed()

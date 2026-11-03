@@ -89,8 +89,16 @@ namespace ColourCascade.Core
         public int PowerUpsUsed { get; private set; }
         public int Shuffles { get; private set; }
         public int Stage { get; private set; }
-        /// <summary>Campaign bonus for unused moves, set when the target is reached.</summary>
+        /// <summary>Campaign bonus for moves left unused when a passed level ends (Finish, or a board with no moves).</summary>
         public int LeftoverBonus { get; private set; }
+        /// <summary>
+        /// Campaign: every goal (the target score included, when the level has one) has been met at some point this
+        /// run. The level is passed from then on, but it is not over: the remaining moves can still raise the score
+        /// and the stars, until they run out or the player finishes (docs/MECHANICS.md §4.3).
+        /// </summary>
+        public bool Passed { get; private set; }
+        /// <summary>Moves made when the level was passed, or -1.</summary>
+        public int PassedAtMove { get; private set; } = -1;
         /// <summary>Progress towards the level's goals (campaign completion; tracked in every mode).</summary>
         public GoalTracker Goals { get; private set; }
         public double TimeLeft { get; private set; }
@@ -109,16 +117,33 @@ namespace ColourCascade.Core
         {
             get
             {
-                if (Mode == GameMode.Campaign && State != SessionState.Won) return 0;
+                if (Mode == GameMode.Campaign) return State == SessionState.Won ? CampaignStars(FinalScore) : 0;
                 if (!GoalsMet) return 0;
-                int stars = StarRating.Compute(FinalScore, Level.Target, Level.Star2, Level.Star3);
-                // A won campaign level (every goal met) always earns at least one star, even when it had no score goal.
-                return Mode == GameMode.Campaign ? Math.Max(1, stars) : stars;
+                return StarRating.Compute(FinalScore, Level.Target, Level.Star2, Level.Star3);
             }
         }
 
-        /// <summary>A level's own goals are all met (true when it has none: score-only levels and modes).</summary>
-        public bool GoalsMet => Level.Goals == null || Level.Goals.Length == 0 || (Goals != null && Goals.AllComplete);
+        /// <summary>
+        /// Campaign, during play: the stars the level has earned so far (0 until it is cleared). Only ever goes up,
+        /// since the score never drops. The spare-move bonus is not included: see StarsIfFinishedNow.
+        /// </summary>
+        public int LiveStars => Mode == GameMode.Campaign && (Passed || State == SessionState.Won) ? CampaignStars(State == SessionState.Won ? FinalScore : Score) : 0;
+
+        /// <summary>Campaign: the stars Finish would give right now (score plus the spare-move bonus), or 0 if it can't.</summary>
+        public int StarsIfFinishedNow => CanFinish ? CampaignStars(Score + SpareMoveBonusNow) : 0;
+
+        /// <summary>The spare-move bonus Finish would pay right now.</summary>
+        public int SpareMoveBonusNow => Math.Max(0, MovesLeft) * Math.Max(0, Level.LeftoverBonusPerMove);
+
+        /// <summary>A cleared campaign level always earns at least one star, even when it has no score goal.</summary>
+        int CampaignStars(int score) => Math.Max(1, StarRating.Compute(score, Level.Target, Level.Star2, Level.Star3));
+
+        /// <summary>Campaign: the level is cleared and still in play, so the player may end it now (Finish).</summary>
+        public bool CanFinish => Mode == GameMode.Campaign && Passed && State == SessionState.Playing;
+
+        /// <summary>A level's own goals are all met (true when it has none: score-only levels and modes). Campaign: once
+        /// cleared, it stays met (moss growing back later does not undo a pass).</summary>
+        public bool GoalsMet => Passed || Level.Goals == null || Level.Goals.Length == 0 || (Goals != null && Goals.AllComplete);
 
         /// <summary>Whether the run counts as a success (level won / daily target met).</summary>
         public bool Succeeded
@@ -481,6 +506,25 @@ namespace ColourCascade.Core
 
             Resolve(o, effect.ChangesBoard, false);
             failure = PowerUpFailure.None;
+            return true;
+        }
+
+        /// <summary>
+        /// Campaign: ends a cleared level now. Each unused move adds the level's spare-move bonus to the final score.
+        /// Returns false if the level is not cleared or not in play.
+        /// </summary>
+        public bool Finish(MoveOutcome o = null)
+        {
+            if (!CanFinish) return false;
+            LeftoverBonus = SpareMoveBonusNow;
+            State = SessionState.Won;
+            EndReason = EndReason.FinishedEarly;
+            if (o != null)
+            {
+                o.Reset();
+                o.Ended = true;
+                o.EndReason = EndReason;
+            }
             return true;
         }
 
@@ -854,23 +898,35 @@ namespace ColourCascade.Core
             source.Configure(setup.Endless.ColoursForStage(stage), Level.ColourWeights);
         }
 
+        /// <summary>
+        /// Campaign (docs/MECHANICS.md §4.3): completing every goal clears the level, but play goes on with the moves
+        /// that are left. When they run out the level is won if it was cleared and failed if any goal is still
+        /// unfinished, however high the score. A cleared level whose board has no moves left ends as won, with the
+        /// spare-move bonus for the moves it could not use.
+        /// </summary>
         void EvaluateEnd(MoveOutcome o)
         {
+            if (Mode == GameMode.Campaign && !Passed && (State == SessionState.Playing || State == SessionState.Stuck) && Goals.AllComplete)
+            {
+                Passed = true;
+                PassedAtMove = MovesMade;
+                o.JustPassed = true;
+            }
+            if (Mode == GameMode.Campaign && Passed && State == SessionState.Stuck)
+            {
+                LeftoverBonus = SpareMoveBonusNow;
+                State = SessionState.Won;
+                EndReason = EndReason.TargetReached;
+            }
             if (State == SessionState.Playing)
             {
                 switch (Mode)
                 {
                     case GameMode.Campaign:
-                        if (Goals.AllComplete)
+                        if (MovesLeft <= 0)
                         {
-                            LeftoverBonus = Math.Max(0, MovesLeft) * Level.LeftoverBonusPerMove;
-                            State = SessionState.Won;
-                            EndReason = EndReason.TargetReached;
-                        }
-                        else if (MovesLeft <= 0)
-                        {
-                            State = SessionState.Failed;
-                            EndReason = EndReason.OutOfMoves;
+                            State = Passed ? SessionState.Won : SessionState.Failed;
+                            EndReason = Passed ? EndReason.TargetReached : EndReason.OutOfMoves;
                         }
                         break;
                     case GameMode.Daily:

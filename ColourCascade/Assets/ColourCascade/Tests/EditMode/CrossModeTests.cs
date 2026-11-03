@@ -527,15 +527,17 @@ namespace ColourCascade.Tests
         public void TheStarChecklistSaysWhatEachStarNeeds()
         {
             var level = new LevelSpec { Target = 1000, Star2 = 2000, Star3 = 3000, LeftoverBonusPerMove = 80, Goals = new[] { GoalSpec.FreeIce(3) } };
-            var items = StarChecklist.For(level, 2300, 2);
+            var items = StarChecklist.For(level, null, true, 2300, 2);
             Assert.AreEqual(3, items.Count);
             Assert.IsTrue(items[0].Met && items[1].Met && !items[2].Met);
             StringAssert.Contains("goal", items[0].Text);
             StringAssert.Contains("3,000", items[2].Text);
-            StringAssert.Contains("700 more", items[2].Text);
-            StringAssert.Contains("80 points", StarChecklist.Tip(level));
+            Assert.AreEqual("2,300 of 3,000", items[2].Result, "the result against the requirement");
+            StringAssert.Contains("700 short", StarChecklist.WhyNotNext(level, 2300, 2, false, 0));
             var scoreLevel = new LevelSpec { Target = 1000, Star2 = 2000, Star3 = 3000 };
-            StringAssert.Contains("1,000", StarChecklist.For(scoreLevel, 1200, 1)[0].Text);
+            StringAssert.Contains("1,000", StarChecklist.For(scoreLevel, null, true, 1200, 1)[0].Text);
+            // Not passed: no star is met, whatever the score.
+            Assert.IsFalse(StarChecklist.For(level, null, false, 5000, 0).Any(i => i.Met));
         }
     }
 }

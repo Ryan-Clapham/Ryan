@@ -15,7 +15,8 @@ namespace ColourCascade.Core
         public const string Format = "colour-cascade-level";
         public const int Version = 1;
 
-        static readonly string[] GoalNames = { "score", "colour", "ice", "chains", "treasure", "moss" };
+        static readonly string[] GoalNames = { "score", "colour", "ice", "chains", "treasure", "moss", "make", "fire", "combo" };
+        static readonly string[] GoalSpecialNames = { "any", "rocket", "rocket", "bomb", "prism" };
         static readonly string[] TierNames = { "none", "rockets", "bombs", "prisms" };
 
         /// <summary>A playable level as JSON (the board shape as rows, so it can be read and edited by hand).</summary>
@@ -103,6 +104,7 @@ namespace ColourCascade.Core
         {
             var d = new Dictionary<string, object> { ["kind"] = GoalNames[(int)g.kind], ["amount"] = g.amount };
             if (g.kind == GoalKind.CollectColour) d["colour"] = TileColours.Names[g.colour].ToLowerInvariant();
+            if (g.kind == GoalKind.CreateSpecial || g.kind == GoalKind.FireSpecial) d["special"] = GoalSpecialNames[(int)g.special];
             return d;
         }
 
@@ -118,6 +120,13 @@ namespace ColourCascade.Core
                 for (int i = 0; i < TileColours.Names.Length; i++)
                     if (string.Equals(TileColours.Names[i], colour, StringComparison.OrdinalIgnoreCase)) g.colour = i;
                 if (g.colour < 0) throw new FormatException("Unknown colour '" + colour + "'");
+            }
+            if (g.kind == GoalKind.CreateSpecial || g.kind == GoalKind.FireSpecial)
+            {
+                string special = d.ContainsKey("special") ? Str(d, "special") : "any";
+                int k = Array.IndexOf(GoalSpecialNames, special);
+                if (k < 0) throw new FormatException("Unknown special '" + special + "'");
+                g.special = (SpecialKind)k;
             }
             if (g.amount < 0 || (g.amount == 0 && g.kind != GoalKind.ClearMoss)) throw new FormatException("Goal amount must be positive");
             return g;

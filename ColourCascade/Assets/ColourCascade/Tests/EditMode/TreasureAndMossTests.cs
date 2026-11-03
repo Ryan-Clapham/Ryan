@@ -22,7 +22,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(0, Play.CountPieces(s.Board, CellType.Treasure));
             Assert.AreEqual(40 + 500, o.ScoreGained);
             Assert.AreEqual(1, s.Goals.Progress(0));
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
             TestUtil.AssertBoardInvariants(s.Board, s.Level.Layout);
         }
 
@@ -63,7 +63,7 @@ namespace ColourCascade.Tests
             var s = Play.Level(new[] { "121", "2$3", "4$1", "000", "202" }, null, 20, GoalSpec.CollectTreasure(2));
             var o = Play.Tap(s, 0, 1);
             Assert.AreEqual(2, o.Treasures.Count);
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
         }
 
         [Test]
@@ -122,7 +122,7 @@ namespace ColourCascade.Tests
             Assert.IsTrue(o.ObstacleHits[0].Freed);
             Assert.AreEqual(40 + 100, o.ScoreGained);
             Assert.AreEqual(0, s.Board.CountObstacle(ObstacleKind.Moss));
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
         }
 
         [Test]
@@ -209,7 +209,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(0, o.MossGrowth.Count, "moss was cleared this move, so it does not grow");
             Assert.AreEqual(ObstacleKind.None, s.Board[Play.Find(s.Board, id)].Obstacle, "the tile stays, free of moss");
             Assert.AreEqual(s.Scoring.GroupPoints(2) + 100, o.ScoreGained);
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
         }
 
         [Test]

@@ -90,17 +90,63 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void MeetingEveryGoalWinsAtOnceAndPaysTheSpareMoveBonus()
+        public void MeetingEveryGoalPassesTheLevelAndPlayGoesOn()
         {
             var s = Play.Level(new[] { "001", "223" }, null, 10, GoalSpec.Collect(0, 2));
             var o = Play.Tap(s, 0, 1);
+            Assert.IsTrue(o.JustPassed);
+            Assert.IsTrue(s.Passed);
+            Assert.AreEqual(1, s.PassedAtMove);
+            Assert.AreEqual(SessionState.Playing, s.State, "the level is passed but not over: 9 moves are left");
+            Assert.IsFalse(o.Ended);
+            Assert.IsTrue(s.AcceptsMoves);
+            Assert.IsTrue(s.CanFinish);
+            Assert.AreEqual(0, s.Stars, "stars are final only once the level is over");
+            Assert.AreEqual(1, s.LiveStars, "a passed level shows at least one star while play goes on");
+            Assert.AreEqual(9 * 100, s.SpareMoveBonusNow);
+        }
+
+        [Test]
+        public void FinishingAPassedLevelPaysTheSpareMoveBonus()
+        {
+            var s = Play.Level(new[] { "001", "223" }, null, 10, GoalSpec.Collect(0, 2));
+            Play.Tap(s, 0, 1);
+            var o = new MoveOutcome();
+            Assert.IsTrue(s.Finish(o));
             Assert.AreEqual(SessionState.Won, s.State);
-            Assert.AreEqual(EndReason.TargetReached, s.EndReason);
+            Assert.AreEqual(EndReason.FinishedEarly, s.EndReason);
             Assert.IsTrue(o.Ended);
             Assert.AreEqual(9 * 100, s.LeftoverBonus);
             Assert.AreEqual(40 + 900, s.FinalScore);
             Assert.AreEqual(1, s.Stars, "a won level earns at least one star even below its score target");
             Assert.IsTrue(s.Succeeded);
+            Assert.IsFalse(s.Finish(o), "only once");
+        }
+
+        [Test]
+        public void FinishIsRefusedUntilEveryGoalIsMet()
+        {
+            var s = Play.Level(new[] { "0012", "3345" }, new[] { "...i", "...." }, 5, GoalSpec.Score(10), GoalSpec.FreeIce(1));
+            Play.Tap(s, 0, 1);
+            Assert.IsTrue(s.Goals.IsComplete(0), "the score goal is met");
+            Assert.IsFalse(s.CanFinish, "the ice goal is not");
+            Assert.IsFalse(s.Finish());
+            Assert.AreEqual(SessionState.Playing, s.State);
+        }
+
+        [Test]
+        public void APassedLevelThatRunsOutOfMovesIsWonWithNoBonus()
+        {
+            var s = Play.Level(new[] { "0011", "2233", "0011" }, null, 2, GoalSpec.Collect(0, 2));
+            Play.Tap(s, 0, 2);
+            Assert.IsTrue(s.Passed);
+            Assert.AreEqual(SessionState.Playing, s.State);
+            var o = Play.Tap(s, 2, 2);
+            Assert.IsTrue(o.Ended);
+            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.AreEqual(EndReason.TargetReached, s.EndReason);
+            Assert.AreEqual(0, s.LeftoverBonus);
+            Assert.AreEqual(s.Score, s.FinalScore);
         }
 
         [Test]
@@ -121,23 +167,30 @@ namespace ColourCascade.Tests
         {
             var s = Play.Level(new[] { "0012", "3345" }, new[] { "...i", "...." }, 1, GoalSpec.FreeIce(1));
             Play.Tap(s, 0, 1);
+            int score = s.Score;
             Assert.AreEqual(SessionState.Failed, s.State);
             Play.Use(s, new PowerUpRequest { Id = PowerUpId.ExtraMoves, Amount = 3 });
             Assert.AreEqual(SessionState.Playing, s.State);
+            Assert.AreEqual(score, s.Score, "reviving keeps the score");
             Play.Use(s, Play.At(PowerUpId.TileBreaker, 3, 1));
+            Assert.IsTrue(s.Passed);
+            Assert.AreEqual(SessionState.Playing, s.State, "3 moves are left to chase stars");
+            s.Finish();
             Assert.AreEqual(SessionState.Won, s.State);
             Assert.AreEqual(3 * 100, s.LeftoverBonus);
         }
 
         [Test]
-        public void ScoreOnlyLevelsBehaveAsBefore()
+        public void ScoreOnlyLevelsPassAtTheTargetAndPlayOn()
         {
             var s = TestUtil.Session(GameMode.Campaign, 5, 50, 4, "0011", "2233");
             Assert.AreEqual(1, s.Goals.Count);
             Play.Tap(s, 0, 1);
             Assert.AreEqual(SessionState.Playing, s.State, "40 < 50");
+            Assert.IsFalse(s.Passed);
             Play.Tap(s, 0, 0);
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
+            Assert.AreEqual(SessionState.Playing, s.State, "the target is reached with moves to spare: play goes on");
             Assert.AreEqual(80, s.Goals.Progress(0));
         }
     }

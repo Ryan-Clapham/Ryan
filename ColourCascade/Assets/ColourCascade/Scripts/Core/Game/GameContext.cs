@@ -148,6 +148,10 @@ namespace ColourCascade.Core
         public bool UnlockedNext;
         public int BiggestGroup;
         public int MovesMade;
+        /// <summary>Moves left when the run ended (campaign: the spare moves a Finish paid for).</summary>
+        public int MovesLeft;
+        /// <summary>Campaign: every goal was met at some point (the level was passed).</summary>
+        public bool Passed;
         public int Stage;
         public string PeriodKey = "";
         /// <summary>Endless: the player's Endless level before and after this run, and mechanics it unlocked.</summary>
@@ -349,6 +353,8 @@ namespace ColourCascade.Core
                 Stars = s.Stars,
                 BiggestGroup = s.BiggestGroup,
                 MovesMade = s.MovesMade,
+                MovesLeft = s.MovesLeft,
+                Passed = s.Passed,
                 Stage = s.Stage,
             };
 
@@ -467,17 +473,20 @@ namespace ColourCascade.Core
         public DailyRecord TodayRecord => Data.FindDaily(TodayKey);
         public WeeklyRecord ThisWeekRecord => Data.FindWeekly(ThisWeekKey);
 
-        /// <summary>Grants trial uses if a power-up is introduced at this level and hasn't been granted yet.</summary>
-        public PowerUpDefinition GrantIntroTrialsFor(int level)
+        /// <summary>
+        /// Starts a campaign attempt's power-up demonstration: if a power-up is introduced at this level, its free uses
+        /// are lent for this run only, on every attempt (first play, retry or replay, also after the game was closed).
+        /// They are never saved or added to the inventory, so replaying can't collect them. Clears any earlier loan.
+        /// Returns the power-up introduced here, or null.
+        /// </summary>
+        public PowerUpDefinition LendIntroPowerUpFor(int level)
         {
+            PowerUpUse.ClearRunLoans();
             var def = PowerUps.IntroducedAt(level);
-            if (def == null) return null;
-            if (Rewards.GrantTrial(def, Inventory) > 0)
-            {
-                Save();
-                return def;
-            }
-            return null;
+            if (def == null || def.trialUses <= 0) return null;
+            if (!ActionPolicy.IsUnlocked(def, Campaign.HighestUnlocked)) return null;
+            PowerUpUse.LendForRun(def.id, def.trialUses);
+            return def;
         }
     }
 }

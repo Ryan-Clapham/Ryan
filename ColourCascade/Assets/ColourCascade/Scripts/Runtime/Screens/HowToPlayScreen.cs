@@ -210,7 +210,7 @@ namespace ColourCascade.App
 
         void PageLevels()
         {
-            pageBody.text = "Each level has a <b>target score</b> and a number of <b>moves</b>. Reach the target to win; your spare moves become bonus points. Score higher for up to <b>3 stars</b>. Replays can only improve your stars.";
+            pageBody.text = "Meet a level's <b>goals</b> (or reach its <b>target</b>) to pass: <b>1 star</b>. Then keep playing: points from the moves left earn <b>2 and 3 stars</b>. <b>Finish</b> stops early, with a small bonus per spare move.";
             var mock = UI.Rect("Mock", stage);
             mock.Centre(820, 230, 0, 120);
             var card = UI.Card(mock, "Card", Theme.SurfaceHigh, 44);

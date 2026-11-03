@@ -34,8 +34,41 @@ namespace ColourCascade.App
                 case GoalKind.ClearMoss:
                     TileWith(root, TileColours.Yellow, ArtNames.Moss, false);
                     break;
+                case GoalKind.CreateSpecial:
+                case GoalKind.FireSpecial:
+                    UI.Image(root, ArtLibrary.Instance.Get(SpecialArt(g.special)), Color.white, "Special").rectTransform.Fill();
+                    if (g.kind == GoalKind.FireSpecial) Badge(root, Procedural.Icon.Sparkle);
+                    break;
+                case GoalKind.FireCombo:
+                    {
+                        // Two rockets side by side, slightly overlapping.
+                        var a = UI.Image(root, ArtLibrary.Instance.Get(ArtNames.RocketRow), Color.white, "A");
+                        a.rectTransform.Place(new Vector2(0.32f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size * 0.7f, size * 0.7f));
+                        var b = UI.Image(root, ArtLibrary.Instance.Get(ArtNames.RocketColumn), Color.white, "B");
+                        b.rectTransform.Place(new Vector2(0.68f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size * 0.7f, size * 0.7f));
+                        break;
+                    }
             }
             return root;
+        }
+
+        static string SpecialArt(SpecialKind k)
+        {
+            switch (k)
+            {
+                case SpecialKind.Bomb: return ArtNames.Bomb;
+                case SpecialKind.Prism: return ArtNames.Prism;
+                case SpecialKind.RocketColumn: return ArtNames.RocketColumn;
+                default: return ArtNames.RocketRow;
+            }
+        }
+
+        /// <summary>A small mark in the corner of a goal picture (a spark for "set off").</summary>
+        static void Badge(RectTransform root, Procedural.Icon icon)
+        {
+            float s = root.sizeDelta.x * 0.42f;
+            var mark = UI.Icon(root, icon, Theme.Gold, s);
+            mark.rectTransform.Place(new Vector2(0, 0), new Vector2(0.5f, 0.5f), new Vector2(s * 0.35f, s * 0.35f), new Vector2(s, s));
         }
 
         static void TileWith(RectTransform root, int colour, string overlay, bool symbols)
@@ -57,6 +90,36 @@ namespace ColourCascade.App
                 case GoalKind.BreakChains: return "Free " + g.amount + (g.amount == 1 ? " chained tile" : " chained tiles");
                 case GoalKind.CollectTreasure: return "Bring down " + g.amount + (g.amount == 1 ? " treasure" : " treasures");
                 case GoalKind.ClearMoss: return "Clear all the moss";
+                case GoalKind.CreateSpecial: return "Make " + g.amount + " " + SpecialNoun(g.special, g.amount);
+                case GoalKind.FireSpecial: return "Set off " + g.amount + " " + SpecialNoun(g.special, g.amount);
+                case GoalKind.FireCombo: return "Fire " + g.amount + (g.amount == 1 ? " special combo" : " special combos");
+                default: return "";
+            }
+        }
+
+        /// <summary>"rocket", "bombs", "special tiles"...</summary>
+        public static string SpecialNoun(SpecialKind k, int amount)
+        {
+            bool one = amount == 1;
+            if (SpecialEffects.IsRocket(k)) return one ? "rocket" : "rockets";
+            if (k == SpecialKind.Bomb) return one ? "bomb" : "bombs";
+            if (k == SpecialKind.Prism) return one ? "prism" : "prisms";
+            return one ? "special tile" : "special tiles";
+        }
+
+        /// <summary>How the goal is done, for the level popup and failure screen ("groups of 9+ make bombs").</summary>
+        public static string Hint(GoalSpec g, ScoringRules scoring)
+        {
+            var sp = scoring != null ? scoring.specials : new SpecialRules();
+            switch (g.kind)
+            {
+                case GoalKind.CreateSpecial:
+                    if (SpecialEffects.IsRocket(g.special)) return "Clear a group of " + sp.rocketGroupSize + "-" + (sp.bombGroupSize - 1) + " tiles to make a rocket";
+                    if (g.special == SpecialKind.Bomb) return "Clear a group of " + sp.bombGroupSize + "+ tiles to make a bomb";
+                    if (g.special == SpecialKind.Prism) return "Clear a group of " + sp.prismGroupSize + "+ tiles to make a prism";
+                    return "Clear groups of " + sp.rocketGroupSize + "+ tiles to make special tiles";
+                case GoalKind.FireSpecial: return "Tap a special tile to set it off; blasts set off others too";
+                case GoalKind.FireCombo: return "Make a special next to another, then tap one of them";
                 default: return "";
             }
         }

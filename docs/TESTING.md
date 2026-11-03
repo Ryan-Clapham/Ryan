@@ -13,10 +13,10 @@ reference assemblies:
 | Same, with the `UNITY_ANDROID` code paths enabled | `UnityCheck -p:UnityPlatform=Android` | 0 errors, 0 warnings * |
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **293 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **310 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
-| Campaign mechanics: Casual and Planner bots play every level 1–200 (24 games each) and flag levels that look too easy, too hard or unfair | `Sim -- campaign 1 200 24 <csv>` | See DESIGN.md §3.1 and docs/campaign-simulation.csv |
+| Campaign mechanics: Casual and Planner bots play every level 1–200 (12 games each, every move played) and flag levels that look too easy, too hard, unfair, trivial or short of three stars | `Sim -- campaign 1 200 12 <csv>` | See DESIGN.md §3.1–3.2 and docs/campaign-simulation.csv |
 | Mechanics in other modes: Daily success by unlock level (60 days), Weekly Rush medal rates with and without mechanics (16 weeks), Endless runs by Endless level | `Sim -- modes` | See DESIGN.md §4–6 |
 | Economy: a simulated player earns coins for 30 days through the real reward code | `Sim -- economy` | See DESIGN.md §8 |
 | Art: every generated sprite and a composited mock board exported to PNG and inspected | `Sim -- art` | Reviewed; symbols changed after review (§ below); new-mechanics mock board reviewed (chain padlock moved off the colour symbol) |
@@ -25,7 +25,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (293 tests)
+### Automated test coverage (310 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -35,7 +35,7 @@ real Android builds provide it.
 | Dead-board recovery | 7 | Reshuffle keeps the same tiles, stones never move, constructive fallback, graceful failure, determinism |
 | Sessions and modes | 14 | Win/lose/revive, Daily plays all moves, Endless bonus moves, Rush timer start/stop/expiry/pause, **only Weekly Rush is timed**, long randomised play keeps board invariants |
 | Power-ups | 17 | All six effects and their invalid targets, stones vs Blast/Tile Breaker, trial-first consumption, nothing consumed on failure, **challenge modes blocked at engine and service level** |
-| Wallet, shop, rewards | 22 | Ledger, insufficient funds, locked items, **purchases blocked during challenge runs**, first-clear once, new stars only, milestones once, daily/weekly/endless claims once, clock rollback refused, early-economy sanity |
+| Wallet, shop, rewards | 23 | Ledger, insufficient funds, locked items, **purchases blocked during challenge runs**, first-clear once, new stars only, milestones once, daily/weekly/endless claims once, clock rollback refused, early-economy sanity; a power-up's free uses are lent on every attempt at its level (also after reopening the game), spent first, never added to the inventory or saved |
 | Progression | 9 | **Board sizes 6×6 / 7×7 / 8×9**, 120 generated levels valid and deterministic, stones from level 8, early levels ≥80% winnable by a casual bot, replays never reduce stars |
 | Challenges | 15 | UTC day keys, ISO weeks (including year boundaries), Monday reset, same board and refills for the same date/week, different days differ, **Endless fresh board each run** |
 | Saves and settings | 14 | Full round trip, missing/corrupt/backup/temp recovery on a real file system, write failure, repair of inconsistent data, reload through the context, reset rebinding; sound toggles restore the chosen volume |
@@ -43,14 +43,15 @@ real Android builds provide it.
 | Procedural assets | 6 | Atlas has every referenced sprite with no overlaps, cache round trip, **symbols measurably distinct**, valid audio |
 | Regression checklist | 13 | One test per logic item in the brief's §21 list |
 | Project setup | 2 | `Packages/manifest.json` declares every package and module the assemblies need |
-| Golden gameplay | 5 | Fingerprints of campaign levels, seeded bot games, Endless/Daily/Rush and scripted power-ups. Levels 1–20, the challenge modes and power-ups still match the values recorded before the overhaul; levels 21+ were re-recorded when the mechanics arrived (a deliberate gameplay change was confirmed to break them) |
+| Golden gameplay | 5 | Fingerprints of campaign levels, seeded bot games, Endless/Daily/Rush and scripted power-ups. Levels 1–20, the challenge modes and power-ups still match the values recorded before the overhaul (seeded games finish the moment a level is passed, which reproduces the old end of level exactly); levels 21+ were re-recorded for each deliberate change to them |
 | Ice | 12 | Frozen tiles join no group and can't be tapped; several cleared neighbours take one layer; thick ice needs two actions; the freed tile falls in the same action; it holds up the tiles above and the gap below refills from beneath; no Swap or Colour Shift; Tile Breaker strips all layers; Blast and Colour Burst take one layer even with neighbours removed |
 | Chains | 7 | Chained tiles join their colour's group, stay and lose a link; a group of only chained tiles is a legal move; adjacent clears do nothing; no Swap, but Colour Shift recolours (chain stays); Tile Breaker strips all links; Blast/Colour Burst take one |
 | Obstacle boards and layouts | 6 | Recovery reshuffles only free tiles (40 seeds); obstacle notation round trips; validation; obstacles don't change generated colours; obstacle points configurable; `TileRules` matches the definitions |
 | Campaign-only mechanics | 7 | Endless, Daily, Weekly and Practice have no obstacles or goals and refuse to start with them; built-in levels 1–300 unchanged; a hand-made level can list obstacles and goals |
-| Goals | 8 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; win the moment every goal is met (with spare-move bonus and at least one star); fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
+| Goals | 11 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; meeting every goal passes the level and play goes on; Finish pays the spare-move bonus and is refused before passing; a passed level that runs out of moves is won with no bonus; fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
+| Stars and objectives (play on) | 13 | The level 67, 47 and 78 reports: the target passes without ending and stars rise with every move left (the HUD's stars are the stars awarded); the real level 67 keeps going after its goals; a high score with a treasure left fails, Extra Moves keep score and progress, a power-up finishes the goal, Finish and the saved result; the combinations tutorial is no longer a one-tap win; no level 21–60 is passed by move 2; three stars within reach on 21–60; make/set off/combination goals count only the kind asked, chain reactions, both halves of a combination and power-ups; all goals needed; the new goals round trip through level files; star requirements match the star rule on levels 1–60; the result says why the next star was missed; stars from playing on are saved |
 | Planner bot | 6 | Picks goal progress over the biggest group; breaks the ice/chains a goal needs; looks one move ahead; deterministic; beats Casual on levels 1–40 (120/120 vs 93/120) and on an ice level (29/30 vs 10/30) |
-| Save compatibility | 2 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte, and the same play on the new code produces exactly the same save (progress, stars, coins, ledger, records) |
+| Save compatibility | 2 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte, and the same play on the new code (finishing each level the moment it is passed) produces exactly the same save (progress, stars, coins, ledger, records) |
 | Special tiles | 29 | Creation at 6/9/12 tiles and only as taught; configurable thresholds; row vs column rockets; placement (tapped cell, or nearest cleared cell); they fall and stop at stones; rocket, bomb and prism hits on every tile type; every combination; chain reactions in order, each once; goals count their clears; Blast, Tile Breaker, Swap, Colour Shift and Colour Burst with specials; a special is always a legal move |
 | Treasure | 9 | Falls and is collected at the bottom edge and on stones, never through them; waits on ice, chains, moss and tiles; stacked treasure; untouched by power-ups and reshuffles; layout rules; the treasure goal wins the level |
 | Moss | 11 | Leaves with its group and with area hits; scraped off by a neighbouring clear; grows by one free tile after a move that clears none, repeatably, never two moves in a row, never past its cap, never onto ice, chains, specials or treasure; falls with its tile; can't block every move; the moss goal follows the board |
@@ -121,9 +122,38 @@ real Android builds provide it.
   against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
   watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
   how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
-* Balance comes from bots, not people. 30 of levels 1–200 are flagged by the report (DESIGN.md §3.1).
+* Balance comes from bots, not people. 57 of levels 1–200 are flagged by the report, 9 of them clearly hard for
+  the Planner bot (DESIGN.md §3.1).
+* **The play-on update has not been seen running:** the Finish button in the top bar, the stars under the score
+  (goal levels) or on the bar (score levels), the "Level passed!" banner, the Finish confirmation, the longer level
+  card with its star requirements, the result checklist and "why" line, and the "Power-up practice" card all compile
+  in every variant and pass the lint, but their layout on real screens is unverified. Level generation now takes
+  about 17 ms on average in the harness (was 6 ms); on a phone the first opening of a level card may pause briefly.
 
 ## Manual test checklist (please run in Unity, then on a phone)
+
+### Passing, playing on and stars
+
+* Level 67 (or any score level): reaching the target shows "Level passed!", the moves badge keeps counting, the bar
+  keeps filling towards the third star and its stars light up as they are reached; the top-right button becomes
+  **Finish**. Play every move: the result shows the stars of the final score with no spare-move bonus.
+* Finish with fewer than three stars: a confirmation shows the spare moves, the bonus, the total and the stars,
+  with "Keep playing". With three stars, Finish ends at once. The result line reads "score + bonus for N spare moves".
+* A goal level: three small stars and a caption ("Goals first", then "2nd: 2,800", "3rd: 3,300") sit under the
+  score; check they don't collide with the goals on a narrow phone.
+* Level 78 (or any treasure level): run out of moves with a high score and a treasure left: "Out of Moves" says
+  "Plenty of points, but 1 goal left: bring down 1 treasure." Extra Moves continues with the score and goals as
+  they were.
+* Pause a passed level: the quit button reads **Finish Level** and finishing shows the result. Restart a passed
+  level: a toast says it was saved with its stars.
+* Level cards: three star rows with their requirements; on a completed level the earned ones are ticked. The card
+  is taller than before: check it fits a short phone screen.
+* Level 47: tapping the two rockets frees 10 frozen tiles and fires the combination, but the level goes on (4 frozen
+  tiles left).
+* Replay level 60 (Colour Burst): the "Power-up practice" card appears and Colour Burst shows "Free" on the bar for
+  that attempt; use it or not, the inventory count afterwards is unchanged. Close and reopen the game, replay: it
+  is lent again.
+* Replay an introduction level (21, 31, 47, 61, 71, 101...): its tutorial card shows again.
 
 ### New tile mechanics (phase 2)
 

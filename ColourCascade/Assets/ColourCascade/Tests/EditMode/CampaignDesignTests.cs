@@ -42,9 +42,23 @@ namespace ColourCascade.Tests
                 if (n < s.rocketsFromLevel) Assert.AreEqual(SpecialTier.None, spec.Specials, at);
                 if (n < s.bombsFromLevel) Assert.LessOrEqual((int)spec.Specials, (int)SpecialTier.Rockets, at);
                 if (n < s.prismsFromLevel) Assert.LessOrEqual((int)spec.Specials, (int)SpecialTier.Bombs, at);
-                // Special tiles placed by hand only on the introduction levels that teach them.
-                bool pieces = "-|*@".Any(ch => l.PieceCount(ch) > 0);
-                if (pieces) Assert.IsTrue(CampaignDesign.IsIntroLevel(n, s), at);
+                // Special tiles placed on the board only on the introduction levels that teach them, and one on some
+                // practice levels whose goal is about specials (fire a prism, set off two bombs, make a combination).
+                int pieces = "-|*@".Sum(ch => l.PieceCount(ch));
+                if (pieces > 0) Assert.IsTrue(CampaignDesign.IsIntroLevel(n, s) || (pieces == 1 && spec.EffectiveGoals().Any(g => g.IsSpecialGoal)), at);
+                if (l.PieceCount('-') + l.PieceCount('|') > 0) Assert.GreaterOrEqual(n, s.rocketsFromLevel, at);
+                if (l.PieceCount('*') > 0) Assert.GreaterOrEqual(n, s.bombsFromLevel, at);
+                if (l.PieceCount('@') > 0) Assert.GreaterOrEqual(n, s.prismsFromLevel, at);
+                // Goals about special tiles only once that special has been taught.
+                foreach (var g in spec.EffectiveGoals())
+                {
+                    if (!g.IsSpecialGoal) continue;
+                    Assert.GreaterOrEqual(n, s.rocketsFromLevel, at);
+                    if (g.kind == GoalKind.FireCombo) Assert.GreaterOrEqual(n, s.combosFromLevel, at);
+                    if (g.special == SpecialKind.Bomb) Assert.GreaterOrEqual(n, s.bombsFromLevel, at);
+                    if (g.special == SpecialKind.Prism) Assert.GreaterOrEqual(n, s.prismsFromLevel, at);
+                    Assert.AreNotEqual(SpecialTier.None, spec.Specials, at);
+                }
             }
         }
 
@@ -66,6 +80,15 @@ namespace ColourCascade.Tests
                 Assert.AreEqual(kv.Value, spec.TutorialKey, "level " + kv.Key);
                 Assert.IsTrue(spec.Note.StartsWith("New:"), "level " + kv.Key);
                 Assert.IsNotNull(spec.Goals, "level " + kv.Key);
+                if (kv.Key == s.combosFromLevel)
+                {
+                    // Combinations: fire one (the new thing), and free ice the combination cannot all reach, so the
+                    // level is never over in one tap.
+                    Assert.AreEqual(2, spec.Goals.Length, "level " + kv.Key);
+                    Assert.AreEqual(GoalKind.FireCombo, spec.Goals[0].kind);
+                    Assert.AreEqual(GoalKind.FreeIce, spec.Goals[1].kind);
+                    continue;
+                }
                 Assert.AreEqual(1, spec.Goals.Length, "one goal, about the new thing (level " + kv.Key + ")");
             }
             // The newest mechanic on each introduction is the only thing on the board that is new.

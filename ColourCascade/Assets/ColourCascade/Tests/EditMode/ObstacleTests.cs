@@ -140,7 +140,7 @@ namespace ColourCascade.Tests
             Assert.AreEqual(ObstacleKind.None, freed.Obstacle);
             Assert.AreEqual(0, freed.Strength);
             Assert.AreEqual(1, s.Goals.Progress(0));
-            Assert.AreEqual(SessionState.Won, s.State, "every goal met");
+            Assert.IsTrue(s.Passed, "every goal met: the level is passed");
         }
 
         [Test]
@@ -329,7 +329,7 @@ namespace ColourCascade.Tests
             var tap = Play.Tap(s, 1, 0);
             Assert.AreEqual(1, tap.ObstacleHits.Count);
             Assert.IsTrue(tap.ObstacleHits[0].Freed);
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
         }
 
         [Test]
@@ -663,7 +663,7 @@ namespace ColourCascade.Tests
                     Assert.AreEqual(iceFreed, s.Goals.Progress(0));
                     Assert.AreEqual(chainsFreed, s.Goals.Progress(1));
                     Assert.AreEqual(collected, s.Goals.Progress(2));
-                    if (s.Goals.AllComplete) Assert.AreEqual(SessionState.Won, s.State, "complete goals win at once");
+                    if (s.Goals.AllComplete) Assert.IsTrue(s.Passed, "complete goals pass the level at once");
                 }
                 totalIceFreed += iceFreed;
                 totalChainsFreed += chainsFreed;

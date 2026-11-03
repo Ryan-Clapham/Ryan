@@ -170,22 +170,55 @@ barrier. Specials, treasure and mossy tiles fall within their section.
 
 ## 4. Goals
 
-A campaign level has one to three goals and is complete when **all** are met.
+### 4.1 Kinds of goal
+
+A campaign level has one to three goals (objectives). They are tracked independently, update the moment an action
+makes progress, and **all** of them must be met to pass the level.
 
 | Goal | Counts | Complete when |
 |---|---|---|
-| Score | The running score (the spare-move bonus is added only after winning) | Score ≥ amount |
+| Score | The running score (any spare-move bonus is added only at the end) | Score ≥ amount |
 | Collect a colour | Colour tiles of that colour **removed** from the board, by any means | Count ≥ amount |
 | Free the ice | Frozen tiles whose **last** layer is removed | Count ≥ amount |
 | Break the chains | Chained tiles whose **last** link is removed | Count ≥ amount |
 | Collect treasure | Treasures collected | Count ≥ amount |
 | Clear the moss | Moss on the board (it can grow back) | No moss remains |
+| Make specials | Special tiles made from big groups, of the kind asked (rocket, bomb, prism, or any) | Count ≥ amount |
+| Set off specials | Special tiles that go off, of the kind asked, by any means: a tap, a chain reaction, either half of a combination, or a power-up reaching it | Count ≥ amount |
+| Fire combinations | Two specials fired together (one tapped next to another) | Count ≥ amount |
 
 * A level with no goals listed has one Score goal equal to its target, so every score level plays as before.
-* Stars: completing every goal is one star. Two and three stars come from the level's score thresholds (for goal
-  levels, set from the scores the Planner bot finishes with; see DESIGN.md).
+* Goals are data (`GoalSpec`: kind, amount, colour, special) and progress is read from what each action did
+  (`MoveOutcome`), so a new kind of goal is one more case in `GoalTracker.Record`, not a new system. Level files
+  name them `score`, `colour`, `ice`, `chains`, `treasure`, `moss`, `make`, `fire` and `combo`.
 * Every mode uses the same rules for every tile (section 9). What differs by mode is when a mechanic is unlocked and
   how boards use it.
+
+### 4.2 Combining goals
+
+Generated levels from 25 on often combine two goals ("free 4 frozen tiles **and** collect 10 blue"), from the
+prisms (51) sometimes three. Partners are drawn from what the player has been taught: board goals (ice, colour,
+chains, treasure, moss) plus, from the rockets (31), goals about special tiles ("make 2 rockets", "set off 3
+specials", "fire a combination") and, from 35, a score to reach as well. A special-tile goal is only ever added
+alongside a board goal. Bombs and prisms are never asked for by name in a mixed level (a group of 9 or 12 depends
+too much on the board); their practice levels ask for them on four-colour boards, some starting with one on the
+board. Every combination is checked by simulation (DESIGN.md §3.2).
+
+### 4.3 Passing a level, playing on, and stars
+
+* The moment every goal is met (the target included, on a score level), the level is **passed**: one star is
+  secured and "Level passed!" is shown. The level is **not over**: the remaining moves stay available, and every
+  point they add counts towards two and three stars. The stars on the game screen light up as they are earned.
+* A passed level ends when the moves run out (no bonus: every move was used), when the player taps **Finish**
+  (each unused move adds the level's spare-move bonus, about half of what an average move scores, so finishing
+  early never beats playing well), or when the board has no move left (also paid the bonus). Quitting or restarting
+  a passed level finishes it first, so the pass is never lost.
+* Running out of moves with any goal unmet **fails** the level, however high the score. Extra Moves (owned or bought,
+  always an explicit choice) revives it with its score and goal progress intact.
+* Stars, on the final score (score + any spare-move bonus): ★ pass the level; ★★ and ★★★ reach the level's two
+  score thresholds. A passed level always earns at least one star. The level card lists all three requirements
+  before play; the result screen ticks each one against the actual result and says what the next star needed.
+* Daily Challenge, Weekly Rush and Endless are unchanged (Daily already plays every move).
 
 ## 5. Points
 

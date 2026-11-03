@@ -72,9 +72,15 @@ namespace ColourCascade.App
             var stars = StarRow.Create(body, 150, 18, true);
             stars.Layout(preferredHeight: 200);
             float t = stars.Reveal(result.Stars, 0.35f, App.GlobalFx);
-            ScoreBlock(result.FinalScore, result.LeftoverBonus > 0 ? NumberFormat.Thousands(result.Score) + " + " + NumberFormat.Thousands(result.LeftoverBonus) + " bonus for spare moves" : "Target " + NumberFormat.Thousands(level.Target), t);
+            string caption = result.LeftoverBonus > 0
+                ? NumberFormat.Thousands(result.Score) + " + " + NumberFormat.Thousands(result.LeftoverBonus) + " bonus for " + result.MovesLeft + (result.MovesLeft == 1 ? " spare move" : " spare moves")
+                : "Final score";
+            ScoreBlock(result.FinalScore, caption, t);
             if (result.NewBest) Badge("New best score!", Theme.Gold);
-            if (result.Stars < 3) StarList(t);
+            // Every star's requirement, ticked, with the real result against it, and why the next star was missed.
+            StarList(t);
+            string why = StarChecklist.WhyNotNext(level, result.FinalScore, result.Stars, result.EndReason == EndReason.FinishedEarly, result.MovesLeft);
+            if (why != null) Para(why, Theme.FontSmall);
             Rewards(t + 0.2f);
             bool hasNext = Ctx.Campaign.IsUnlocked(level.Number + 1);
             var next = FooterButton(hasNext ? "Next Level" : "Continue", ButtonStyle.Primary, () =>
@@ -95,6 +101,7 @@ namespace ColourCascade.App
         {
             var level = result.Level;
             Title("Out of Moves", false, 46);
+            bool scoredEnough = result.Score >= level.Target;
             float ratio;
             var goals = session != null ? session.Goals : null;
             if (level.Goals != null && level.Goals.Length > 0 && goals != null)
@@ -108,10 +115,17 @@ namespace ColourCascade.App
                     int amount = Mathf.Max(1, g.amount);
                     total += amount;
                     done += Mathf.Min(amount, goals.Progress(i));
-                    if (!goals.IsComplete(i)) left.Add(GoalVisuals.Describe(new GoalSpec { kind = g.kind, colour = g.colour, amount = goals.Remaining(i) }).ToLowerInvariant());
+                    if (goals.IsComplete(i)) continue;
+                    var remaining = g.Clone();
+                    remaining.amount = goals.Remaining(i);
+                    left.Add(GoalVisuals.Describe(remaining).ToLowerInvariant());
                 }
                 ratio = done / (float)Mathf.Max(1, total);
-                Para((ratio >= 0.8f ? "So close! " : "") + "Still to do: " + string.Join(", ", left) + ".");
+                // A high score never passes a level on its own: say exactly which goals were left.
+                string lead = left.Count == 1 ? "1 goal left: " : left.Count + " goals left: ";
+                if (scoredEnough && session.Goals.IndexOf(GoalKind.Score) < 0) lead = "Plenty of points, but " + lead.ToLowerInvariant();
+                else if (ratio >= 0.8f) lead = "So close! " + lead;
+                Para(lead + string.Join(", ", left) + ".");
                 ScoreBlock(result.Score, "Goals " + Mathf.RoundToInt(ratio * 100) + "% done", 0.1f);
             }
             else
@@ -252,12 +266,13 @@ namespace ColourCascade.App
 
         // ------------------------------------------------------------------ Building blocks
 
-        /// <summary>What each star needs, ticked when earned, and a tip for scoring more (levels finished with under 3 stars).</summary>
+        /// <summary>What each star needs, ticked when earned, with the result against it, and a tip for scoring more.</summary>
         void StarList(float delay)
         {
-            var items = StarChecklist.For(result.Level, result.FinalScore, result.Stars);
+            var items = StarChecklist.For(result.Level, session != null ? session.Goals : null, result.Passed, result.FinalScore, result.Stars);
             var list = UI.Rect("StarChecklist", body);
-            list.Layout(preferredHeight: items.Count * 64 + 6 + 64);
+            bool tip = result.Stars < 3;
+            list.Layout(preferredHeight: items.Count * 64 + 6 + (tip ? 64 : 0));
             UI.VStack(list, 4);
             foreach (var item in items)
             {
@@ -273,22 +288,29 @@ namespace ColourCascade.App
                     star.gameObject.SetActive(show);
                 }
                 var text = UI.FitText(row, item.Text, Theme.FontSmall, item.Met ? Theme.TextSecondary : Theme.Text, TextAnchor.MiddleLeft, true, "Text");
-                text.rectTransform.Fill(140, 0, 80, 0);
+                text.rectTransform.Fill(140, 0, 300, 0);
+                var achieved = UI.FitText(row, item.Result, Theme.FontSmall - 2, item.Met ? Theme.Success : Theme.TextMuted, TextAnchor.MiddleRight, true, "Result");
+                achieved.rectTransform.Fill(0, 0, 80, 0);
+                achieved.rectTransform.anchorMin = new Vector2(1, 0);
+                achieved.rectTransform.offsetMin = new Vector2(-290, 0);
                 if (item.Met)
                 {
                     var tick = UI.Icon(row, Icon.Check, Theme.Success, 40);
                     tick.rectTransform.Place(new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-42, 0), new Vector2(40, 40));
                 }
             }
-            var tip = UI.FitText(list, StarChecklist.Tip(result.Level), Theme.FontSmall - 4, Theme.TextMuted, TextAnchor.MiddleCenter, false, "Tip");
-            tip.Layout(preferredHeight: 60);
+            if (tip)
+            {
+                var hint = UI.FitText(list, StarChecklist.Tip(result.Level), Theme.FontSmall - 4, Theme.TextMuted, TextAnchor.MiddleCenter, false, "Tip");
+                hint.Layout(preferredHeight: 60);
+            }
             list.localScale = new Vector3(1f, 0f, 1f);
             Tw.Scale(list, 1f, 0.3f, Ease.OutCubic, delay + 0.1f);
         }
 
-        void Para(string text)
+        void Para(string text, int fontSize = Theme.FontBody - 2)
         {
-            var t = UI.Text(body, text, Theme.FontBody - 2, Theme.TextSecondary, TextAnchor.MiddleCenter, false, "Text");
+            var t = UI.Text(body, text, fontSize, Theme.TextSecondary, TextAnchor.MiddleCenter, false, "Text");
             t.Layout(preferredHeight: 110);
         }
 

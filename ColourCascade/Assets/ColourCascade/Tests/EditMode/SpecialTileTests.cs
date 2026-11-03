@@ -272,7 +272,7 @@ namespace ColourCascade.Tests
             Play.Tap(s, 1, 1);
             Assert.AreEqual(3, s.Goals.Progress(0));
             Assert.AreEqual(1, s.Goals.Progress(1));
-            Assert.AreEqual(SessionState.Won, s.State);
+            Assert.IsTrue(s.Passed);
         }
 
         [Test]

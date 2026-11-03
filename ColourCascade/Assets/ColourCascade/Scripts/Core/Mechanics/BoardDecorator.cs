@@ -138,6 +138,28 @@ namespace ColourCascade.Core
             return cells.Count;
         }
 
+        /// <summary>
+        /// Campaign moss: separate patches of one or two tiles spread over the lower two thirds of the board, never
+        /// touching each other, so each takes its own clear (a single compact patch went in a move or two).
+        /// </summary>
+        public static int PlaceMossSpread(LevelLayout l, int seeds, Rng rng)
+        {
+            var cells = new List<GridPos>();
+            int top = Math.Max(2, l.Height * 2 / 3);
+            for (int guard = 0; guard < 400 && cells.Count < seeds; guard++)
+            {
+                int c = rng.Next(l.Width), r = 1 + rng.Next(Math.Max(1, top - 1));
+                if (!Free(l, c, r) || !Roomy(l, c, r)) continue;
+                bool near = false;
+                foreach (var p in cells)
+                    if (Math.Abs(p.Col - c) + Math.Abs(p.Row - r) < 3) near = true;
+                if (near) continue;
+                cells.Add(new GridPos(c, r));
+            }
+            foreach (var p in cells) l.SetObstacle(p.Col, p.Row, ObstacleKind.Moss, 1);
+            return cells.Count;
+        }
+
         /// <summary>All four neighbours are open cells (no stone, void or edge), so the tile there can always be matched.</summary>
         public static bool Roomy(LevelLayout l, int c, int r)
         {

@@ -33,11 +33,12 @@ namespace ColourCascade.App
             cancel = FooterButton("Cancel", ButtonStyle.Ghost, Close, null, 60, 140, 60, 500);
         }
 
-        public void Setup(string titleText, string body, string confirmLabel, Action onConfirmed, ButtonStyle style = ButtonStyle.Primary)
+        public void Setup(string titleText, string body, string confirmLabel, Action onConfirmed, ButtonStyle style = ButtonStyle.Primary, string cancelLabel = "Cancel")
         {
             title.text = titleText;
             message.text = body;
             confirm.SetLabel(confirmLabel);
+            cancel.SetLabel(cancelLabel);
             confirm.SetStyle(style);
             onConfirm = onConfirmed;
             // The message's width is fixed by the panel, so its wrapped height is known now.
@@ -103,11 +104,12 @@ namespace ColourCascade.App
     /// <summary>Campaign level card opened from the map.</summary>
     public sealed class LevelPopup : PopupBase
     {
-        protected override float PanelHeight => 1150f;
+        protected override float PanelHeight => 1440f;
         Text title;
         Text region;
         StarRow stars;
         RectTransform info;
+        RectTransform starRules;
         Text reward;
         int level;
 
@@ -121,6 +123,10 @@ namespace ColourCascade.App
             info = UI.Rect("Info", Content);
             info.TopStrip(420, 400, 70, 70);
             UI.VStack(info, 14);
+            // What each star needs, before the level starts (and on replays, which are already earned).
+            starRules = UI.Rect("StarRules", Content);
+            starRules.TopStrip(210, 836, 70, 70);
+            UI.VStack(starRules, 6);
             reward = UI.Chip(Content, "", new Color(0, 0, 0, 0.25f), Theme.Gold, Theme.FontSmall, "Reward");
             reward.transform.parent.GetComponent<RectTransform>().Place(new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 236), new Vector2(560, 72));
             FooterButton("Play", ButtonStyle.Primary, () =>
@@ -136,7 +142,8 @@ namespace ColourCascade.App
             var spec = Ctx.Catalog.Get(level);
             var reg = Ctx.Catalog.RegionForLevel(level);
             title.text = "Level " + level;
-            region.text = reg.Name.ToUpperInvariant() + (spec.IsMilestone ? "  ·  MILESTONE" : "");
+            bool tutorial = !string.IsNullOrEmpty(spec.TutorialKey) || Ctx.PowerUps.IntroducedAt(level) != null;
+            region.text = reg.Name.ToUpperInvariant() + (spec.IsMilestone ? "  ·  MILESTONE" : "") + (tutorial ? "  ·  TUTORIAL" : "");
             stars.Set(Ctx.Campaign.StarsFor(level));
             UI.ClearChildren(info);
             // Four rows fit: the goals (or the target), the moves, then the board and a note while there is room.
@@ -166,9 +173,33 @@ namespace ColourCascade.App
                 if (Ctx.Campaign.IsCompleted(level)) InfoRow(info, Icon.Trophy, "Your best", NumberFormat.Thousands(Ctx.Campaign.BestScore(level)));
                 else if (!string.IsNullOrEmpty(spec.Note)) InfoRow(info, Icon.Info, spec.Note, "");
             }
+            UI.ClearChildren(starRules);
+            int earned = Ctx.Campaign.StarsFor(level);
+            foreach (var item in StarChecklist.Requirements(spec)) StarRuleRow(starRules, item, earned >= item.Stars);
             int coins = Ctx.Rewards.FirstClearPreview(spec);
             reward.text = coins > 0 ? "First clear:  +" + coins + " coins" : "Replay to beat your best and earn new stars";
             reward.color = coins > 0 ? Theme.Gold : Theme.TextSecondary;
+        }
+
+        /// <summary>One star requirement: the stars it gives, what it needs, and a tick once it has been earned.</summary>
+        static void StarRuleRow(Transform parent, StarChecklist.Item item, bool earned)
+        {
+            var row = UI.Rect("Star" + item.Stars, parent);
+            row.Layout(preferredHeight: 62);
+            var bg = UI.Rounded(row, new Color(0, 0, 0, earned ? 0.12f : 0.22f), 26, "Bg");
+            bg.rectTransform.Fill();
+            for (int k = 0; k < item.Stars; k++)
+            {
+                var star = UI.Image(row, ArtLibrary.Instance.Get(earned ? ArtNames.StarGold : ArtNames.StarEmpty), Color.white, "Star" + k);
+                star.rectTransform.Place(new Vector2(0, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(40 + k * 34, 0), new Vector2(34, 34));
+            }
+            var text = UI.FitText(row, item.Text, Theme.FontSmall, earned ? Theme.TextSecondary : Theme.Text, TextAnchor.MiddleLeft, true, "Text");
+            text.rectTransform.Fill(146, 0, earned ? 80 : 24, 0);
+            if (earned)
+            {
+                var tick = UI.Icon(row, Icon.Check, Theme.Success, 40);
+                tick.rectTransform.Place(new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-42, 0), new Vector2(40, 40));
+            }
         }
 
         public static void InfoRow(Transform parent, Icon icon, string label, string value)
@@ -304,10 +335,11 @@ namespace ColourCascade.App
         Text nameText;
         Text desc;
         Text trial;
+        Text heading;
 
         protected override void Build()
         {
-            Title("New Power-up!", false, 46);
+            heading = Title("New Power-up!", false, 46);
             circle = UI.Image(Content, ArtLibrary.Instance.Get(ArtNames.Circle), Color.white, "Circle");
             circle.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -170), new Vector2(230, 230));
             UI.Image(circle.rectTransform, ArtLibrary.Instance.Get(ArtNames.CircleGloss), new Color(1, 1, 1, 0.6f), "Gloss").rectTransform.Fill();
@@ -322,13 +354,16 @@ namespace ColourCascade.App
             FooterButton("Let's try it!", ButtonStyle.Primary, Close, null, 60, 150);
         }
 
-        public void Setup(PowerUpDefinition def)
+        /// <summary>replay: the level was completed before, so the card is a reminder rather than news.</summary>
+        public void Setup(PowerUpDefinition def, bool replay = false)
         {
             circle.color = Theme.Hex(def.accentHex);
             art.sprite = ArtLibrary.Instance.PowerUp(def.id);
+            heading.text = replay ? "Power-up practice" : "New Power-up!";
             nameText.text = def.displayName;
             desc.text = def.description;
-            trial.text = def.trialUses == 1 ? "1 free use to try it out" : def.trialUses + " free uses to try it out";
+            // Lent for this attempt only: unused ones are not kept (docs/DESIGN.md §7).
+            trial.text = def.trialUses == 1 ? "1 free use on this level" : def.trialUses + " free uses on this level";
             AudioService.Sfx(SfxNames.Unlock);
             circle.transform.localScale = Vector3.zero;
             Tw.Scale(circle.transform, 1f, 0.5f, Ease.OutBackStrong, 0.15f);
