@@ -387,9 +387,12 @@ namespace ColourCascade.App
                 name.rectTransform.BottomStrip(40, 34, 190, 270);
                 if (p.Highlight)
                 {
+                    // Between the coin amount (30-78 from the top) and the pack name (136-176), clear of both and of the
+                    // price button on the right, at every screen width (the card is at least 990 wide).
                     var chipHolder = UI.Rect("BestValue", card);
-                    chipHolder.Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(190, -14), new Vector2(260, 50));
-                    UI.Chip(chipHolder, "Best value", Theme.Gold.WithAlpha(0.25f), Theme.Gold, Theme.FontTiny);
+                    chipHolder.Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(190, -84), new Vector2(210, 46));
+                    var chip = UI.Chip(chipHolder, "Best value", Theme.Gold.WithAlpha(0.25f), Theme.Gold, Theme.FontTiny);
+                    ((RectTransform)chip.transform.parent).Fill();
                 }
                 var product = p;
                 var b = UI.Button(card, "...", ButtonStyle.Gold, () => Buy(product), null, Theme.FontBody, 40, 10, "Price");
@@ -471,23 +474,27 @@ namespace ColourCascade.App
                 var intro = UI.Text(list, "Permanent upgrades, bought once and kept.", Theme.FontSmall, Theme.TextSecondary, TextAnchor.MiddleCenter, false, "Intro");
                 intro.Layout(preferredHeight: 90);
 
+                // Card layout (540 tall), top to bottom: icon, name and badge (40-190); the description in its own block
+                // (210-350, shrinks to fit rather than overflow); the button (370-500), the same in every state
+                // (price, "Connecting...", "Unavailable", "Owned").
                 var root = UI.Rect("NoAds", list);
-                root.Layout(preferredHeight: 420);
+                root.Layout(preferredHeight: 540);
                 var card = UI.Card(root, "Card", Theme.SurfaceHigh, 50);
                 var circle = UI.Image(card, ArtLibrary.Instance.Get(ArtNames.Circle), Theme.Gold, "Circle");
                 circle.rectTransform.Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -40), new Vector2(150, 150));
                 UI.Image(circle.rectTransform, ArtLibrary.Instance.Get(ArtNames.CircleGloss), new Color(1, 1, 1, 0.55f), "Gloss").rectTransform.Fill();
                 UI.Icon(circle.rectTransform, Icon.Crown, Color.white, 84).rectTransform.Centre(84, 84);
                 var name = UI.FitText(card, "No Ads", Theme.FontLarge + 6, Theme.Text, TextAnchor.MiddleLeft, true, "Name");
-                name.rectTransform.TopStrip(56, 64, 220, 40);
+                name.rectTransform.TopStrip(64, 48, 220, 40);
                 var chipHolder = UI.Rect("Permanent", card);
-                chipHolder.Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(220, -130), new Vector2(330, 54));
-                UI.Chip(chipHolder, "Permanent purchase", Theme.Gold.WithAlpha(0.25f), Theme.Gold, Theme.FontTiny);
-                var desc = UI.Text(card, "Removes the adverts between levels, for good. You can still choose to watch adverts for extra moves and coins.",
+                chipHolder.Place(new Vector2(0, 1), new Vector2(0, 1), new Vector2(220, -122), new Vector2(320, 52));
+                var chip = UI.Chip(chipHolder, "Permanent purchase", Theme.Gold.WithAlpha(0.25f), Theme.Gold, Theme.FontTiny);
+                ((RectTransform)chip.transform.parent).Fill();
+                var desc = UI.FitText(card, "Removes the adverts between levels, for good. You can still choose to watch adverts for extra moves and coins.",
                     Theme.FontTiny + 2, Theme.TextSecondary, TextAnchor.UpperLeft, false, "Description");
-                desc.rectTransform.Fill(40, 170, 40, 210);
+                desc.rectTransform.TopStrip(140, 210, 40, 40);
                 price = UI.Button(card, "...", ButtonStyle.Gold, Buy, null, Theme.FontBody, 40, 10, "Price");
-                ((RectTransform)price.transform).BottomStrip(36, 130, 40, 40);
+                ((RectTransform)price.transform).BottomStrip(130, 40, 40, 40);
 
                 var statusRoot = UI.Rect("Status", list);
                 statusRoot.Layout(preferredHeight: 110);

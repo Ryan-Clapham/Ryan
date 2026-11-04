@@ -14,7 +14,7 @@ reference assemblies:
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
 | SDK integrations (AdMob + UMP, Unity IAP 5) compile against **API shims written from the SDKs' documentation**, not the real SDKs (which couldn't be downloaded here), Android and iOS paths | `dotnet build SdkCheck`, `-p:UnityPlatform=iOS` | 0 errors, 0 warnings (shims only: docs/MONETISATION.md §11) |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **447 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **453 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Campaign mechanics: Casual and Planner bots play every level 1–200 (12 games each, every move played) and flag levels that look too easy, too hard, unfair, trivial or short of three stars | `Sim -- campaign 1 200 12 <csv>` | See DESIGN.md §3.1–3.2 and docs/campaign-simulation.csv |
@@ -26,7 +26,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (447 tests)
+### Automated test coverage (453 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -44,7 +44,7 @@ real Android builds provide it.
 | Procedural assets | 6 | Atlas has every referenced sprite with no overlaps, cache round trip, **symbols measurably distinct**, valid audio |
 | Regression checklist | 13 | One test per logic item in the brief's §21 list |
 | Project setup | 2 | `Packages/manifest.json` declares every package and module the assemblies need |
-| Golden gameplay | 5 | Fingerprints of campaign levels, seeded bot games, Endless/Daily/Rush and scripted power-ups. Levels 1–20, the challenge modes and power-ups still match the values recorded before the overhaul (seeded games finish the moment a level is passed, which reproduces the old end of level exactly); levels 21+ were re-recorded for each deliberate change to them |
+| Golden gameplay | 5 | Fingerprints of campaign levels, seeded bot games, Endless/Daily/Rush and scripted power-ups. Levels 1–20, the challenge modes and power-ups still match the values recorded before the overhaul (seeded games finish the moment a level is passed, which reproduces the old end of level exactly); levels 21+ were re-recorded for each deliberate change to them; the scripted power-up fingerprint was re-recorded for 3.0.1 because its Extra Moves step went with the retired power-up, and the 3.0 build gives the same value with only that step removed (all six fingerprints compared) |
 | Ice | 12 | Frozen tiles join no group and can't be tapped; several cleared neighbours take one layer; thick ice needs two actions; the freed tile falls in the same action; it holds up the tiles above and the gap below refills from beneath; no Swap or Colour Shift; Tile Breaker strips all layers; Blast and Colour Burst take one layer even with neighbours removed |
 | Chains | 7 | Chained tiles join their colour's group, stay and lose a link; a group of only chained tiles is a legal move; adjacent clears do nothing; no Swap, but Colour Shift recolours (chain stays); Tile Breaker strips all links; Blast/Colour Burst take one |
 | Obstacle boards and layouts | 6 | Recovery reshuffles only free tiles (40 seeds); obstacle notation round trips; validation; obstacles don't change generated colours; obstacle points configurable; `TileRules` matches the definitions |
@@ -61,6 +61,7 @@ real Android builds provide it.
 | Scoring, stones and the finale (2.1) | 49 | Rocket scores on rows 5–10 wide and columns 6–12 tall; a rocket scores only what it reaches (holes nothing, stones and ice their points); **the bomb's 5 × 5 square is centred on the bomb in the middle, on all four edges and in all four corners (25 cells in the middle, 16 one step from a corner, 15 on an edge, 9 in a corner), never reaches off the board, and reaches 25 cells in the middle of boards from 5 × 5 to 10 × 12**; even-sized squares (config) still lean to the middle; bombs break stones and hit obstacles in their square, scoring each once; only specials and Tile Breaker break stones (not groups, Blast, Colour Burst or prisms), and a broken stone lets tiles fall through; every combination pays 75 a tile with the combo bonus as its own line; two prisms clear the board for a big score but don't pass a level with thick ice and chains; chain reactions score each tile once; specials left when the moves run out go off (no move charged, points and goal progress count, a goal they finish still passes), **adjacent ones together as a combination**, in Campaign, Daily and Endless but not Weekly Rush; a failed finish stays failed and Extra Moves restart it; **Finish sets the specials off and adds nothing for unused moves**; every power-up's points and goal progress; tutorial power-ups kept on the first win only, temporary on replays, gone on the next level, kept through a revivable failure, settled across a restart, nothing extra for players with older free trials; the tutorial hand's fingertip lands on its target on 9:16, 9:20, 3:4 and 9:19.5 screens and the hand stays on screen |
 | Groups of specials (2.1) | 17 | Three rockets (a cross three lines wide), four rockets (five wide), three bombs (9 × 9, clipped), a rocket and two bombs (a five-line band), two rockets and a bomb (a three-wide cross), prism + rocket + bomb (the colour, then the band), two prisms + a bomb (every colour tile, and the bomb's area breaks stones), a snake of five specials fires as one; only orthogonal neighbours join (a diagonal special fires later, alone); a blast that reaches a special outside the group sets it off once, alone, with no loop; power-ups that hit specials set them off singly and never combine them; ice, chains, moss and stones in a combination's area each take one step and score once; make/fire/combination goals count every member once; the preview shows exactly the cells the combination clears; a group of three left at the end goes off as one combination; Finish uses the same groups; 200 random boards full of specials: every special fires at most once, no tile scores twice, score = breakdown, the session always settles |
 | Monetisation (3.0) | 68 | **With scripted fakes in place of the ad, consent and store SDKs** (not the SDKs themselves): a rewarded advert grants its reward only on the SDK's reward callback, exactly once (duplicate callbacks ignored), with exactly +10 moves or +50 coins and the balance saved at once; closed early, no reward callback, failed to show, failed to load (retried with growing delays up to 5 minutes), never answered, still open after the player is back, callbacks arriving after the game resumes, a reward just after the close (counts) or long after (granted once, reported); daily limit, cooldown and per-attempt limit survive a restart and a clock wound back; one advert at a time; Google's test ad units used and no live IDs built in; new opportunities added without changing the service. Out of Moves: +10 moves by advert and +5 for exactly 100 coins keep every tile, obstacle, score, goal and power-up; nothing taken without enough coins; an interrupted advert leaves the choice open; campaign only. Shortfall: the exact shortfall up to 50, explained when not enough, never buys anything. Interstitials: none before 5 completed levels, then at the next level or map only after a win, never after a failure, retry, abandoning or during play; 5 minutes apart; the count kept when none is loaded or one fails and reset only when one is displayed; none within 2 minutes of a rewarded advert, a coin pack or a coin purchase; none (not even loaded) with No Ads, while rewarded adverts stay; the count survives a restart. Consent: no ad SDK before consent, an earlier session's consent starts it at once, no consent or a consent error means no adverts while coins and purchases still work, privacy options can start adverts, settings reach the SDKs. Purchases: prices only from the store; granted, saved and only then confirmed; never granted twice (duplicates, redelivery after a crash); left unconfirmed if the save fails; cancelled, failed and pending purchases change nothing until paid; purchases blocked when they should be; a store that never answers unlocks the shop; unknown products neither granted nor confirmed; No Ads survives a restart (also offline), is restored on a new device and by Restore Purchases (a restore the store never answers ends as failed after 30 s), and a refund is applied after two store checks. Saves: old saves load with empty monetisation data, the record round trips and is capped, a progress reset keeps purchases, starting monetisation changes no progress; ledger reasons readable; 300 rounds of random callback storms never pay more than once per rewarded advert |
+| Retired power-up (3.0.1) | 6 | Extra Moves is in no list, bar, shop or introduction (level 50 introduces nothing; the others are unchanged) and can't be bought; an older config asset that still lists it is ignored; owned uses are paid back once at 200 coins each (or the price the config charged), saved at once, with a readable ledger line and never paid twice; free trial uses lapse without a refund; a save that never had it is not touched or rewritten. Also (in other suites): the retired power-up can't be applied, even to revive an out-of-moves level, and challenge modes refuse it |
 | Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 3,400 actions, 400 specials made, combos, treasure, moss growth, 47 finales): score bookkeeping, the score breakdown always equals the score, no tile removed twice, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
@@ -126,6 +127,10 @@ real Android builds provide it.
   against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
   watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
   how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
+* **The 3.0.1 layouts have not been seen running.** The new Level Complete layout, the No Ads card and the Best value
+  badge compile and fit on paper: the results popup is at most about 1,424 units tall, against at least 1,592 available
+  on the shortest supported screen. That arithmetic covers each supported aspect ratio, but nobody has looked at the
+  screens yet.
 * **Update 3.0 (adverts and purchases) has not been seen running, and no real SDK has been used.** The Google Mobile
   Ads, consent and Unity IAP integrations have only been compiled against API shims written from the SDKs'
   documentation (the real packages couldn't be downloaded in this environment); the first real compile is when the
@@ -155,6 +160,24 @@ real Android builds provide it.
   about 17 ms on average in the harness (was 6 ms); on a phone the first opening of a level card may pause briefly.
 
 ## Manual test checklist (please run in Unity, then on a phone)
+
+### Update 3.0.1: results layout, shop cards, Extra Moves retired
+
+* Level Complete, on a 9:16 phone, a tall phone and a tablet, with a level that scores in many categories (so the
+  breakdown has four rows), on a first clear (coins earned):
+  * the stars and the final score stand out ("New best score!" in gold under it when it is one);
+  * then the three star rows, the two-column breakdown, one "Coins earned" row (coins fly into the counter above the
+    popup), Next Level, and Map / Replay;
+  * nothing is cut off, overlaps or needs scrolling.
+* Finish a level early with fewer than three stars: a one-line "You finished with N moves left." appears under the
+  star rows.
+* Shop > Premium: the No Ads description sits above the button with space between them, in all three states
+  (store unavailable in the editor: "Unavailable"; "Connecting to the store..."; "Owned" after buying). The
+  "Permanent purchase" badge is a full pill under the name.
+* Shop > Coins: "Best value" is a pill between "2,750 coins" and "Chest of Coins", clear of the price button.
+* A save with Extra Moves owned: a "has been retired: +N coins" message at start-up; the shop and bar no longer show
+  it; the coin ledger (developer tools) shows the refund.
+* The Unity console no longer shows warning UAC0005 for MonetisationSdkSetup.cs.
 
 ### Update 3.0: adverts, purchases, consent
 
@@ -218,7 +241,7 @@ store only show that the screens react; they are not a test of the real flow.
 * A goal level: three small stars and a caption ("Goals first", then "2nd: 2,800", "3rd: 3,300") sit under the
   score; check they don't collide with the goals on a narrow phone.
 * Level 78 (or any treasure level): run out of moves with a high score and a treasure left: "Out of Moves" says
-  "Plenty of points, but 1 goal left: bring down 1 treasure." Extra Moves continues with the score and goals as
+  "Plenty of points, but 1 goal left: bring down 1 treasure." Continuing (advert or coins) keeps the score and goals as
   they were.
 * Pause a passed level: the quit button reads **Finish Level** and finishing shows the result. Restart a passed
   level: a toast says it was saved with its stars.
@@ -295,11 +318,11 @@ Use **Settings → Developer** (Editor/dev builds) to add coins, unlock levels a
 ### Shop and economy (§21)
 - [ ] Shop opens from home; Power-ups and Coins tabs switch.
 - [ ] Buying with enough coins deducts the price and increases "Owned"; without enough, it explains the shortfall and nothing changes.
-- [ ] Power-ups are locked before their level and unlock at 10/20/30/40/50/60 with a "New Power-up!" card and free uses.
+- [ ] Power-ups are locked before their level and unlock at 10/20/30/40/60 with a "New Power-up!" card and free uses; level 50 shows no power-up card; the bar has five buttons (no Extra Moves).
 
 ### Power-ups in play
 - [ ] Each of the six works as described in DESIGN.md §7; Cancel and Back exit targeting without using anything.
-- [ ] Out of moves offers an advert (+10 moves), coins (+5 for 100) and Give Up as explicit choices; an owned Extra Moves power-up is offered too.
+- [ ] Out of moves offers an advert (+10 moves), coins (+5 for 100) and Give Up as explicit choices.
 
 ### Modes (§21: timers)
 - [ ] Endless: no timer, a new board every run, bonus moves for groups of 6+, run summary with bests.

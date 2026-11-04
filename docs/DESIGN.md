@@ -67,8 +67,8 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
   are earned. The player can tap **Finish** at any time after passing (unused moves score nothing).
   Out of moves after passing = won with the stars of the final score; out of moves before = failed, whatever the
   score (docs/MECHANICS.md §4.3). Levels 1–20: ★★ 125% and ★★★ 150% of the target. From 21: see 3.2.
-* **Losing:** running out of moves shows "Out of Moves" with Try Again. If Extra Moves is unlocked, the
-  player may choose to use one they own, or explicitly buy one for 200 coins. Nothing is ever spent automatically.
+* **Losing:** running out of moves shows "Out of Moves": watch an advert for +10 moves, spend 100 coins for +5, or
+  give up (then Try Again, Map or Home). Nothing is ever spent automatically (docs/MONETISATION.md §2.1).
 * **Regions:** 20 levels each, cycling through six themes (Sunrise Meadow, Coral Lagoon, Crystal Caverns,
   Ember Canyon, Frost Peaks, Starlight Nebula). After six regions the names continue as "Sunrise Meadow II" etc.
 * **Milestones:** every 10th level is a gem-shaped node with a coin bonus; every 20th finishes a region.
@@ -322,13 +322,20 @@ slide-inwards square).
 Bought with coins in the Shop (or from the in-game bar) and stored in an inventory. Using one never costs a
 move. A use is only consumed if the effect actually happens; an invalid target costs nothing.
 
+**Five power-ups since 3.0.1.** The sixth, **Extra Moves** (+3 moves for 200 coins, from level 50), was retired:
+Out of Moves now offers +10 moves for an advert or +5 for 100 coins, so it was redundant and poor value.
+* It is in no list, bar, shop page or introduction, even if an older config asset still lists it.
+* Level 50 no longer introduces a power-up; levels themselves are unchanged.
+* A player who still owned Extra Moves gets 200 coins back for each, once, when the save loads, with a message and a
+  ledger line. Unused free uses lapse.
+* Saves that mention it load as before (`RetiredPowerUps`).
+
 | Power-up | Price | Unlocks | Free uses on its level | How it works |
 |---|---|---|---|---|
 | Blast | 100 | Level 10 | 2 | Tap any tile: every colour tile in the 3 × 3 area is cleared (clipped at the edges). Stones and holes are not affected (only specials and Tile Breaker break stones). Must clear at least one tile. |
 | Tile Breaker | 125 | Level 20 | 2 | Tap one tile **or one stone** to break it (a stone scores 100). Rockets and bombs break stones too (2.1). Holes can't be broken. |
 | Swap | 75 | Level 30 | 2 | Tap a tile, then a neighbouring tile of a different colour; they swap places. Nothing is cleared, so the board stays valid. |
 | Colour Shift | 150 | Level 40 | 2 | Tap a tile, then pick any other colour in play from the palette. |
-| Extra Moves | 200 | Level 50 | 1 | +3 moves. Campaign only (it would bypass Endless's move economy and challenges' fairness). Also offered, as an explicit choice, on the Out of Moves screen. |
 | Colour Burst | 250 | Level 60 | 1 | Tap a tile: every tile of that colour is removed. |
 
 * **Introduction (2.1):** every attempt at a power-up's unlock level (first play, retry or replay, also after
@@ -338,10 +345,10 @@ move. A use is only consumed if the effect actually happens; an invalid target c
   (the result says "Kept 1 free Colour Burst"); replays lend them again but keep nothing, so replaying can't
   stockpile power-ups (and replays pay no new coins). The loan ends with the run: the next level's bar shows only
   power-ups the player owns (a bug let unusable "Free" badges linger). A level that ran out of moves keeps its
-  loan until the player leaves, in case they continue with Extra Moves. Players whose older version already
+  loan until the player leaves, in case they continue from Out of Moves. Players whose older version already
   granted the free trial uses at the start of the level keep those and get nothing more. Future power-ups with an
   unlock level get the same treatment automatically.
-* **Where they work:** Campaign and Endless only (Extra Moves: Campaign only). Daily Challenge and Weekly
+* **Where they work:** Campaign and Endless only. Daily Challenge and Weekly
   Rush block every power-up and every purchase. This is decided in one place (`ActionPolicy`) and enforced
   by the engine and services as well as the UI.
 * **Cancelling:** tap the power-up again, press Cancel or use Back. Nothing is consumed until it applies.
@@ -443,8 +450,7 @@ Home ─┬─ Play Level N ───────────────▶ Gam
 | Campaign end | Passing earns ★ and play goes on; the player may Finish at any time. Unused moves score nothing (the spare-move bonus was removed in 2.1). | Stars reward playing the moves well; there is no reward for stopping. |
 | Daily format | Plays all 20 moves (score attack). | Distinguishes it from the campaign and suits leaderboards later. |
 | Challenge resets | UTC, ISO weeks. | Everyone shares one puzzle at once; ready for server validation. |
-| Power-up order | Blast → Tile Breaker → Swap → Colour Shift → Extra Moves → Colour Burst. | Simple to complex; Tile Breaker arrives once stones are common. |
-| Extra Moves scope | Campaign only. | Brief: "current eligible campaign level". |
+| Power-up order | Blast → Tile Breaker → Swap → Colour Shift → Colour Burst (Extra Moves, once between Colour Shift and Colour Burst, was retired in 3.0.1). | Simple to complex; Tile Breaker arrives once stones are common. |
 | Coin packs | None; Coins tab explains how to earn. | Brief forbids fake purchase buttons. |
 | Mid-level saving | Runs are not saved mid-level; finished results save immediately. | Simple and exploit-free. A level interrupted by the OS is replayed. |
 | Art and audio | Procedurally generated in code. | No asset pipeline to break; resolution independent; previewable outside Unity. |

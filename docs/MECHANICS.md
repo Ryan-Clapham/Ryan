@@ -249,8 +249,9 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
 * A passed level ends when the moves run out, when the player taps **Finish**, or when the board has no move left.
   **Unused moves score nothing** (the spare-move bonus was removed in 2.1): Finish is for stopping once the stars
   are where the player wants them. Quitting or restarting a passed level finishes it first, so the pass is never lost.
-* Running out of moves with any goal unmet **fails** the level, however high the score. Extra Moves (owned or bought,
-  always an explicit choice) revives it with its score and goal progress intact.
+* Running out of moves with any goal unmet **fails** the level, however high the score. Out of Moves then offers +10
+  moves for an advert or +5 for 100 coins (always an explicit choice); either continues the same level with its
+  score, board and goal progress intact (docs/MONETISATION.md §2.1).
 * Stars, on the final score (everything scored, including the specials that went off at the end): ★ pass the level
   (every mandatory goal); ★★ and ★★★ reach the level's two score thresholds. A passed level always earns at least one star. The level card lists all three requirements
   before play; the result screen ticks each one against the actual result and says what the next star needed.
@@ -271,8 +272,8 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
 * Order of the level-ending sequence: last move (or Finish) → specials left on the board go off → final score (the
   score: nothing is added for moves) → stars (and pass or fail, if goals remain). Recording a result twice returns
   the same result.
-* Extra Moves after a failed finish starts a fresh run of moves: specials made from then on go off again if those
-  run out too.
+* Continuing after a failed finish (Out of Moves) starts a fresh run of moves: specials made from then on go off
+  again if those run out too.
 
 ## 5. Points
 
@@ -306,7 +307,6 @@ obstacle points, and any special they set off scores as a special.
 | Tile Breaker | 20 for a colour tile, 100 for a stone, every ice layer or chain link it strips | As above |
 | Swap | Nothing (nothing is removed) | None |
 | Colour Shift | Nothing | None |
-| Extra Moves | Nothing (+3 moves) | None |
 | Colour Burst | 20 per tile of the colour; obstacle steps | Collect that colour; ice and chains of that colour take a step |
 
 ## 6. Power-ups on every tile
@@ -318,7 +318,6 @@ obstacle points, and any special they set off scores as a special.
 | Swap (two neighbours) | Allowed | No | No | No | No | Allowed (not with another special) | No |
 | Colour Shift | Allowed | No | No | Allowed (chain stays) | No | No | No |
 | Colour Burst (a colour) | Removed | Untouched | −1 layer (that colour) | −1 link (that colour) | Removed (that colour) | Untouched | Untouched |
-| Extra Moves | Unchanged | | | | | | |
 
 * Blast is valid when its 3 × 3 area contains a colour tile (free or under an obstacle) or a special tile.
 * Colour Burst can target any colour tile (not a special or treasure); the target picks the colour.

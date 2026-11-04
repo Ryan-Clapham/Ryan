@@ -172,13 +172,32 @@ namespace ColourCascade.EditorTools
         static void UpgradeConfigAsset()
         {
             var asset = AssetDatabase.LoadAssetAtPath<ColourCascadeConfig>(ConfigPath);
-            if (asset == null || asset.rewardTuningVersion >= EconomyTuning.Current) return;
+            if (asset == null) return;
+            RemoveRetiredPowerUps(asset);
+            if (asset.rewardTuningVersion >= EconomyTuning.Current) return;
             var changed = EconomyTuning.Upgrade(asset.ToData(), asset.rewardTuningVersion);
             asset.rewardTuningVersion = EconomyTuning.Current;
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();
             Debug.Log("[Colour Cascade] Updated the game config to reward tuning version " + EconomyTuning.Current +
                       (changed.Count > 0 ? " (" + string.Join(", ", changed) + ")." : "; your edited reward values were kept."));
+        }
+
+        /// <summary>
+        /// Takes retired power-ups (3.0.1: Extra Moves) out of the config asset, so the Inspector shows only the ones
+        /// in the game. The game ignores them anyway (PowerUpCatalog skips RetiredPowerUps).
+        /// </summary>
+        static void RemoveRetiredPowerUps(ColourCascadeConfig asset)
+        {
+            if (asset.powerUps == null) return;
+            var kept = new System.Collections.Generic.List<PowerUpDefinition>();
+            foreach (var p in asset.powerUps)
+                if (p != null && !RetiredPowerUps.IsRetired(p.id)) kept.Add(p);
+            if (kept.Count == asset.powerUps.Length) return;
+            asset.powerUps = kept.ToArray();
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Colour Cascade] Removed the retired Extra Moves power-up from the game config.");
         }
 
         static void EnsureSceneInBuild()

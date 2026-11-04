@@ -9,8 +9,66 @@ namespace ColourCascade.Core
         Swap = 1,
         ColourShift = 2,
         TileBreaker = 3,
+        /// <summary>
+        /// Retired in 3.0.1: Out of Moves offers better ways to continue (an advert for 10 moves, 100 coins for 5). The
+        /// value stays so saves and config assets that mention it still load; see RetiredPowerUps.
+        /// </summary>
         ExtraMoves = 4,
         ColourBurst = 5,
+    }
+
+    /// <summary>
+    /// Power-ups taken out of the game. They are left out of the catalog even if an older config asset still lists
+    /// them, so they appear nowhere (bar, shop, How to Play, introductions). Uses a player still owned are paid back
+    /// once, in coins, at their last price (GameContext.Load); free trial uses simply lapse.
+    /// </summary>
+    public static class RetiredPowerUps
+    {
+        public static readonly PowerUpId[] Ids = { PowerUpId.ExtraMoves };
+
+        /// <summary>Coins paid back per owned use when no config entry gives a price (Extra Moves' last price).</summary>
+        public const int DefaultRefundPerUse = 200;
+
+        public static bool IsRetired(PowerUpId id) => Array.IndexOf(Ids, id) >= 0;
+
+        public static string ClaimKey(PowerUpId id) => "pu.retired." + (int)id;
+
+        public struct Refund
+        {
+            public PowerUpId Id;
+            public string Name;
+            public int Uses;
+            public int Coins;
+        }
+
+        /// <summary>
+        /// Pays back owned uses of retired power-ups, once per power-up (claim key), and clears their stock. Safe to
+        /// call on every load. priceOf gives the refund per use (null = DefaultRefundPerUse).
+        /// </summary>
+        public static List<Refund> Settle(SaveData data, Wallet wallet, Func<PowerUpId, int> priceOf = null)
+        {
+            var refunds = new List<Refund>();
+            if (data == null) return refunds;
+            foreach (var id in Ids)
+            {
+                InventoryEntry entry = null;
+                foreach (var e in data.Inventory)
+                    if (e != null && e.Id == (int)id) entry = e;
+                if (entry == null || (entry.Owned <= 0 && entry.Trials <= 0)) continue;
+                string key = ClaimKey(id);
+                if (entry.Owned > 0 && !data.Claims.Contains(key))
+                {
+                    int price = priceOf != null ? priceOf(id) : DefaultRefundPerUse;
+                    int coins = Math.Max(0, price) * entry.Owned;
+                    if (coins > 0 && wallet != null) wallet.Credit(coins, "refund." + id + ".x" + entry.Owned);
+                    refunds.Add(new Refund { Id = id, Name = id == PowerUpId.ExtraMoves ? "Extra Moves" : id.ToString(), Uses = entry.Owned, Coins = coins });
+                }
+                data.Claims.Add(key);
+                entry.Owned = 0;
+                entry.Trials = 0;
+            }
+            return refunds;
+        }
     }
 
     public enum PowerUpTargeting
@@ -40,7 +98,7 @@ namespace ColourCascade.Core
         public int unlockLevel;
         /// <summary>Free uses granted once when the power-up is introduced.</summary>
         public int trialUses = 2;
-        /// <summary>Effect strength where relevant (Extra Moves: moves added).</summary>
+        /// <summary>Effect strength where an effect uses one (none of the current six does).</summary>
         public int amount;
         public ModeMask allowedModes = ModeMask.Campaign | ModeMask.Endless;
         public string accentHex = "#FFFFFF";
@@ -55,7 +113,7 @@ namespace ColourCascade.Core
         {
             foreach (var d in definitions)
             {
-                if (d == null || byId.ContainsKey(d.id)) continue;
+                if (d == null || byId.ContainsKey(d.id) || RetiredPowerUps.IsRetired(d.id)) continue;
                 byId[d.id] = d;
                 ordered.Add(d);
             }
@@ -110,14 +168,6 @@ namespace ColourCascade.Core
                     targeting = PowerUpTargeting.CellAndColour, accentHex = "#B57BFF",
                     description = "Repaints one tile in a colour of your choice.",
                     targetingHint = "Tap a tile, then pick its new colour",
-                },
-                new PowerUpDefinition
-                {
-                    id = PowerUpId.ExtraMoves, displayName = "Extra Moves", price = 200, unlockLevel = 50, trialUses = 1,
-                    amount = 3, targeting = PowerUpTargeting.Instant, accentHex = "#4BD47A",
-                    allowedModes = ModeMask.Campaign,
-                    description = "Adds 3 moves to the current campaign level.",
-                    targetingHint = "",
                 },
                 new PowerUpDefinition
                 {

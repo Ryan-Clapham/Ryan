@@ -162,13 +162,14 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void ExtraMovesReviveAGoalLevelAndItCanStillBeWon()
+        public void ContinuingAGoalLevelAfterOutOfMovesKeepsItWinnable()
         {
             var s = Play.Level(new[] { "0012", "3345" }, new[] { "...i", "...." }, 1, GoalSpec.FreeIce(1));
             Play.Tap(s, 0, 1);
             int score = s.Score;
             Assert.AreEqual(SessionState.Failed, s.State);
-            Play.Use(s, new PowerUpRequest { Id = PowerUpId.ExtraMoves, Amount = 3 });
+            // What Out of Moves' advert and coin continues do (docs/MONETISATION.md §2.1).
+            Assert.IsTrue(s.AddMoves(3));
             Assert.AreEqual(SessionState.Playing, s.State);
             Assert.AreEqual(score, s.Score, "reviving keeps the score");
             Play.Use(s, Play.At(PowerUpId.TileBreaker, 3, 1));

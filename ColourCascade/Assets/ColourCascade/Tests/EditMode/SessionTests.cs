@@ -347,13 +347,16 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void ExtraMovesAddsThreeInCampaignOnly()
+        public void TheRetiredExtraMovesCantBeAppliedAnyMore()
         {
             var s = TestUtil.Session(GameMode.Campaign, 5, 100000, 3, "000", "111", "222");
-            Assert.IsTrue(Apply(s, PowerUpRequest.Instant(PowerUpId.ExtraMoves)).Ok);
-            Assert.AreEqual(8, s.MovesLeft);
-            var endless = TestUtil.Session(GameMode.Endless, 5, 0, 3, "000", "111", "222");
-            Assert.IsFalse(Apply(endless, PowerUpRequest.Instant(PowerUpId.ExtraMoves)).Ok);
+            var r = Apply(s, PowerUpRequest.Instant(PowerUpId.ExtraMoves));
+            Assert.IsFalse(r.Ok, "retired in 3.0.1");
+            Assert.AreEqual(5, s.MovesLeft);
+            var failed = TestUtil.Session(GameMode.Campaign, 1, 100000, 3, "000", "111", "222");
+            failed.TryPlay(new GridPos(0, 2), new MoveOutcome());
+            Assert.IsFalse(Apply(failed, PowerUpRequest.Instant(PowerUpId.ExtraMoves)).Ok, "nor revive an out-of-moves level");
+            Assert.AreEqual(SessionState.Failed, failed.State);
         }
 
         [Test]
@@ -367,7 +370,8 @@ namespace ColourCascade.Tests
                 {
                     var r = Apply(s, new PowerUpRequest { Id = id, A = new GridPos(1, 1), B = new GridPos(1, 2), Colour = 1 });
                     Assert.IsFalse(r.Ok, id + " must be blocked in " + mode);
-                    Assert.AreEqual(PowerUpFailure.NotAllowedInMode, r.Failure);
+                    // A retired power-up (Extra Moves, 3.0.1) has no effect at all, so it is refused as unknown.
+                    Assert.AreEqual(RetiredPowerUps.IsRetired(id) ? PowerUpFailure.UnknownPowerUp : PowerUpFailure.NotAllowedInMode, r.Failure);
                 }
             }
         }
@@ -411,9 +415,7 @@ namespace ColourCascade.Tests
             var s = TestUtil.Session(GameMode.Campaign, 5, 100000, 3, "000", "111", "222");
             Assert.AreEqual(UseBlock.Locked, ctx.PowerUpUse.CanSelect(s, PowerUpId.Blast), "Blast unlocks at level 10");
             ctx.Data.HighestUnlocked = 100;
-            ctx.Inventory.AddOwned(PowerUpId.ExtraMoves, 1);
             var endless = TestUtil.Session(GameMode.Endless, 5, 0, 3, "000", "111", "222");
-            Assert.AreEqual(UseBlock.NotAllowedInMode, ctx.PowerUpUse.CanSelect(endless, PowerUpId.ExtraMoves));
             Assert.AreEqual(UseBlock.None, ctx.PowerUpUse.CanSelect(endless, PowerUpId.Blast));
             var daily = TestUtil.Session(GameMode.Daily, 5, 100, 3, "000", "111", "222");
             Assert.AreEqual(UseBlock.NotAllowedInMode, ctx.PowerUpUse.CanSelect(daily, PowerUpId.Blast));
@@ -422,26 +424,25 @@ namespace ColourCascade.Tests
         }
 
         [Test]
-        public void ExtraMovesCanReviveAFailedLevelThroughTheService()
+        public void AFailedLevelIsContinuedThroughOutOfMovesNotAPowerUp()
         {
             var ctx = TestUtil.Context();
             ctx.Data.HighestUnlocked = 100;
-            ctx.Inventory.AddOwned(PowerUpId.ExtraMoves, 1);
+            ctx.Data.Coins = 100;
             var s = TestUtil.Session(GameMode.Campaign, 1, 100000, 3, "000", "111", "222");
             s.TryPlay(new GridPos(0, 2), new MoveOutcome());
             Assert.AreEqual(SessionState.Failed, s.State);
-            var o = new MoveOutcome();
-            Assert.IsTrue(ctx.PowerUpUse.TryUse(s, PowerUpRequest.Instant(PowerUpId.ExtraMoves), o, out _, out _));
+            Assert.AreEqual(UseBlock.UnknownPowerUp, ctx.PowerUpUse.CanSelect(s, PowerUpId.ExtraMoves));
+            Assert.AreEqual(CoinContinueResult.Done, ctx.Monetisation.Continue.ContinueWithCoins(s));
             Assert.AreEqual(SessionState.Playing, s.State);
-            Assert.AreEqual(3, s.MovesLeft);
-            Assert.AreEqual(3, o.MovesAdded);
+            Assert.AreEqual(5, s.MovesLeft);
         }
 
         [Test]
         public void EveryDefinitionHasAnEffectAndSensibleData()
         {
             var defs = PowerUpCatalog.CreateDefaults();
-            Assert.AreEqual(6, defs.Length);
+            Assert.AreEqual(5, defs.Length, "Extra Moves was retired in 3.0.1");
             foreach (var d in defs)
             {
                 Assert.IsNotNull(PowerUpEffects.Get(d.id), d.id + " has no effect");
@@ -452,12 +453,11 @@ namespace ColourCascade.Tests
                 Assert.IsFalse(d.allowedModes.Has(GameMode.WeeklyRush));
             }
             var catalog = new PowerUpCatalog(defs);
-            CollectionAssert.AreEqual(new[] { 10, 20, 30, 40, 50, 60 }, new[] { catalog.All[0].unlockLevel, catalog.All[1].unlockLevel, catalog.All[2].unlockLevel, catalog.All[3].unlockLevel, catalog.All[4].unlockLevel, catalog.All[5].unlockLevel });
+            CollectionAssert.AreEqual(new[] { 10, 20, 30, 40, 60 }, new[] { catalog.All[0].unlockLevel, catalog.All[1].unlockLevel, catalog.All[2].unlockLevel, catalog.All[3].unlockLevel, catalog.All[4].unlockLevel });
             Assert.AreEqual(100, catalog.Get(PowerUpId.Blast).price);
             Assert.AreEqual(75, catalog.Get(PowerUpId.Swap).price);
             Assert.AreEqual(150, catalog.Get(PowerUpId.ColourShift).price);
             Assert.AreEqual(125, catalog.Get(PowerUpId.TileBreaker).price);
-            Assert.AreEqual(200, catalog.Get(PowerUpId.ExtraMoves).price);
             Assert.AreEqual(250, catalog.Get(PowerUpId.ColourBurst).price);
         }
     }

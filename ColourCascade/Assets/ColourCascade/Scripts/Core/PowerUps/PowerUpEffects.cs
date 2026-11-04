@@ -11,7 +11,7 @@ namespace ColourCascade.Core
         public GridPos B;
         /// <summary>Chosen colour (Colour Shift).</summary>
         public int Colour;
-        /// <summary>Strength from the definition (Extra Moves: moves to add). 0 = effect default.</summary>
+        /// <summary>Strength from the definition. 0 = effect default.</summary>
         public int Amount;
 
         public static PowerUpRequest Instant(PowerUpId id) => new PowerUpRequest { Id = id };
@@ -27,7 +27,7 @@ namespace ColourCascade.Core
     public interface IPowerUpEffect
     {
         PowerUpId Id { get; }
-        /// <summary>False for effects that do not touch tiles (Extra Moves).</summary>
+        /// <summary>False for effects that do not touch tiles.</summary>
         bool ChangesBoard { get; }
         bool Validate(PuzzleSession session, PowerUpRequest request, out PowerUpFailure failure);
         void Apply(PuzzleSession session, PowerUpRequest request, MoveOutcome outcome);
@@ -45,7 +45,6 @@ namespace ColourCascade.Core
             Register(new SwapEffect());
             Register(new ColourShiftEffect());
             Register(new TileBreakerEffect());
-            Register(new ExtraMovesEffect());
             Register(new ColourBurstEffect());
         }
 
@@ -231,29 +230,6 @@ namespace ColourCascade.Core
             cells.Clear();
             if (IsTarget(s.Board, r.A)) cells.Add(r.A);
         }
-    }
-
-    /// <summary>Adds moves to a move-limited level. Default amount is 3.</summary>
-    public sealed class ExtraMovesEffect : IPowerUpEffect
-    {
-        public const int DefaultAmount = 3;
-        public PowerUpId Id => PowerUpId.ExtraMoves;
-        public bool ChangesBoard => false;
-
-        public bool Validate(PuzzleSession s, PowerUpRequest r, out PowerUpFailure failure)
-        {
-            if (!s.HasMoveLimit || s.Mode != GameMode.Campaign)
-            {
-                failure = PowerUpFailure.NoMoveLimit;
-                return false;
-            }
-            failure = PowerUpFailure.None;
-            return true;
-        }
-
-        public void Apply(PuzzleSession s, PowerUpRequest r, MoveOutcome o) => s.GrantMoves(r.Amount > 0 ? r.Amount : DefaultAmount, o);
-
-        public void Preview(PuzzleSession s, PowerUpRequest r, List<GridPos> cells) => cells.Clear();
     }
 
     /// <summary>Hits every tile of the target tile's colour: free and mossy tiles are removed, ice and chains of that

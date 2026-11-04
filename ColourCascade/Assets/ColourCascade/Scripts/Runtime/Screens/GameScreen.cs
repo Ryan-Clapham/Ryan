@@ -1186,7 +1186,7 @@ namespace ColourCascade.App
                     s.BadgeText.color = Theme.TextDark;
                     s.Badge.rectTransform.sizeDelta = new Vector2(56, 52);
                 }
-                bool usable = session != null && (session.AcceptsMoves || s.Def.id == PowerUpId.ExtraMoves) && !endScheduled;
+                bool usable = session != null && session.AcceptsMoves && !endScheduled;
                 s.Root.GetComponent<RectTransform>().localScale = targeting != null && targeting.id == s.Def.id ? Vector3.one * 1.1f : Vector3.one;
                 var group = UI.GetOrAdd<CanvasGroup>(s.Root.gameObject);
                 group.alpha = usable ? 1f : 0.5f;
@@ -1383,13 +1383,6 @@ namespace ColourCascade.App
                     break;
                 case PowerUpId.ColourShift:
                     AudioService.Sfx(SfxNames.Shimmer, 0.8f);
-                    break;
-                case PowerUpId.ExtraMoves:
-                    AudioService.Sfx(SfxNames.Unlock);
-                    Haptics.Medium();
-                    var badgePos = board.Fx.ToLocal(badge.position);
-                    board.Fx.FloatText(badgePos + new Vector2(0, -120), "+" + outcome.MovesAdded + " moves", Theme.Success, 62, 90f, 1.1f);
-                    board.Fx.Sparkle(badgePos, Theme.Success, 16, 80f);
                     break;
             }
             if (outcome.UsedTrial) Toast.Show("Free " + def.displayName + " used", Icon.Gift, Theme.Teal);
@@ -1681,31 +1674,6 @@ namespace ColourCascade.App
             if (result.Success) Haptics.Medium();
             var popup = Nav.Open<ResultPopup>();
             popup.Setup(result, session, this);
-        }
-
-        /// <summary>Uses (or buys and uses) Extra Moves to continue a campaign level that ran out of moves.</summary>
-        public bool TryRevive()
-        {
-            if (session == null || session.State != SessionState.Failed) return false;
-            if (Ctx.PowerUpUse.CanSelect(session, PowerUpId.ExtraMoves) == UseBlock.NoneOwned)
-            {
-                var buy = Ctx.Shop.TryBuy(PowerUpId.ExtraMoves);
-                if (!buy.Allowed)
-                {
-                    Toast.Show(buy.Message, Icon.Info, Theme.Danger);
-                    return false;
-                }
-                AudioService.Sfx(SfxNames.Purchase);
-                Toast.Show("Extra Moves bought: " + NumberFormat.Thousands(Ctx.Wallet.Balance) + " coins left", Icon.Shop, Theme.Gold);
-            }
-            ApplyPowerUp(PowerUpRequest.Instant(PowerUpId.ExtraMoves));
-            if (session.State != SessionState.Playing) return false;
-            endScheduled = false;
-            board.InputEnabled = true;
-            Ctx.BeginRun(session);
-            RefreshPowerBar();
-            RefreshFinishButton();
-            return true;
         }
 
         /// <summary>

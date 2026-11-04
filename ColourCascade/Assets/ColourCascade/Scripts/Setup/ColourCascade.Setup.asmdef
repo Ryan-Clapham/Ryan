@@ -21,6 +21,21 @@
             "name": "com.unity.inputsystem",
             "expression": "",
             "define": "COLOURCASCADE_INPUTSYSTEM"
+        },
+        {
+            "name": "com.google.ads.mobile",
+            "expression": "",
+            "define": "COLOURCASCADE_ADMOB_PACKAGE"
+        },
+        {
+            "name": "com.unity.purchasing",
+            "expression": "",
+            "define": "COLOURCASCADE_IAP_PACKAGE"
+        },
+        {
+            "name": "com.unity.purchasing",
+            "expression": "5.0.0",
+            "define": "COLOURCASCADE_IAP5_PACKAGE"
         }
     ],
     "noEngineReferences": false

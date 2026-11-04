@@ -17,6 +17,8 @@ namespace ColourCascade.App
 
         const float BodyTop = 150f;     // title
         const float BodyBottom = 390f;  // main button + secondary row
+        const float WonBodyBottom = 350f; // Level Complete: a slightly smaller button pair
+        float bodyBottom = BodyBottom;
 
         RunResult result;
         PuzzleSession session;
@@ -89,42 +91,118 @@ namespace ColourCascade.App
                     if (r.State == SessionState.Stuck) Stuck(); else RushDone();
                     break;
             }
-            FitHeight(body, BodyTop, BodyBottom, 860f);
+            FitHeight(body, BodyTop, bodyBottom, 860f);
         }
 
         // ------------------------------------------------------------------ Variants
 
+        /// <summary>
+        /// Level Complete (3.0.1 layout), in order of importance: the heading, the stars and the final score (the
+        /// focus), what each star needed and what the player got, a compact two-column score breakdown, the coins
+        /// earned, then Next Level with Map and Replay beneath. Fits the panel on every supported screen: about 1,420
+        /// units at most (all eight score lines, a kept power-up and the finished-early note) against at least 1,590
+        /// available on the shortest supported screens, so nothing scrolls or clips.
+        /// </summary>
         void CampaignWon()
         {
             var level = result.Level;
-            Title(level.IsRegionFinale ? "Region Complete!" : "Level Complete!", false, 46);
-            var stars = StarRow.Create(body, 150, 18, true);
-            stars.Layout(preferredHeight: 200);
+            bodyBottom = WonBodyBottom;
+            body.Fill(60, WonBodyBottom, 60, BodyTop);
+            var stack = body.GetComponent<VerticalLayoutGroup>();
+            if (stack != null) stack.spacing = 12;
+            Title(level.IsRegionFinale ? "Region Complete!" : "Level Complete!", false, 40);
+            var stars = StarRow.Create(body, 120, 14, true);
+            stars.Layout(preferredHeight: 160);
             float t = stars.Reveal(result.Stars, 0.35f, App.GlobalFx);
-            ScoreBlock(result.FinalScore, "Final score", t);
-            // Where the points came from, line by line; the lines add up to the final score (docs/MECHANICS.md §5).
-            Breakdown(t);
-            if (result.NewBest) Badge("New best score!", Theme.Gold);
-            if (result.KeptPowerUps > 0 && result.KeptPowerUp != null)
-                Badge("Kept " + result.KeptPowerUps + " free " + result.KeptPowerUp.displayName + (result.KeptPowerUps == 1 ? "" : "s"), Theme.Teal);
-            // Every star's requirement, ticked, with the real result against it, and why the next star was missed.
+            ScoreFocus(result.FinalScore, result.NewBest ? "New best score!" : "Final score", result.NewBest, t);
+            // What each star needed, ticked, with the real result against it (this replaces the "why" sentence and the
+            // tip, which said the same thing in words).
             StarList(t);
-            string why = StarChecklist.WhyNotNext(level, result.FinalScore, result.Stars, result.EndReason == EndReason.FinishedEarly, result.MovesLeft);
-            if (why != null) Para(why, Theme.FontSmall);
-            Rewards(t + 0.2f);
+            if (result.EndReason == EndReason.FinishedEarly && result.MovesLeft > 0 && result.Stars < 3)
+                Note("You finished with " + result.MovesLeft + (result.MovesLeft == 1 ? " move" : " moves") + " left.");
+            // Where the points came from, two to a row; the lines add up to the final score (docs/MECHANICS.md §5).
+            Breakdown(t);
+            if (result.KeptPowerUps > 0 && result.KeptPowerUp != null)
+                SmallChip("Kept " + result.KeptPowerUps + " free " + result.KeptPowerUp.displayName + (result.KeptPowerUps == 1 ? "" : "s"), Theme.Teal);
+            CoinsEarned(t + 0.2f);
             bool hasNext = Ctx.Campaign.IsUnlocked(level.Number + 1);
             var next = FooterButton(hasNext ? "Next Level" : "Continue", ButtonStyle.Primary, () => AfterWin(AdTransition.LevelWonNext, () =>
             {
                 Close();
                 game.NextLevel();
-            }), Icon.Play, 210, 150);
-            SecondaryRow("Map", Icon.Map, () => AfterWin(AdTransition.LevelWonExit, () => game.ExitTo(ScreenId.Map, new MapArgs { Focus = level.Number + 1, JustCompleted = level.Number })), "Replay", Icon.Restart, () =>
+            }), Icon.Play, 186, 140);
+            FooterButton("Map", ButtonStyle.Secondary, () => AfterWin(AdTransition.LevelWonExit, () => game.ExitTo(ScreenId.Map, new MapArgs { Focus = level.Number + 1, JustCompleted = level.Number })),
+                Icon.Map, 50, 120, 60, 480);
+            FooterButton("Replay", ButtonStyle.Ghost, () =>
             {
                 Close();
                 game.PlayAgain();
-            });
+            }, Icon.Restart, 50, 120, 480, 60);
             next.transform.localScale = Vector3.zero;
             Tw.Scale(next.transform, 1f, 0.35f, Ease.OutBack, t);
+        }
+
+        /// <summary>The final score, large, with a one-line caption under it ("New best score!" in gold).</summary>
+        void ScoreFocus(int score, string caption, bool highlight, float delay)
+        {
+            var block = UI.Rect("Score", body);
+            block.Layout(preferredHeight: 150);
+            var number = UI.Text(block, "0", 96, Theme.Text, TextAnchor.MiddleCenter, true, "Number");
+            number.rectTransform.Fill(0, 36, 0, 0);
+            UI.AddShadow(number, -6, 0.4f);
+            Tw.Value(0, score, 0.8f, v => number.text = NumberFormat.Thousands(Mathf.RoundToInt(v)), Ease.OutCubic, delay, number);
+            var c = UI.FitText(block, caption, Theme.FontSmall - 2, highlight ? Theme.Gold : Theme.TextSecondary, TextAnchor.MiddleCenter, true, "Caption");
+            c.rectTransform.BottomStrip(36, 0, 0, 0);
+        }
+
+        /// <summary>A single short line of secondary information.</summary>
+        void Note(string text)
+        {
+            var t = UI.FitText(body, text, Theme.FontTiny, Theme.TextMuted, TextAnchor.MiddleCenter, false, "Note");
+            t.Layout(preferredHeight: 40);
+        }
+
+        void SmallChip(string text, Color colour)
+        {
+            var holder = UI.Rect("Chip", body);
+            holder.Layout(preferredHeight: 52);
+            var chip = UI.Chip(holder, text, colour.WithAlpha(0.2f), colour, Theme.FontTiny);
+            ((RectTransform)chip.transform.parent).Centre(560, 50);
+        }
+
+        /// <summary>Every coin this level paid, in one row: the total, and where it came from underneath.</summary>
+        void CoinsEarned(float delay)
+        {
+            var rewards = result.Rewards;
+            if (rewards == null || !rewards.Any) return;
+            coins = CoinCounter.Create(Content, null, 80);
+            ((RectTransform)coins.transform).Place(new Vector2(0.5f, 1), new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(250, 80));
+            int finalBalance = Ctx.Wallet.Balance;
+            coins.Show(finalBalance - rewards.TotalCoins);
+            var row = UI.Rect("CoinsEarned", body);
+            row.Layout(preferredHeight: 84);
+            UI.Rounded(row, Theme.Gold.WithAlpha(0.14f), 30, "Bg").rectTransform.Fill();
+            var title = UI.FitText(row, "Coins earned", Theme.FontBody - 6, Theme.Text, TextAnchor.MiddleLeft, true, "Label");
+            title.rectTransform.TopStrip(40, 8, 28, 210);
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var line in rewards.Lines) parts.Add(line.Label + " +" + line.Coins);
+            var detail = UI.FitText(row, string.Join("  ·  ", parts), Theme.FontTiny - 3, Theme.TextSecondary, TextAnchor.MiddleLeft, false, "Detail");
+            detail.rectTransform.BottomStrip(32, 8, 28, 210);
+            var amount = UI.FitText(row, "+" + NumberFormat.Thousands(rewards.TotalCoins), Theme.FontLarge - 4, Theme.Gold, TextAnchor.MiddleRight, true, "Amount");
+            amount.rectTransform.Fill(0, 0, 96, 0);
+            amount.rectTransform.anchorMin = new Vector2(1, 0);
+            amount.rectTransform.offsetMin = new Vector2(-200, 0);
+            var icon = UI.Sprite(row, ArtNames.Coin, 60);
+            icon.rectTransform.Place(new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-52, 0), new Vector2(60, 60));
+            row.localScale = Vector3.zero;
+            Tw.Scale(row, 1f, 0.3f, Ease.OutBack, delay);
+            int count = Mathf.Clamp(rewards.TotalCoins / 5, 3, 12);
+            for (int k = 0; k < count; k++) FlyCoin(icon.rectTransform, delay + 0.25f + k * 0.05f);
+            Tw.Delay(delay + 0.25f + count * 0.05f + 0.6f, () =>
+            {
+                if (coins != null) coins.AnimateTo(finalBalance);
+                AudioService.Sfx(SfxNames.Coin);
+            }, this);
         }
 
         void CampaignFailed()
@@ -172,10 +250,8 @@ namespace ColourCascade.App
             // Out of Moves choices (docs/MONETISATION.md §2.1): an advert for extra moves, coins for fewer, or give up.
             // Every choice is explicit; nothing is spent or shown automatically. Both continue this same level.
             var options = Ctx.Monetisation.Continue.Options(session);
-            var def = Ctx.PowerUps.Get(PowerUpId.ExtraMoves);
-            bool ownsExtraMoves = def != null && Ctx.PowerUpUse.CanSelect(session, PowerUpId.ExtraMoves) == UseBlock.None;
             bool adOffer = options.AdMoves > 0 && options.Ad.Status != OfferStatus.Disabled;
-            bool anyOffer = adOffer || options.CoinMoves > 0 || ownsExtraMoves;
+            bool anyOffer = adOffer || options.CoinMoves > 0;
             if (!offersDeclined && options.Available && anyOffer)
             {
                 // The player's coins, before they decide (the counter follows the wallet, so a purchase shows at once).
@@ -194,27 +270,14 @@ namespace ColourCascade.App
                     coin.Layout(preferredWidth: 52);
                     coin.transform.SetAsFirstSibling();
                 }
-                // An Extra Moves power-up the player already owns can still be used here, as before.
-                if (ownsExtraMoves)
-                    OfferButton("Use your Extra Moves (+" + def.amount + ")", ButtonStyle.Teal, Icon.Plus, () =>
-                    {
-                        if (game.TryRevive()) Close();
-                    });
                 Ctx.Monetisation.Ads.Changed -= RefreshOffers;
                 Ctx.Monetisation.Ads.Changed += RefreshOffers;
                 RefreshOffers();
+                // Only one button below the offers, so the space reserved under the list is smaller.
+                bodyBottom = 240f;
+                body.Fill(60, bodyBottom, 60, BodyTop);
                 FooterButton("Give Up", ButtonStyle.Ghost, GiveUp, null, 60, 150);
                 return;
-            }
-            if (!options.Available && ownsExtraMoves)
-            {
-                var holder = UI.Rect("Revive", body);
-                holder.Layout(preferredHeight: 150);
-                var revive = UI.Button(holder, "Use Extra Moves (+" + def.amount + ")", ButtonStyle.Success, () =>
-                {
-                    if (game.TryRevive()) Close();
-                }, Icon.Plus, Theme.FontBody);
-                ((RectTransform)revive.transform).Fill(40, 10, 40, 10);
             }
             FooterButton("Try Again", ButtonStyle.Primary, () =>
             {
@@ -415,44 +478,38 @@ namespace ColourCascade.App
 
         // ------------------------------------------------------------------ Building blocks
 
-        /// <summary>What each star needs, ticked when earned, with the result against it, and a tip for scoring more.</summary>
+        /// <summary>What each star needs, ticked when earned, with the result against it (one compact row per star).</summary>
         void StarList(float delay)
         {
             var items = StarChecklist.For(result.Level, session != null ? session.Goals : null, result.Passed, result.FinalScore, result.Stars);
             var list = UI.Rect("StarChecklist", body);
-            // The line under the list says what the next star needed; the tip only shows when it has nothing to say.
-            bool tip = result.Stars < 3 && StarChecklist.WhyNotNext(result.Level, result.FinalScore, result.Stars, false, 0) == null;
-            list.Layout(preferredHeight: items.Count * 64 + 6 + (tip ? 64 : 0));
-            UI.VStack(list, 4);
+            const float rowHeight = 52f, gap = 4f;
+            list.Layout(preferredHeight: items.Count * rowHeight + Mathf.Max(0, items.Count - 1) * gap);
+            UI.VStack(list, gap);
             foreach (var item in items)
             {
                 var row = UI.Rect("Row" + item.Stars, list);
-                row.Layout(preferredHeight: 60);
-                var bg = UI.Rounded(row, new Color(0, 0, 0, item.Met ? 0.12f : 0.24f), 26, "Bg");
+                row.Layout(preferredHeight: rowHeight);
+                var bg = UI.Rounded(row, new Color(0, 0, 0, item.Met ? 0.12f : 0.24f), 24, "Bg");
                 bg.rectTransform.Fill();
                 for (int k = 0; k < 3; k++)
                 {
                     bool show = k < item.Stars;
                     var star = UI.Image(row, ArtLibrary.Instance.Get(show && item.Met ? ArtNames.StarGold : ArtNames.StarEmpty), Color.white, "Star" + k);
-                    star.rectTransform.Place(new Vector2(0, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(36 + k * 34, 0), new Vector2(34, 34));
+                    star.rectTransform.Place(new Vector2(0, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(32 + k * 30, 0), new Vector2(30, 30));
                     star.gameObject.SetActive(show);
                 }
-                var text = UI.FitText(row, item.Text, Theme.FontSmall, item.Met ? Theme.TextSecondary : Theme.Text, TextAnchor.MiddleLeft, true, "Text");
-                text.rectTransform.Fill(140, 0, 300, 0);
-                var achieved = UI.FitText(row, item.Result, Theme.FontSmall - 2, item.Met ? Theme.Success : Theme.TextMuted, TextAnchor.MiddleRight, true, "Result");
-                achieved.rectTransform.Fill(0, 0, 80, 0);
+                var text = UI.FitText(row, item.Text, Theme.FontSmall - 2, item.Met ? Theme.TextSecondary : Theme.Text, TextAnchor.MiddleLeft, true, "Text");
+                text.rectTransform.Fill(122, 2, 290, 2);
+                var achieved = UI.FitText(row, item.Result, Theme.FontSmall - 4, item.Met ? Theme.Success : Theme.TextMuted, TextAnchor.MiddleRight, true, "Result");
+                achieved.rectTransform.Fill(0, 2, 72, 2);
                 achieved.rectTransform.anchorMin = new Vector2(1, 0);
-                achieved.rectTransform.offsetMin = new Vector2(-290, 0);
+                achieved.rectTransform.offsetMin = new Vector2(-280, 2);
                 if (item.Met)
                 {
-                    var tick = UI.Icon(row, Icon.Check, Theme.Success, 40);
-                    tick.rectTransform.Place(new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-42, 0), new Vector2(40, 40));
+                    var tick = UI.Icon(row, Icon.Check, Theme.Success, 36);
+                    tick.rectTransform.Place(new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-38, 0), new Vector2(36, 36));
                 }
-            }
-            if (tip)
-            {
-                var hint = UI.FitText(list, StarChecklist.Tip(result.Level), Theme.FontSmall - 4, Theme.TextMuted, TextAnchor.MiddleCenter, false, "Tip");
-                hint.Layout(preferredHeight: 60);
             }
             list.localScale = new Vector3(1f, 0f, 1f);
             Tw.Scale(list, 1f, 0.3f, Ease.OutCubic, delay + 0.1f);
@@ -477,44 +534,34 @@ namespace ColourCascade.App
             Line("Treasure", b.Treasure);
             Line("Specials at the end", b.Finale);
             if (lines.Count == 0) return;
+            // Compact: 46-unit cells, two to a row (at most four rows for all eight lines). The details of what the
+            // specials at the end scored were shown on the board when they went off; here they are one line.
+            const float cellHeight = 46f, gap = 6f;
             int rows = (lines.Count + 1) / 2;
             var grid = UI.Rect("Breakdown", body);
-            grid.Layout(preferredHeight: rows * 52 + (rows - 1) * 6);
-            UI.VStack(grid, 6);
+            grid.Layout(preferredHeight: rows * cellHeight + (rows - 1) * gap);
+            UI.VStack(grid, gap);
             for (int r = 0; r < rows; r++)
             {
                 var row = UI.Rect("Row" + r, grid);
-                row.Layout(preferredHeight: 52);
+                row.Layout(preferredHeight: cellHeight);
                 UI.HStack(row, 10);
                 for (int k = 0; k < 2; k++)
                 {
                     int i = r * 2 + k;
                     var cell = UI.Rect("Cell" + k, row);
                     if (i >= lines.Count) continue;
-                    UI.Rounded(cell, new Color(0, 0, 0, 0.2f), 24, "Bg").rectTransform.Fill();
-                    var label = UI.FitText(cell, lines[i].label, Theme.FontSmall - 6, Theme.TextSecondary, TextAnchor.MiddleLeft, true, "Label");
-                    label.rectTransform.Fill(20, 0, 130, 0);
-                    var value = UI.FitText(cell, NumberFormat.Thousands(lines[i].points), Theme.FontSmall - 4, Theme.Text, TextAnchor.MiddleRight, true, "Value");
-                    value.rectTransform.Fill(0, 0, 18, 0);
+                    UI.Rounded(cell, new Color(0, 0, 0, 0.2f), 22, "Bg").rectTransform.Fill();
+                    var label = UI.FitText(cell, lines[i].label, Theme.FontSmall - 8, Theme.TextSecondary, TextAnchor.MiddleLeft, true, "Label");
+                    label.rectTransform.Fill(18, 0, 124, 0);
+                    var value = UI.FitText(cell, NumberFormat.Thousands(lines[i].points), Theme.FontSmall - 6, Theme.Text, TextAnchor.MiddleRight, true, "Value");
+                    value.rectTransform.Fill(0, 0, 16, 0);
                     value.rectTransform.anchorMin = new Vector2(1, 0);
-                    value.rectTransform.offsetMin = new Vector2(-130, 0);
+                    value.rectTransform.offsetMin = new Vector2(-120, 0);
                 }
             }
             grid.localScale = new Vector3(1f, 0f, 1f);
             Tw.Scale(grid, 1f, 0.3f, Ease.OutCubic, delay);
-            // What the specials left on the board scored at the end, the same figures as the in-game card.
-            var f = result.FinaleBreakdown;
-            if (b.Finale > 0 && f != null)
-            {
-                var parts = new System.Collections.Generic.List<string>();
-                if (f.Specials > 0) parts.Add("tiles " + NumberFormat.Thousands(f.Specials));
-                if (f.ComboBonus > 0) parts.Add("combo bonus " + NumberFormat.Thousands(f.ComboBonus));
-                if (f.Obstacles > 0) parts.Add("ice, chains, moss " + NumberFormat.Thousands(f.Obstacles));
-                if (f.Stones > 0) parts.Add("stones " + NumberFormat.Thousands(f.Stones));
-                if (f.Treasure > 0) parts.Add("treasure " + NumberFormat.Thousands(f.Treasure));
-                var note = UI.FitText(body, "Specials at the end: " + string.Join(" · ", parts), Theme.FontSmall - 6, Theme.TextMuted, TextAnchor.MiddleCenter, false, "FinaleNote");
-                note.Layout(preferredHeight: 50);
-            }
         }
 
         static string JourneyNames(MechanicSet set)

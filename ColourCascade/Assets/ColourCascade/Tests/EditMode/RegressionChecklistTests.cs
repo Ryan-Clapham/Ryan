@@ -41,10 +41,10 @@ namespace ColourCascade.Tests
         {
             var ctx = TestUtil.Context();
             ctx.Data.HighestUnlocked = 100;
-            ctx.Wallet.Credit(199, "t");
-            Assert.AreEqual(PurchaseBlock.InsufficientFunds, ctx.Shop.TryBuy(PowerUpId.ExtraMoves).Block);
-            Assert.AreEqual(199, ctx.Wallet.Balance);
-            Assert.AreEqual(0, ctx.Inventory.Owned(PowerUpId.ExtraMoves));
+            ctx.Wallet.Credit(249 - ctx.Wallet.Balance, "t");
+            Assert.AreEqual(PurchaseBlock.InsufficientFunds, ctx.Shop.TryBuy(PowerUpId.ColourBurst).Block);
+            Assert.AreEqual(249, ctx.Wallet.Balance);
+            Assert.AreEqual(0, ctx.Inventory.Owned(PowerUpId.ColourBurst));
         }
 
         [Test]

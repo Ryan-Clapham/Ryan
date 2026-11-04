@@ -91,8 +91,6 @@ A campaign level that runs out of moves offers (`ResultPopup.CampaignFailed`):
 * **+5 moves for 100 coins**. The coins are taken only together with the moves (`ContinueService`, a single
   step; refunded if the moves couldn't be added). The tap on this clearly labelled button is the confirmation.
 * **Give Up**. Shows the usual Try Again / Map / Home choices (the attempt was already recorded as not passed).
-* If the player already owns **Extra Moves** power-ups, "Use your Extra Moves (+3)" is also offered, as before
-  (otherwise owned power-ups would become useless at the moment they matter).
 
 Both continues add moves to the **same session**: board, score, goals and their progress, obstacles and their
 state, and the power-up inventory are untouched (tested tile by tile). Special tiles can't be lost here: since 2.1
@@ -180,7 +178,7 @@ failure handling come with it.
 
 ## 5. Store screens
 
-* **Power-ups:** unchanged (same six power-ups, functions and prices); an unaffordable price opens the buy screen
+* **Power-ups:** the same power-ups, functions and prices (Extra Moves was retired in 3.0.1); an unaffordable price opens the buy screen
   with the advert offer (§2.3).
 * **Coins:** balance (updates live), *Free coins* (the advert), *Coin packs* (amount, name, store price, "Best
   value" on the large pack; "..." while connecting, "Unavailable" when the store can't sell it), then the existing
@@ -436,8 +434,7 @@ To see player behaviour across devices, add an `IAnalyticsSink` that forwards ev
 * **Economy balance, to watch with real data:**
   * An active player earns about 60–100 coins a day by playing (DESIGN.md §8), so five 50-coin adverts double or
     triple daily income.
-  * The coin continue gives **5 moves for 100** while the Extra Moves power-up costs **200 for 3**: as specified, but
-    the power-up now looks poor value.
+  * The Extra Moves power-up (3 moves for 200) was retired in 3.0.1, because the coin continue gives 5 moves for 100.
   * Every limit is a config value.
 * **Interstitials can appear from the 5th level** of a new player. A "first level for interstitials" setting would be
   easy to add if retention data asks for it.

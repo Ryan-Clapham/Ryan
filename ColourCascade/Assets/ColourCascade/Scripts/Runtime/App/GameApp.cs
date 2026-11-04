@@ -200,6 +200,13 @@ namespace ColourCascade.App
                 Tw.Delay(0.8f, () => Toast.Show("Your save couldn't be read, so a new one was started.", Icon.Info, Theme.Danger));
             else if (loadStatus == LoadStatus.RecoveredFromBackup || loadStatus == LoadStatus.RecoveredFromTemp)
                 Debug.Log("[ColourCascade] Save restored from " + loadStatus);
+            // Extra Moves left the game in 3.0.1: say what the player got back for the ones they owned.
+            foreach (var refund in Ctx.RetirementRefunds)
+            {
+                var r = refund;
+                Tw.Delay(1.2f, () => Toast.Show(r.Name + " has been retired: +" + NumberFormat.Thousands(r.Coins) + " coins for your " + r.Uses +
+                                                 (r.Uses == 1 ? " unused one" : " unused ones"), Icon.Gift, Theme.Gold));
+            }
         }
 
         static AtlasResult LoadOrBuildAtlas(string cachePath, string key, bool useCache)

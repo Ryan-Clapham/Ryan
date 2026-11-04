@@ -7,7 +7,7 @@ Tap a group of two or more touching tiles of the same colour to clear it. Bigger
 sections that refill on their own.
 
 **Modes:** an effectively endless Campaign on an illustrated world map, Endless, a Daily Challenge and the
-60-second Weekly Rush. **Extras:** six power-ups, a coin economy and shop, a shape-symbol accessibility mode,
+60-second Weekly Rush. **Extras:** five power-ups, a coin economy and shop, a shape-symbol accessibility mode,
 reduced motion, haptics and synthesised sound and music.
 
 ---

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace ColourCascade.Core
 {
@@ -222,12 +223,27 @@ namespace ColourCascade.Core
         /// <summary>Raised after the save data object is replaced (load or reset) so listeners can rebind.</summary>
         public event Action DataReplaced;
 
+        /// <summary>Retired power-ups paid back in coins by the last Load (empty when there was nothing to pay back).</summary>
+        public List<RetiredPowerUps.Refund> RetirementRefunds { get; private set; } = new List<RetiredPowerUps.Refund>();
+
         public LoadStatus Load()
         {
             var status = Saves.Load();
             BindToData();
+            // Extra Moves was retired in 3.0.1: any uses the player still owned are paid back once, at their price.
+            RetirementRefunds = RetiredPowerUps.Settle(Data, Wallet, RetiredPrice);
+            if (RetirementRefunds.Count > 0) Save();
             DataReplaced?.Invoke();
             return status;
+        }
+
+        /// <summary>A retired power-up's price from the config asset if it still lists it, else its last default price.</summary>
+        int RetiredPrice(PowerUpId id)
+        {
+            if (Config.PowerUps != null)
+                foreach (var d in Config.PowerUps)
+                    if (d != null && d.id == id && d.price > 0) return d.price;
+            return RetiredPowerUps.DefaultRefundPerUse;
         }
 
         public bool Save() => Saves.Save();
@@ -347,7 +363,7 @@ namespace ColourCascade.Core
         /// <summary>
         /// Applies the result of a finished run: progress, records and rewards, then saves immediately.
         /// Safe to call repeatedly: the same end state returns the same result without paying twice.
-        /// A campaign level revived with Extra Moves and then won is a new end state and is processed.
+        /// A campaign level continued from Out of Moves and then won is a new end state and is processed.
         /// </summary>
         public RunResult FinishRun(PuzzleSession s)
         {
@@ -470,7 +486,7 @@ namespace ColourCascade.Core
             }
 
             // The run is over: free uses lent for it never outlive it (the next level's bar shows only real ones). A
-            // campaign level that ran out of moves can still be revived with Extra Moves, so its loan waits until the
+            // campaign level that ran out of moves can still be continued (Out of Moves), so its loan waits until the
             // player leaves (AbandonRun / the next run).
             bool revivable = s.Mode == GameMode.Campaign && s.State == SessionState.Failed && s.EndReason == EndReason.OutOfMoves;
             if (!revivable) PowerUpUse.ClearRunLoans();

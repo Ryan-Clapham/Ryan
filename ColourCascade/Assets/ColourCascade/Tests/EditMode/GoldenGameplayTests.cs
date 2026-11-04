@@ -30,8 +30,10 @@ namespace ColourCascade.Tests
         // boards for a player with nothing unlocked were checked to play exactly as before); unchanged by 2.1's later
         // changes. Before 2.1: 318364672465816974.
         const ulong ExpectedChallengeModes = 6941777045657669987UL;
-        // Scripted power-ups: re-recorded for 2.1 because a stone broken by Tile Breaker now scores 100. Before: 2022348128171972134.
-        const ulong ExpectedScriptedPowerUps = 13805293097089027243UL;
+        // Scripted power-ups: re-recorded for 2.1 because a stone broken by Tile Breaker now scores 100 (before:
+        // 2022348128171972134), and for 3.0.1 because the script's Extra Moves step was dropped with the retired
+        // power-up (before: 13805293097089027243); the 3.0 build gives this same value with only that step removed.
+        const ulong ExpectedScriptedPowerUps = 12798169050663499098UL;
 
         static ulong Mix(ulong h, long v) => StableHash.Combine(h, unchecked((ulong)v));
         static ulong Mix(ulong h, string s) => StableHash.Combine(h, StableHash.Of(s ?? ""));
@@ -155,7 +157,6 @@ namespace ColourCascade.Tests
                 PowerUpRequest.Pair(PowerUpId.Swap, new GridPos(0, 0), new GridPos(1, 0)),
                 PowerUpRequest.CellColour(PowerUpId.ColourShift, new GridPos(2, 1), 3),
                 PowerUpRequest.AtCell(PowerUpId.ColourBurst, new GridPos(5, 5)),
-                PowerUpRequest.Instant(PowerUpId.ExtraMoves),
                 PowerUpRequest.AtCell(PowerUpId.Blast, new GridPos(0, 5)),
                 PowerUpRequest.AtCell(PowerUpId.TileBreaker, new GridPos(4, 3)),
             };

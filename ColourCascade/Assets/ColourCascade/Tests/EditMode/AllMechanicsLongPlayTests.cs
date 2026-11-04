@@ -136,6 +136,7 @@ namespace ColourCascade.Tests
                 case 1: req = Play.At(PowerUpId.TileBreaker, a.Col, a.Row); break;
                 case 2: req = Play.At(PowerUpId.ColourBurst, a.Col, a.Row); break;
                 case 3: req = Play.Shift(a.Col, a.Row, rng.Next(s.ColourCount)); break;
+                // Extra Moves was retired in 3.0.1: always refused now (kept so the random sequence is unchanged).
                 case 4: req = new PowerUpRequest { Id = PowerUpId.ExtraMoves, Amount = 1 }; break;
                 default:
                     int d = rng.Next(4);

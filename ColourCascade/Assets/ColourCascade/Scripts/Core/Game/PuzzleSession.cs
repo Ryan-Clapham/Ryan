@@ -515,8 +515,7 @@ namespace ColourCascade.Core
                 failure = PowerUpFailure.NotAllowedInMode;
                 return false;
             }
-            bool revivingAfterOutOfMoves = req.Id == PowerUpId.ExtraMoves && State == SessionState.Failed && EndReason == EndReason.OutOfMoves;
-            if (!AcceptsMoves && !revivingAfterOutOfMoves)
+            if (!AcceptsMoves)
             {
                 failure = PowerUpFailure.NotPlaying;
                 return false;
@@ -615,7 +614,7 @@ namespace ColourCascade.Core
             inFinale = false;
         }
 
-        /// <summary>Adds moves (Extra Moves). Revives a campaign level that has just run out of moves.</summary>
+        /// <summary>Adds moves (the Out of Moves continues). Revives a campaign level that has just run out of moves.</summary>
         public bool AddMoves(int amount)
         {
             if (!HasMoveLimit || amount <= 0) return false;

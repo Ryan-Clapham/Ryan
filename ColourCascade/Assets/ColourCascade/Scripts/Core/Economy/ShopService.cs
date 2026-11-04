@@ -161,8 +161,7 @@ namespace ColourCascade.Core
             if (def == null || PowerUpEffects.Get(id) == null) return UseBlock.UnknownPowerUp;
             if (!ActionPolicy.IsPowerUpAllowed(def, session.Mode)) return UseBlock.NotAllowedInMode;
             if (!ActionPolicy.IsUnlocked(def, highestUnlocked())) return UseBlock.Locked;
-            bool revive = id == PowerUpId.ExtraMoves && session.State == SessionState.Failed && session.EndReason == EndReason.OutOfMoves;
-            if (!session.AcceptsMoves && !revive) return UseBlock.NotPlaying;
+            if (!session.AcceptsMoves) return UseBlock.NotPlaying;
             if (!ignoreOwnership && Available(id) <= 0) return UseBlock.NoneOwned;
             return UseBlock.None;
         }

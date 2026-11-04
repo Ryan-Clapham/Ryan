@@ -85,11 +85,11 @@ namespace ColourCascade.Tests
         // ------------------------------------------------------------------ Level 78: score never passes on its own
 
         [Test]
-        public void AHighScoreWithATreasureLeftFailsAndExtraMovesKeepEverything()
+        public void AHighScoreWithATreasureLeftFailsAndContinuingKeepsEverything()
         {
             var ctx = TestUtil.Context();
             ctx.Data.HighestUnlocked = 60;
-            ctx.Inventory.AddOwned(PowerUpId.ExtraMoves, 1);
+            ctx.Data.Coins = 100;
             // Six 0s to clear for points; the treasure sits on three tiles that match nothing.
             var s = TestUtil.Session(GameMode.Campaign, 1, 100, TileColours.Max, new[] { "$000", "1000", "2311", "3222" }, null, GoalSpec.CollectTreasure(1));
             ctx.BeginRun(s);
@@ -104,10 +104,9 @@ namespace ColourCascade.Tests
             Assert.IsFalse(failed.Passed);
             Assert.AreEqual(1, s.Goals.Remaining(0), "the failure screen lists exactly this");
 
-            // Extra Moves: the score and the goal progress carry on.
+            // Out of Moves, +5 moves for 100 coins (3.0): the score and the goal progress carry on.
             int score = s.Score;
-            var o = new MoveOutcome();
-            Assert.IsTrue(ctx.PowerUpUse.TryUse(s, PowerUpRequest.Instant(PowerUpId.ExtraMoves), o, out var block, out var failure), block + " " + failure);
+            Assert.AreEqual(CoinContinueResult.Done, ctx.Monetisation.Continue.ContinueWithCoins(s));
             ctx.BeginRun(s);
             Assert.AreEqual(SessionState.Playing, s.State);
             Assert.AreEqual(score, s.Score);

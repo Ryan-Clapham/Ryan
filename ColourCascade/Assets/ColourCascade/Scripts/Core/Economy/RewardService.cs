@@ -79,6 +79,10 @@ namespace ColourCascade.Core
                     return p.Length == 2 && p[1] == "shortfall" ? "Advert: coins for a power-up" : "Advert reward";
                 case "iap":
                     return "Bought coins";
+                case "refund":
+                    if (p.Length == 3 && p[1] == "ExtraMoves" && p[2].Length > 1 && p[2][0] == 'x' && int.TryParse(p[2].Substring(1), out n))
+                        return "Extra Moves retired: refund for " + n;
+                    break;
                 case "continue":
                     if (p.Length >= 2 && p[1].Length > 1 && p[1][0] == 'L')
                         return (p.Length == 3 && p[2] == "refund" ? "Refund: extra moves, level " : "Extra moves, level ") + p[1].Substring(1);

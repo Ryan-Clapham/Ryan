@@ -370,13 +370,10 @@ namespace ColourCascade.Tests
             Assert.AreEqual(sc.powerUpPointsPerTile, Play.Use(b, Play.At(PowerUpId.TileBreaker, 0, 1)).ScoreGained);
             Assert.AreEqual(sc.stonePoints, Play.Use(b, Play.At(PowerUpId.TileBreaker, 1, 1)).ScoreGained);
             Assert.AreEqual(2 * sc.iceLayerPoints, Play.Use(b, Play.At(PowerUpId.TileBreaker, 4, 0)).ScoreGained);
-            // Swap, Colour Shift and Extra Moves move or add nothing that scores.
+            // Swap and Colour Shift move or change nothing that scores.
             var c = Play.Level(new[] { "0123", "1233" }, null, 20);
             Assert.AreEqual(0, Play.Use(c, Play.Swap(0, 0, 1, 0)).ScoreGained);
             Assert.AreEqual(0, Play.Use(c, Play.Shift(0, 1, 2)).ScoreGained);
-            var more = Play.Use(c, new PowerUpRequest { Id = PowerUpId.ExtraMoves, Amount = 3 });
-            Assert.AreEqual(0, more.ScoreGained);
-            Assert.AreEqual(3, more.MovesAdded);
             // Colour Burst: 20 for each tile of the colour.
             var d = Play.Level(new[] { "0120", "1201", "2011" }, null, 20, GoalSpec.Collect(0, 4));
             var burst = Play.Use(d, Play.At(PowerUpId.ColourBurst, 1, 0));
@@ -417,7 +414,7 @@ namespace ColourCascade.Tests
             Play.Tap(fail, 0, 2);
             Assert.AreEqual(SessionState.Failed, fail.State);
             ctx.FinishRun(fail);
-            Assert.AreEqual(1, ctx.PowerUpUse.Lent(def.id), "Extra Moves could still continue this attempt");
+            Assert.AreEqual(1, ctx.PowerUpUse.Lent(def.id), "Out of Moves could still continue this attempt");
             ctx.AbandonRun(fail);
             Assert.AreEqual(0, ctx.PowerUpUse.Lent(def.id), "gone once the player leaves");
 

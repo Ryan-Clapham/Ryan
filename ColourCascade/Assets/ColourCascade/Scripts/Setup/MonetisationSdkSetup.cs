@@ -32,24 +32,44 @@ namespace ColourCascade.EditorTools
             EditorApplication.delayCall += Sync;
         }
 
-        static bool HasType(string fullName)
+        // Which SDKs are installed comes from Unity's package version defines (this assembly's Version Defines), plus
+        // the folder Google's .unitypackage installs into, for projects that imported the plugin that way. (Scanning
+        // the loaded assemblies would also work, but Unity warns against it: UAC0005.)
+        static bool AdMobInstalled
         {
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            get
             {
-                try
-                {
-                    if (asm.GetType(fullName, false) != null) return true;
-                }
-                catch (Exception)
-                {
-                    // Some dynamic assemblies can't be inspected.
-                }
+#if COLOURCASCADE_ADMOB_PACKAGE
+                return true;
+#else
+                return AssetDatabase.IsValidFolder("Assets/GoogleMobileAds");
+#endif
             }
-            return false;
         }
 
-        static bool AdMobInstalled => HasType("GoogleMobileAds.Api.MobileAds") && HasType("GoogleMobileAds.Ump.Api.ConsentInformation");
-        static bool IapInstalled => HasType("UnityEngine.Purchasing.UnityIAPServices");
+        static bool IapInstalled
+        {
+            get
+            {
+#if COLOURCASCADE_IAP5_PACKAGE
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
+
+        static bool OlderIapInstalled
+        {
+            get
+            {
+#if COLOURCASCADE_IAP_PACKAGE && !COLOURCASCADE_IAP5_PACKAGE
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
 
         /// <summary>Adds or removes the defines to match what is installed (and what the developer switched off).</summary>
         static void Sync()
@@ -57,7 +77,7 @@ namespace ColourCascade.EditorTools
             if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling) return;
             bool admob = AdMobInstalled && !EditorPrefs.GetBool(OffKey(AdMobDefine), false);
             bool iap = IapInstalled && !EditorPrefs.GetBool(OffKey(IapDefine), false);
-            if (!IapInstalled && HasType("UnityEngine.Purchasing.UnityPurchasing"))
+            if (OlderIapInstalled)
                 Debug.LogWarning("[Colour Cascade] Unity IAP is installed but older than version 5. Update it (Window > Package Manager) to enable purchases; see docs/MONETISATION.md.");
             bool changed = false;
             foreach (var target in Targets)
