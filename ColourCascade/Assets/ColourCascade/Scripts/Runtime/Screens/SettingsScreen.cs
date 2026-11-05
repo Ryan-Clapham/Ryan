@@ -87,7 +87,8 @@ namespace ColourCascade.App
             int completed = 0;
             foreach (var r in d.Levels) if (r.Completed) completed++;
             StatsRow(("Levels", completed.ToString()), ("Stars", Ctx.Campaign.TotalStars.ToString()), ("Games", d.Stats.GamesPlayed.ToString()), ("Best group", d.Stats.BiggestGroup.ToString()));
-            ActionRow(Icon.Restart, "Reset all progress", ButtonStyle.Danger, "Reset", ConfirmReset);
+            ActionRow(Icon.Trophy, "Achievements: " + Ctx.Achievements.Completed + " / " + Ctx.Achievements.Total, ButtonStyle.Secondary, "Open", () => Nav.Show(ScreenId.Achievements));
+            ActionRow(Icon.Restart, App.OnTestSave ? "Reset the test save" : "Reset all progress", ButtonStyle.Danger, "Reset", ConfirmReset);
 
             if (Application.isEditor || Debug.isDebugBuild) DeveloperTools();
 
@@ -197,7 +198,7 @@ namespace ColourCascade.App
 
         void ConfirmReset()
         {
-            Nav.Open<ConfirmPopup>().Setup("Reset progress?", "This erases your levels, stars, coins (bought ones too), power-ups and records. It can't be undone. No Ads stays yours.", "Continue", () =>
+            Nav.Open<ConfirmPopup>().Setup("Reset progress?", "This erases your levels, stars, coins (bought ones too), power-ups, achievements and records. It can't be undone. No Ads stays yours.", "Continue", () =>
             {
                 Nav.Open<ConfirmPopup>().Setup("Are you sure?", "Everything will be erased permanently.", "Erase all", () =>
                 {
@@ -234,32 +235,52 @@ namespace ColourCascade.App
                 });
         }
 
-        /// <summary>Testing aids, only in the Editor and development builds.</summary>
+        /// <summary>
+        /// Testing aids, only in the Editor and development builds. The fast-track tools (coins, levels, Endless level,
+        /// the clock) work only on the separate test save, so test progress never reaches the player's own save
+        /// (docs/ACHIEVEMENTS.md §8).
+        /// </summary>
         void DeveloperTools()
         {
             Section("DEVELOPER (EDITOR / DEV BUILDS ONLY)");
-            ActionRow(Icon.Plus, "Add 500 coins", ButtonStyle.Ghost, "+500", () =>
+            ToggleRow(Icon.Info, "Use the test save", App.OnTestSave ? "On: you are playing a separate test save. Your own save is kept as it was." :
+                "Off: this is the player's own save. Switch on to fast-track progress in a separate save.", App.OnTestSave, on =>
             {
-                Ctx.Wallet.Credit(500, "debug.grant");
-                Ctx.Save();
+                App.UseTestSave(on);
+                Toast.Show(on ? "Switched to the test save" : "Back on the player's save", Icon.Info, on ? Theme.Danger : Theme.Success);
+                Rebuild();
             });
-            ActionRow(Icon.Forward, "Unlock next 10 levels", ButtonStyle.Ghost, "Unlock", () =>
+            if (App.OnTestSave)
             {
-                Ctx.Data.HighestUnlocked += 10;
-                Ctx.Save();
-                Toast.Show("Unlocked up to level " + Ctx.Data.HighestUnlocked, Icon.Check);
-            });
-            ActionRow(Icon.Infinity, "Raise Endless level by 5", ButtonStyle.Ghost, "+5", () =>
+                ActionRow(Icon.Plus, "Add 500 coins", ButtonStyle.Ghost, "+500", () =>
+                {
+                    Ctx.Wallet.Credit(500, "debug.grant");
+                    Ctx.Save();
+                });
+                ActionRow(Icon.Forward, "Unlock next 10 levels", ButtonStyle.Ghost, "Unlock", () =>
+                {
+                    Ctx.Data.HighestUnlocked += 10;
+                    Ctx.Achievements.Evaluate();
+                    Ctx.Save();
+                    Toast.Show("Unlocked up to level " + Ctx.Data.HighestUnlocked, Icon.Check);
+                });
+                ActionRow(Icon.Infinity, "Raise Endless level by 5", ButtonStyle.Ghost, "+5", () =>
+                {
+                    Ctx.Data.Endless.Level = Mathf.Max(1, Ctx.Data.Endless.Level) + 5;
+                    Ctx.Save();
+                    Toast.Show("Endless level " + Ctx.Data.Endless.Level, Icon.Check);
+                });
+                ActionRow(Icon.Calendar, "Advance clock one day", ButtonStyle.Ghost, "+1 day", () =>
+                {
+                    App.Clock.OffsetDays++;
+                    Toast.Show("Clock now " + Ctx.TodayKey + " (" + Ctx.ThisWeekKey + ")", Icon.Calendar);
+                });
+            }
+            else
             {
-                Ctx.Data.Endless.Level = Mathf.Max(1, Ctx.Data.Endless.Level) + 5;
-                Ctx.Save();
-                Toast.Show("Endless level " + Ctx.Data.Endless.Level, Icon.Check);
-            });
-            ActionRow(Icon.Calendar, "Advance clock one day", ButtonStyle.Ghost, "+1 day", () =>
-            {
-                App.Clock.OffsetDays++;
-                Toast.Show("Clock now " + Ctx.TodayKey + " (" + Ctx.ThisWeekKey + ")", Icon.Calendar);
-            });
+                var note = UI.Text(list, "The fast-track tools (coins, levels, Endless level, clock) appear when the test save is on.", Theme.FontTiny, Theme.TextMuted, TextAnchor.MiddleCenter, false, "DevNote");
+                note.Layout(preferredHeight: 90);
+            }
             ActionRow(Icon.Info, "Show coin ledger", ButtonStyle.Ghost, "Show", () =>
             {
                 var sb = new System.Text.StringBuilder();

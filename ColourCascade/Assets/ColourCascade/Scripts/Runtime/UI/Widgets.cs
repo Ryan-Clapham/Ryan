@@ -462,6 +462,9 @@ namespace ColourCascade.App
     {
         static RectTransform current;
 
+        /// <summary>A toast is on screen (other top-of-screen notices wait for it).</summary>
+        public static bool IsShowing => current != null;
+
         public static void Show(string message, Icon? icon = null, Color? accent = null)
         {
             var app = GameApp.Instance;

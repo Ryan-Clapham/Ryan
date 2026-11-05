@@ -23,6 +23,8 @@ namespace ColourCascade.App
         Text dailyStatus;
         Text weeklyStatus;
         Image dailyDot;
+        Image achievementBadge;
+        Text achievementCount;
         RectTransform logo;
         bool introPlayed;
         Coroutine pulse;
@@ -34,11 +36,19 @@ namespace ColourCascade.App
             column.Fill(Theme.Margin, 30, Theme.Margin, 16);
             UI.VStack(column, 0);
 
-            // Top row: settings (left) and coins (right).
+            // Top row: settings and achievements (left) and coins (right).
             var top = UI.Rect("TopRow", column);
             top.Layout(preferredHeight: 120);
             var gear = UI.IconButton(top, Icon.Gear, ButtonStyle.Secondary, () => Nav.Show(ScreenId.Settings), Theme.IconButtonSize, "Settings");
             ((RectTransform)gear.transform).Place(new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(Theme.IconButtonSize, Theme.IconButtonSize));
+            var trophy = UI.IconButton(top, Icon.Trophy, ButtonStyle.Secondary, () => Nav.Show(ScreenId.Achievements), Theme.IconButtonSize, "Achievements");
+            ((RectTransform)trophy.transform).Place(new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(Theme.IconButtonSize + 24, 0), new Vector2(Theme.IconButtonSize, Theme.IconButtonSize));
+            // How many achievement rewards are waiting to be claimed.
+            achievementBadge = UI.Image(trophy.transform, ArtLibrary.Instance.Get(ArtNames.Circle), Theme.Danger, "Waiting");
+            achievementBadge.rectTransform.Place(new Vector2(1, 1), new Vector2(0.5f, 0.5f), new Vector2(-12, -12), new Vector2(52, 52));
+            achievementCount = UI.FitText(achievementBadge.rectTransform, "", Theme.FontTiny, Color.white, TextAnchor.MiddleCenter, true, "Count");
+            achievementCount.rectTransform.Fill(4, 4, 4, 4);
+            achievementBadge.gameObject.SetActive(false);
             var coins = CoinCounter.Create(top, () => Nav.Show(ScreenId.Shop, ShopScreen.TabCoins));
             ((RectTransform)coins.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), Vector2.zero, new Vector2(300, 96));
 
@@ -154,6 +164,8 @@ namespace ColourCascade.App
         public override void OnShow(object args)
         {
             App.SetBackground(-1);
+            Ctx.Achievements.Changed -= RefreshAchievementBadge;
+            Ctx.Achievements.Changed += RefreshAchievementBadge;
             Refresh();
             if (!introPlayed)
             {
@@ -171,6 +183,7 @@ namespace ColourCascade.App
 
         public override void OnHide()
         {
+            Ctx.Achievements.Changed -= RefreshAchievementBadge;
             if (pulse != null) StopCoroutine(pulse);
             pulse = null;
             if (play != null) play.transform.localScale = Vector3.one;
@@ -208,7 +221,16 @@ namespace ColourCascade.App
             levelNote.text = note;
             starsLabel.text = Ctx.Campaign.TotalStars.ToString();
             play.SetLabel(Ctx.Campaign.IsCompleted(1) ? "Play Level " + level : "Play");
+            RefreshAchievementBadge();
             RefreshModes();
+        }
+
+        /// <summary>The number of achievement rewards waiting (also after one is claimed from a banner on this screen).</summary>
+        void RefreshAchievementBadge()
+        {
+            int waiting = Ctx.Achievements.Unclaimed;
+            achievementBadge.gameObject.SetActive(waiting > 0);
+            achievementCount.text = waiting > 99 ? "99" : waiting.ToString();
         }
 
         void RefreshModes()

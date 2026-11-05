@@ -14,6 +14,8 @@ namespace ColourCascade.Core
         public EconomyConfig Economy = new EconomyConfig();
         public PowerUpDefinition[] PowerUps = PowerUpCatalog.CreateDefaults();
         public MonetisationConfig Monetisation = new MonetisationConfig();
+        /// <summary>The fixed achievement list, with targets and rewards (docs/ACHIEVEMENTS.md).</summary>
+        public AchievementDefinition[] Achievements = AchievementCatalog.CreateDefaults();
 
         public static GameConfigData CreateDefault()
         {
@@ -168,6 +170,8 @@ namespace ColourCascade.Core
         /// <summary>Endless: the best stage before this run (a higher Stage is a new best).</summary>
         public int BestStageBefore;
         public RewardSummary Rewards = new RewardSummary();
+        /// <summary>Achievements this run unlocked (their rewards wait to be claimed).</summary>
+        public List<AchievementDefinition> NewAchievements = new List<AchievementDefinition>();
     }
 
     /// <summary>
@@ -176,18 +180,18 @@ namespace ColourCascade.Core
     /// </summary>
     public sealed class GameContext
     {
-        readonly ISaveStorage storage;
         object lastFinishedKey;
         RunResult lastFinishedResult;
         ulong attemptCounter;
         PuzzleSession statsSession;
-        int statsTiles, statsGroups, statsPowerUps, statsShuffles;
+        bool statsGameCounted;
+        int statsTiles, statsGroups, statsPowerUps, statsShuffles, statsStones, statsIce, statsChains, statsMoss, statsTreasures;
+        readonly int[] statsPowerUpUses = new int[8];
 
         /// <param name="monotonicSeconds">Seconds from a clock that never jumps (advert and purchase timers); tests pass their own.</param>
         public GameContext(GameConfigData config, ISaveStorage storage, IClock clock, Func<double> monotonicSeconds = null)
         {
             Config = config ?? GameConfigData.CreateDefault();
-            this.storage = storage;
             Clock = clock ?? new SystemClock();
             Saves = new SaveSystem(storage, Clock, Config.Economy.startingCoins);
             Activity = new ActivityTracker();
@@ -197,6 +201,8 @@ namespace ColourCascade.Core
             Settings = new GameSettings(() => Saves.Data);
             Tutorials = new TutorialService(() => Saves.Data);
             Monetisation = new MonetisationServices(Config.Monetisation, () => Saves.Data, () => Wallet, Clock, monotonicSeconds, Save, Activity);
+            Achievements = new AchievementService(new AchievementCatalog(Config.Achievements), () => Saves.Data, () => Wallet, () => Inventory,
+                PowerUps, Config.Campaign.levelsPerRegion, Clock, Save);
             BindToData();
         }
 
@@ -212,6 +218,8 @@ namespace ColourCascade.Core
         public TutorialService Tutorials { get; }
         /// <summary>Adverts, purchases and the No Ads entitlement (update 3.0; docs/MONETISATION.md).</summary>
         public MonetisationServices Monetisation { get; }
+        /// <summary>Achievements (docs/ACHIEVEMENTS.md).</summary>
+        public AchievementService Achievements { get; }
 
         public Wallet Wallet { get; private set; }
         public Inventory Inventory { get; private set; }
@@ -226,15 +234,32 @@ namespace ColourCascade.Core
         /// <summary>Retired power-ups paid back in coins by the last Load (empty when there was nothing to pay back).</summary>
         public List<RetiredPowerUps.Refund> RetirementRefunds { get; private set; } = new List<RetiredPowerUps.Refund>();
 
+        /// <summary>Achievements the last Load unlocked from what the save already proves (existing players).</summary>
+        public List<AchievementDefinition> UnlockedOnLoad { get; private set; } = new List<AchievementDefinition>();
+
         public LoadStatus Load()
         {
             var status = Saves.Load();
             BindToData();
             // Extra Moves was retired in 3.0.1: any uses the player still owned are paid back once, at their price.
             RetirementRefunds = RetiredPowerUps.Settle(Data, Wallet, RetiredPrice);
-            if (RetirementRefunds.Count > 0) Save();
+            // Achievements the save already proves are unlocked straight away (their rewards wait to be claimed).
+            UnlockedOnLoad = Achievements.Evaluate();
+            if (RetirementRefunds.Count > 0 || UnlockedOnLoad.Count > 0) Save();
             DataReplaced?.Invoke();
             return status;
+        }
+
+        /// <summary>
+        /// Switches to another save file and loads it (developer tools: a separate test save, so fast-tracked progress
+        /// never touches the player's own save). The current data is saved first.
+        /// </summary>
+        public LoadStatus UseStorage(ISaveStorage other)
+        {
+            if (other == null) return Saves.LastLoad;
+            Save();
+            Saves.UseStorage(other);
+            return Load();
         }
 
         /// <summary>A retired power-up's price from the config asset if it still lists it, else its last default price.</summary>
@@ -355,8 +380,11 @@ namespace ColourCascade.Core
         {
             if (session != null && session.Mode == GameMode.Campaign && !session.IsOver && session.MovesMade > 0)
                 Campaign.RecordAttempt(session.Level.Number, session.Score);
+            // What the player did on the board before leaving still counts towards lifetime totals (and achievements).
+            if (session != null && (session.MovesMade > 0 || session.PowerUpsUsed > 0)) RecordStats(session, false);
             PowerUpUse.ClearRunLoans();
             Activity.EndRun();
+            Achievements.Evaluate();
             Save();
         }
 
@@ -403,6 +431,13 @@ namespace ColourCascade.Core
                     if (s.State == SessionState.Won)
                     {
                         var win = Campaign.RecordWin(level.Number, s.FinalScore, r.Stars);
+                        // Three stars with no power-up used in this attempt (lent tutorial uses count as used).
+                        if (r.Stars >= 3 && s.PowerUpsUsed == 0)
+                        {
+                            var pure = Data.Stats.PureThreeStarLevels;
+                            int at = pure.BinarySearch(level.Number);
+                            if (at < 0) pure.Insert(~at, level.Number);
+                        }
                         // One more successfully completed level towards the next interstitial (docs/MONETISATION.md §3).
                         Monetisation.Interstitials.RecordLevelCompleted();
                         r.FirstClear = win.FirstClear;
@@ -491,6 +526,7 @@ namespace ColourCascade.Core
             bool revivable = s.Mode == GameMode.Campaign && s.State == SessionState.Failed && s.EndReason == EndReason.OutOfMoves;
             if (!revivable) PowerUpUse.ClearRunLoans();
             Activity.EndRun();
+            r.NewAchievements = Achievements.Evaluate();
             Save();
             lastFinishedKey = key;
             lastFinishedResult = r;
@@ -499,24 +535,53 @@ namespace ColourCascade.Core
 
         /// <summary>Adds this session's lifetime statistics, counting only what was not already recorded
         /// (a revived campaign level can finish twice).</summary>
-        void RecordStats(PuzzleSession s)
+        /// <param name="finished">The run ended (FinishRun); false for a run the player left (AbandonRun), whose board work
+        /// still counts towards the lifetime totals but which is not counted as a game played.</param>
+        void RecordStats(PuzzleSession s, bool finished = true)
         {
             var st = Data.Stats;
             if (!ReferenceEquals(statsSession, s))
             {
                 statsSession = s;
-                statsTiles = statsGroups = statsPowerUps = statsShuffles = 0;
+                statsGameCounted = false;
+                statsTiles = statsGroups = statsPowerUps = statsShuffles = statsStones = statsIce = statsChains = statsMoss = statsTreasures = 0;
+                Array.Clear(statsPowerUpUses, 0, statsPowerUpUses.Length);
+            }
+            if (finished && !statsGameCounted)
+            {
                 st.GamesPlayed++;
+                statsGameCounted = true;
             }
             st.TilesCleared += s.TilesCleared - statsTiles;
             st.GroupsCleared += s.GroupsCleared - statsGroups;
             st.PowerUpsUsed += s.PowerUpsUsed - statsPowerUps;
             st.Shuffles += s.Shuffles - statsShuffles;
+            st.StonesBroken += s.StonesBroken - statsStones;
+            st.IceLayersRemoved += s.IceLayersRemoved - statsIce;
+            st.ChainsReleased += s.ChainsReleased - statsChains;
+            st.MossRemoved += s.MossRemoved - statsMoss;
+            st.TreasuresCollected += s.TreasuresCollected - statsTreasures;
             statsTiles = s.TilesCleared;
             statsGroups = s.GroupsCleared;
             statsPowerUps = s.PowerUpsUsed;
             statsShuffles = s.Shuffles;
+            statsStones = s.StonesBroken;
+            statsIce = s.IceLayersRemoved;
+            statsChains = s.ChainsReleased;
+            statsMoss = s.MossRemoved;
+            statsTreasures = s.TreasuresCollected;
+            for (int id = 0; id < statsPowerUpUses.Length; id++)
+            {
+                int now = s.PowerUpUses((PowerUpId)id), delta = now - statsPowerUpUses[id];
+                if (delta <= 0) continue;
+                int had;
+                st.PowerUpUses.TryGetValue(id, out had);
+                st.PowerUpUses[id] = had + delta;
+                statsPowerUpUses[id] = now;
+            }
             if (s.BiggestGroup > st.BiggestGroup) st.BiggestGroup = s.BiggestGroup;
+            if (s.MostTilesInOneMove > st.MostTilesInOneMove) st.MostTilesInOneMove = s.MostTilesInOneMove;
+            if (s.BiggestCombo > st.BiggestCombo) st.BiggestCombo = s.BiggestCombo;
         }
 
         /// <summary>Daily challenge status for the home screen.</summary>

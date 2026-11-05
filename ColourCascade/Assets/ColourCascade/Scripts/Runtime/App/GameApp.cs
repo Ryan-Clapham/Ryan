@@ -30,6 +30,19 @@ namespace ColourCascade.App
         public bool Ready { get; private set; }
         /// <summary>Adverts, consent and purchases (docs/MONETISATION.md).</summary>
         public MonetisationHost Monetisation { get; private set; }
+        /// <summary>Achievement unlock notifications (docs/ACHIEVEMENTS.md).</summary>
+        public AchievementNotifier AchievementNotices { get; private set; }
+
+        /// <summary>The player's save file, and the separate developer test save (docs/ACHIEVEMENTS.md §8).</summary>
+        public const string PlayerSaveFile = "save.json";
+        public const string TestSaveFile = "save-test.json";
+        const string TestSavePref = "ColourCascade.Dev.UseTestSave";
+
+        /// <summary>Developer tools exist only in the Editor and development builds, never in a release build.</summary>
+        public static bool DevToolsAllowed => Application.isEditor || Debug.isDebugBuild;
+
+        /// <summary>The developer test save is in use (never in a release build, whatever was stored).</summary>
+        public bool OnTestSave { get; private set; }
 
         /// <summary>(before, after) — always refers to the current wallet, even after a progress reset.</summary>
         public event Action<int, int> CoinsChanged;
@@ -134,7 +147,8 @@ namespace ColourCascade.App
             var config = configAsset != null ? configAsset.ToData() : GameConfigData.CreateDefault();
             if (configAsset == null) Debug.Log("[ColourCascade] No config asset found; using built-in defaults.");
             string saveDir = Application.persistentDataPath;
-            Ctx = new GameContext(config, new FileSaveStorage(saveDir), Clock);
+            OnTestSave = DevToolsAllowed && PlayerPrefs.GetInt(TestSavePref, 0) == 1;
+            Ctx = new GameContext(config, new FileSaveStorage(saveDir, OnTestSave ? TestSaveFile : PlayerSaveFile), Clock);
             Ctx.Saves.Log = msg => Debug.LogWarning("[ColourCascade] " + msg);
             var loadStatus = Ctx.Load();
             Ctx.DataReplaced += BindWallet;
@@ -187,8 +201,10 @@ namespace ColourCascade.App
             audio.Init(Ctx.Settings, sfxTask.IsFaulted ? new List<SoundData>() : sfxTask.Result, musicTask.IsFaulted ? null : musicTask.Result);
 
             BuildLayers();
+            AchievementNotices = AchievementNotifier.Create(OverlayLayer);
             Ready = true;
             Router.Show(ScreenId.Home);
+            UpdateTestSaveBadge();
             // Consent, adverts and the store start once the game is on screen (a consent form appears over it).
             Monetisation = gameObject.AddComponent<MonetisationHost>();
             Monetisation.Begin();
@@ -207,6 +223,8 @@ namespace ColourCascade.App
                 Tw.Delay(1.2f, () => Toast.Show(r.Name + " has been retired: +" + NumberFormat.Thousands(r.Coins) + " coins for your " + r.Uses +
                                                  (r.Uses == 1 ? " unused one" : " unused ones"), Icon.Gift, Theme.Gold));
             }
+            // Achievements the save already proved when it loaded (an existing player's progress): one notice.
+            AchievementNotices.AnnounceOnLoad(Ctx.UnlockedOnLoad);
         }
 
         static AtlasResult LoadOrBuildAtlas(string cachePath, string key, bool useCache)
@@ -390,6 +408,49 @@ namespace ColourCascade.App
         void OnApplicationQuit()
         {
             if (Ctx != null) Ctx.Save();
+        }
+
+        // ------------------------------------------------------------------ Developer test save
+
+        RectTransform testSaveBadge;
+
+        /// <summary>
+        /// Developer tools: switches between the player's save and a separate test save, so fast-tracked progress
+        /// (granted coins, unlocked levels, a shifted clock) never reaches the player's own save. The choice is kept
+        /// for the next launch (in PlayerPrefs), and only honoured in the Editor and development builds.
+        /// </summary>
+        public void UseTestSave(bool on)
+        {
+            if (!DevToolsAllowed || on == OnTestSave || Ctx == null) return;
+            Router.CloseAllPopups();
+            saveRequested = false;
+            // The clock offset is shared by both saves: never carry a shifted date from one save to the other.
+            Clock.OffsetDays = 0;
+            var status = Ctx.UseStorage(new FileSaveStorage(Application.persistentDataPath, on ? TestSaveFile : PlayerSaveFile));
+            OnTestSave = on;
+            PlayerPrefs.SetInt(TestSavePref, on ? 1 : 0);
+            PlayerPrefs.Save();
+            UpdateTestSaveBadge();
+            if (status == LoadStatus.CorruptReset) Toast.Show("That save couldn't be read, so a new one was started.", Icon.Info, Theme.Danger);
+        }
+
+        /// <summary>A small "TEST SAVE" label at the top of every screen while the test save is in use.</summary>
+        void UpdateTestSaveBadge()
+        {
+            if (OverlayLayer == null) return;
+            if (!OnTestSave)
+            {
+                if (testSaveBadge != null) Destroy(testSaveBadge.gameObject);
+                testSaveBadge = null;
+                return;
+            }
+            if (testSaveBadge != null) return;
+            testSaveBadge = UI.Rect("TestSaveBadge", OverlayLayer);
+            testSaveBadge.Place(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -6), new Vector2(260, 44));
+            var chip = UI.Chip(testSaveBadge, "TEST SAVE", Theme.Danger.WithAlpha(0.85f), Color.white, Theme.FontTiny - 4);
+            ((RectTransform)chip.transform.parent).Fill();
+            foreach (var g in testSaveBadge.GetComponentsInChildren<Graphic>()) g.raycastTarget = false;
+            testSaveBadge.SetAsFirstSibling();
         }
 
         /// <summary>Changes the full-screen backdrop (main night sky or a region theme).</summary>

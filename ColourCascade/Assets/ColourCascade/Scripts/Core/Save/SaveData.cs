@@ -39,6 +39,7 @@ namespace ColourCascade.Core
         public StatsData Stats = new StatsData();
         /// <summary>Advert counters, processed purchases and the No Ads entitlement (update 3.0). Kept by a progress reset.</summary>
         public MonetisationRecord Monetisation = new MonetisationRecord();
+        public AchievementRecord Achievements = new AchievementRecord();
 
         readonly Dictionary<int, LevelRecord> levelIndex = new Dictionary<int, LevelRecord>();
 
@@ -132,6 +133,9 @@ namespace ColourCascade.Core
             if (LatestDayKey == null) LatestDayKey = "";
             if (Monetisation == null) Monetisation = new MonetisationRecord();
             Monetisation.Normalize();
+            if (Achievements == null) Achievements = new AchievementRecord();
+            if (Achievements.Unlocked == null) Achievements.Unlocked = new Dictionary<string, long>();
+            Stats.Normalize();
             Settings.Clamp();
 
             levelIndex.Clear();
@@ -298,5 +302,43 @@ namespace ColourCascade.Core
         public int GamesPlayed;
         public int BiggestGroup;
         public int Shuffles;
+
+        // Since the achievements update (zero in older saves; see docs/ACHIEVEMENTS.md "Retroactive progress").
+        public long StonesBroken;
+        public long IceLayersRemoved;
+        public long ChainsReleased;
+        public long MossRemoved;
+        public long TreasuresCollected;
+        /// <summary>Most colour tiles removed by one tap.</summary>
+        public int MostTilesInOneMove;
+        /// <summary>Most specials fired together by one tap.</summary>
+        public int BiggestCombo;
+        /// <summary>Uses of each power-up (key: PowerUpId).</summary>
+        public Dictionary<int, int> PowerUpUses = new Dictionary<int, int>();
+        /// <summary>Campaign levels won with three stars and no power-up used in that attempt (distinct, ascending).</summary>
+        public List<int> PureThreeStarLevels = new List<int>();
+
+        public int UsesOf(PowerUpId id)
+        {
+            int n;
+            return PowerUpUses != null && PowerUpUses.TryGetValue((int)id, out n) ? n : 0;
+        }
+
+        public void Normalize()
+        {
+            if (PowerUpUses == null) PowerUpUses = new Dictionary<int, int>();
+            if (PureThreeStarLevels == null) PureThreeStarLevels = new List<int>();
+            PureThreeStarLevels.Sort();
+        }
+    }
+
+    /// <summary>
+    /// Achievements the player has earned (docs/ACHIEVEMENTS.md): when each was unlocked (UTC ticks). Claimed rewards are
+    /// recorded as claim keys in SaveData.Claims ("ach.ID"), like every other one-time reward, so none can pay twice.
+    /// Progress itself is never stored here: it is read from the progress, records and statistics it measures.
+    /// </summary>
+    public sealed class AchievementRecord
+    {
+        public Dictionary<string, long> Unlocked = new Dictionary<string, long>();
     }
 }

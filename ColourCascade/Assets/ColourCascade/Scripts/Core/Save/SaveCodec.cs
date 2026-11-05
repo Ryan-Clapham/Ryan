@@ -71,11 +71,20 @@ namespace ColourCascade.Core
                 ["symbols"] = d.Settings.Symbols, ["reducedMotion"] = d.Settings.ReducedMotion,
             };
 
+            var uses = new Dictionary<string, object>();
+            foreach (var kv in d.Stats.PowerUpUses) uses[kv.Key.ToString(System.Globalization.CultureInfo.InvariantCulture)] = kv.Value;
             root["stats"] = new Dictionary<string, object>
             {
                 ["tiles"] = d.Stats.TilesCleared, ["groups"] = d.Stats.GroupsCleared, ["powerUps"] = d.Stats.PowerUpsUsed,
                 ["games"] = d.Stats.GamesPlayed, ["biggestGroup"] = d.Stats.BiggestGroup, ["shuffles"] = d.Stats.Shuffles,
+                ["stones"] = d.Stats.StonesBroken, ["ice"] = d.Stats.IceLayersRemoved, ["chains"] = d.Stats.ChainsReleased,
+                ["moss"] = d.Stats.MossRemoved, ["treasures"] = d.Stats.TreasuresCollected, ["mostInMove"] = d.Stats.MostTilesInOneMove,
+                ["biggestCombo"] = d.Stats.BiggestCombo, ["powerUpUses"] = uses, ["pureLevels"] = new List<int>(d.Stats.PureThreeStarLevels),
             };
+
+            var unlocked = new Dictionary<string, object>();
+            foreach (var kv in d.Achievements.Unlocked) unlocked[kv.Key] = kv.Value;
+            root["achievements"] = new Dictionary<string, object> { ["unlocked"] = unlocked };
 
             root["monetisation"] = EncodeMonetisation(d.Monetisation);
 
@@ -209,7 +218,29 @@ namespace ColourCascade.Core
             {
                 TilesCleared = JsonRead.Long(stats, "tiles"), GroupsCleared = JsonRead.Int(stats, "groups"), PowerUpsUsed = JsonRead.Int(stats, "powerUps"),
                 GamesPlayed = JsonRead.Int(stats, "games"), BiggestGroup = JsonRead.Int(stats, "biggestGroup"), Shuffles = JsonRead.Int(stats, "shuffles"),
+                // Counters added with achievements: older saves have none (they start at zero).
+                StonesBroken = JsonRead.Long(stats, "stones"), IceLayersRemoved = JsonRead.Long(stats, "ice"), ChainsReleased = JsonRead.Long(stats, "chains"),
+                MossRemoved = JsonRead.Long(stats, "moss"), TreasuresCollected = JsonRead.Long(stats, "treasures"),
+                MostTilesInOneMove = JsonRead.Int(stats, "mostInMove"), BiggestCombo = JsonRead.Int(stats, "biggestCombo"),
             };
+            var uses = stats != null ? JsonRead.Obj(stats, "powerUpUses") : null;
+            if (uses != null)
+                foreach (var kv in uses)
+                {
+                    int id;
+                    if (int.TryParse(kv.Key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out id))
+                        d.Stats.PowerUpUses[id] = (int)JsonRead.Long(uses, kv.Key);
+                }
+            var pure = stats != null ? JsonRead.Arr(stats, "pureLevels") : null;
+            if (pure != null)
+                foreach (var v in pure)
+                    if (v is long n && n > 0 && n <= int.MaxValue && !d.Stats.PureThreeStarLevels.Contains((int)n)) d.Stats.PureThreeStarLevels.Add((int)n);
+
+            var ach = JsonRead.Obj(root, "achievements");
+            var unlocked = ach != null ? JsonRead.Obj(ach, "unlocked") : null;
+            if (unlocked != null)
+                foreach (var kv in unlocked)
+                    if (!string.IsNullOrEmpty(kv.Key)) d.Achievements.Unlocked[kv.Key] = JsonRead.Long(unlocked, kv.Key);
 
             // Saves from before update 3.0 have no monetisation record: everything starts at zero.
             d.Monetisation = DecodeMonetisation(JsonRead.Obj(root, "monetisation"));

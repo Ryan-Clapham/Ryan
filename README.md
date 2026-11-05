@@ -58,11 +58,11 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
 
 ## Run the tests
 
-* **In Unity:** Window → General → Test Runner → EditMode → Run All (149 tests).
+* **In Unity:** Window → General → Test Runner → EditMode → Run All (480 tests).
 * **Without Unity (CI or a terminal with .NET 8):**
   ```
   cd tools/Harness
-  dotnet test Tests/Tests.csproj            # the same 149 tests
+  dotnet test Tests/Tests.csproj            # the same 480 tests
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
@@ -82,8 +82,11 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
 | Colour Cascade → Save Data → Delete Save | Start again as a brand-new player |
 | Colour Cascade → Save Data → Open Save Folder | Inspect `save.json` |
 
-In the Editor and in development builds, **Settings** also has developer tools: add coins, unlock levels,
-advance the clock a day (to test Daily/Weekly rotation) and view the coin ledger.
+In the Editor and in development builds, **Settings** also has developer tools. **Use the test save** switches
+to a separate `save-test.json`, and only there can you add coins, unlock levels, raise the Endless level or
+advance the clock a day (to test Daily/Weekly rotation). The player's own `save.json` is never touched by them
+(docs/ACHIEVEMENTS.md §8). The coin ledger and monetisation status can be viewed on either save. *Delete Save*
+above erases `save.json`; reset the test save from Settings while it is in use.
 
 ## Repository layout
 
@@ -104,8 +107,9 @@ tools/unity_meta.py            Creates .meta files for new assets
 
 Read **docs/DESIGN.md** for the rules, modes, economy and design decisions, **docs/ARCHITECTURE.md** for how
 the code fits together and how to extend it, and **docs/TESTING.md** for what has been verified and the
-manual test checklist, **docs/RELEASE.md** for publishing on Google Play, and **docs/MONETISATION.md** for
-adverts, purchases, consent and the AdMob / Play Console setup.
+manual test checklist, **docs/RELEASE.md** for publishing on Google Play, **docs/MONETISATION.md** for
+adverts, purchases, consent and the AdMob / Play Console setup, and **docs/ACHIEVEMENTS.md** for the 67
+achievements, their rewards and the developer test save.
 
 ## Troubleshooting
 

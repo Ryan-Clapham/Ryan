@@ -85,6 +85,17 @@ namespace ColourCascade.Tests
                 Assert.AreEqual(Json.Write(fresh["monetisation"]), Json.Write(root["monetisation"]), "an old save gets an empty monetisation record");
                 root.Remove("monetisation");
             }
+            // The achievements update: the unlocked list (checked in AnOldSaveUnlocksWhatItAlreadyProves) and new lifetime
+            // counters, which an old save gets at zero.
+            root.Remove("achievements");
+            var stats0 = (System.Collections.Generic.Dictionary<string, object>)root["stats"];
+            foreach (var k in NewStatsKeys)
+            {
+                if (!stats0.ContainsKey(k)) continue;
+                var v = stats0[k];
+                Assert.IsTrue(v is long l ? l == 0 : Json.Write(v) == "{}" || Json.Write(v) == "[]", "stats." + k + " starts empty");
+                stats0.Remove(k);
+            }
             var endless = (System.Collections.Generic.Dictionary<string, object>)root["endless"];
             endlessLevel = endless.ContainsKey("level") ? (long)endless["level"] : -1;
             endless.Remove("level");
@@ -134,8 +145,11 @@ namespace ColourCascade.Tests
         // of specials, no spare-move bonus); it matched the build before them exactly, since levels played to the end
         // never paid a bonus. 3.0 added the monetisation record (here: the interstitial level count); the rest of the
         // save is still exactly the 2.1 save, checked by ExpectedSaveFingerprintBefore3.
-        const ulong ExpectedSaveFingerprint = 3316499532689436422UL;
+        // The achievements update added lifetime counters and the unlocked list (3316499532689436422 before it).
+        const ulong ExpectedSaveFingerprint = 13269928510684773610UL;
         const ulong ExpectedSaveFingerprintBefore3 = 7841276991854770152UL;
+
+        static readonly string[] NewStatsKeys = { "stones", "ice", "chains", "moss", "treasures", "mostInMove", "biggestCombo", "powerUpUses", "pureLevels" };
 
         [Test]
         public void TheSamePlayStillMakesTheSameProgress()
@@ -163,7 +177,27 @@ namespace ColourCascade.Tests
             Assert.AreEqual(0L, m["lastInterstitial"], "no advert was involved");
             Assert.AreEqual(false, m["noAds"]);
             root.Remove("monetisation");
-            Assert.AreEqual(ExpectedSaveFingerprintBefore3, StableHash.Of(Json.Write(root)), "update 3.0 changed nothing else in the save");
+            root.Remove("achievements");
+            var stats = (System.Collections.Generic.Dictionary<string, object>)root["stats"];
+            foreach (var k in NewStatsKeys) stats.Remove(k);
+            Assert.AreEqual(ExpectedSaveFingerprintBefore3, StableHash.Of(Json.Write(root)), "updates 3.0 and achievements changed nothing else in the save");
+        }
+
+        [Test]
+        public void AnOldSaveUnlocksWhatItAlreadyProves()
+        {
+            // The real pre-overhaul save: 12 levels (27 stars), an Endless run of 11,580 (stage 4, best group 9), a Daily
+            // completed, all three Weekly Rush medals, a best group of 14 and 1,217 tiles cleared.
+            var store = new MemorySaveStorage { Main = SaveBeforeOverhaul };
+            var ctx = TestUtil.Context(null, store);
+            var unlocked = new System.Collections.Generic.List<string>();
+            foreach (var d in ctx.UnlockedOnLoad) unlocked.Add(d.id);
+            CollectionAssert.AreEquivalent(new[] { "level_10", "endless_5000", "endless_10000", "group_12", "daily_1", "weekly_bronze", "weekly_gold" }, unlocked);
+            Assert.AreEqual(124, ctx.Wallet.Balance, "unlocked, not paid: the player claims each reward");
+            Assert.AreEqual(7, ctx.Achievements.Unclaimed);
+            Assert.IsTrue(SaveCodec.Decode(store.Main).Achievements.Unlocked.ContainsKey("weekly_gold"), "saved at once");
+            var again = TestUtil.Context(null, store);
+            Assert.AreEqual(0, again.UnlockedOnLoad.Count, "never unlocked twice");
         }
 
         /// <summary>The parts of a save that don't depend on how points are scored.</summary>

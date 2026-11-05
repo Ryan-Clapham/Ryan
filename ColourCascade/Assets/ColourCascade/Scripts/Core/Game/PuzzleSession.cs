@@ -102,6 +102,26 @@ namespace ColourCascade.Core
         public int PowerUpsUsed { get; private set; }
         public int Shuffles { get; private set; }
         public int Stage { get; private set; }
+
+        // Gameplay tallies for this run (lifetime statistics and achievements; GameContext records them). They count
+        // what actually happened on the board, whatever caused it (groups, specials, power-ups, the end-of-level finale).
+        /// <summary>Stones broken (by rockets, bombs or Tile Breaker).</summary>
+        public int StonesBroken { get; private set; }
+        /// <summary>Layers of ice removed (a thick tile stripped by Tile Breaker counts both).</summary>
+        public int IceLayersRemoved { get; private set; }
+        /// <summary>Chained tiles set free (their last link removed).</summary>
+        public int ChainsReleased { get; private set; }
+        /// <summary>Mossy tiles cleared (the moss went with the tile or was scraped off).</summary>
+        public int MossRemoved { get; private set; }
+        public int TreasuresCollected { get; private set; }
+        /// <summary>Most colour tiles removed by one tap (a group, or a special or group of specials and what they set off).</summary>
+        public int MostTilesInOneMove { get; private set; }
+        /// <summary>Most specials fired together as one combination by one tap.</summary>
+        public int BiggestCombo { get; private set; }
+        readonly int[] powerUpUses = new int[8];
+
+        /// <summary>Uses of one power-up this run.</summary>
+        public int PowerUpUses(PowerUpId id) => (int)id >= 0 && (int)id < powerUpUses.Length ? powerUpUses[(int)id] : 0;
         /// <summary>
         /// Campaign: every goal (the target score included, when the level has one) has been met at some point this
         /// run. The level is passed from then on, but it is not over: the remaining moves can still raise the score
@@ -536,6 +556,7 @@ namespace ColourCascade.Core
             o.Secondary = req.B;
             effect.Apply(this, req, o);
             PowerUpsUsed++;
+            if ((int)req.Id >= 0 && (int)req.Id < powerUpUses.Length) powerUpUses[(int)req.Id]++;
 
             int colourTiles = 0;
             for (int i = 0; i < o.Cleared.Count; i++)
@@ -891,9 +912,39 @@ namespace ColourCascade.Core
             pendingWave = false;
             if (inFinale && Mode == GameMode.Endless) UpdateEndlessStage(o);
             if (Goals != null) o.GoalsChanged = Goals.Record(o, Score, Board);
+            Tally(o);
             // No reshuffle once the level is ending: nobody plays the board again.
             if (boardChanged && !inFinale) Recover(o);
             EvaluateEnd(o);
+        }
+
+        /// <summary>Adds one action's results to the run's gameplay tallies.</summary>
+        void Tally(MoveOutcome o)
+        {
+            int colourTiles = 0;
+            foreach (var c in o.Cleared)
+            {
+                if (c.WasStone) StonesBroken++;
+                else colourTiles++;
+            }
+            foreach (var h in o.ObstacleHits)
+            {
+                switch (h.Kind)
+                {
+                    case ObstacleKind.Ice: IceLayersRemoved += Math.Max(0, h.StrengthBefore - h.StrengthAfter); break;
+                    case ObstacleKind.Chain: if (h.Freed) ChainsReleased++; break;
+                    case ObstacleKind.Moss: if (h.Freed) MossRemoved++; break;
+                }
+            }
+            TreasuresCollected += o.Treasures.Count;
+            // "One move" is a tap on the board: a group, or a special tile (power-ups and the finale are not moves).
+            if (o.Kind == OutcomeKind.Group || o.Kind == OutcomeKind.Special)
+            {
+                if (colourTiles > MostTilesInOneMove) MostTilesInOneMove = colourTiles;
+                if (o.Kind == OutcomeKind.Special)
+                    foreach (var f in o.SpecialsFired)
+                        if (f.ComboSize > BiggestCombo) BiggestCombo = f.ComboSize;
+            }
         }
 
         void Recover(MoveOutcome o)

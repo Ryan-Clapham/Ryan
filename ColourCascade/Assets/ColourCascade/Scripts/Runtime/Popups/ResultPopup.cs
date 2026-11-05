@@ -91,7 +91,25 @@ namespace ColourCascade.App
                     if (r.State == SessionState.Stuck) Stuck(); else RushDone();
                     break;
             }
+            AchievementsUnlocked();
             FitHeight(body, BodyTop, bodyBottom, 860f);
+        }
+
+        /// <summary>One line for the achievements this run unlocked (their banners and Claim buttons follow on the menus).</summary>
+        void AchievementsUnlocked()
+        {
+            var list = result.NewAchievements;
+            if (list == null || list.Count == 0) return;
+            var holder = UI.Rect("Achievements", body);
+            holder.Layout(preferredHeight: 56);
+            var chipRoot = UI.Rect("Chip", holder);
+            chipRoot.Centre(820, 52);
+            var bg = UI.Rounded(chipRoot, Theme.Gold.WithAlpha(0.2f), 26, "Bg");
+            bg.rectTransform.Fill();
+            var icon = UI.Icon(chipRoot, Icon.Trophy, Theme.Gold, 36);
+            icon.rectTransform.Place(new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(24, 0), new Vector2(36, 36));
+            var text = UI.FitText(chipRoot, list.Count == 1 ? "Achievement unlocked: " + list[0].title : AchievementText.Several(list.Count), Theme.FontTiny, Theme.Gold, TextAnchor.MiddleCenter, true, "Label");
+            text.rectTransform.Fill(70, 0, 24, 0);
         }
 
         // ------------------------------------------------------------------ Variants

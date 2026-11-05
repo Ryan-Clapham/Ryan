@@ -430,8 +430,9 @@ Tutorial hints can be shown again from Settings.
 Home ─┬─ Play Level N ───────────────▶ Game ──▶ Result ──▶ Next Level / Map / Replay
       ├─ Map ─▶ Level card ─▶ Play ──▶ Game
       ├─ Endless / Daily / Weekly cards ─▶ Mode card ─▶ Play ─▶ Game ─▶ Result ─▶ Play Again / Home
-      ├─ Shop (Power-ups | Coins)
+      ├─ Shop (Power-ups | Coins | Premium)
       ├─ How to Play
+      ├─ Achievements (trophy, beside the gear; also Settings > Your progress)
       └─ Settings (gear)
 ```
 
@@ -440,6 +441,14 @@ Home ─┬─ Play Level N ───────────────▶ Gam
 * Leaving a game replaces it in the history, so Back from the map after a level goes home, not into a
   finished game.
 * **Android Back:** closes the top popup → pauses a game → goes back → on Home asks "Leave Colour Cascade?".
+
+## 12.1 Achievements
+
+67 fixed achievements in seven categories (campaign levels, stars, perfect regions, Endless, skill, board
+mastery, challenges), each Easy, Medium, Hard or Very hard. Rewards are coins and power-ups, scaled by difficulty
+and claimed by hand. Progress is read from what the game already records, so nothing is kept twice. The full
+list, the bot data behind the thresholds, the reward budget, the rules for existing players and the developer
+test save are in **docs/ACHIEVEMENTS.md**.
 
 ## 13. Decisions made where the brief left room
 

@@ -48,6 +48,7 @@ Unity. That is what lets the same tests run in Unity's Test Runner and in plain 
 | Power-ups | `PowerUpDefinition`, `PowerUpCatalog`, `IPowerUpEffect`, `PowerUpEffects` | Data-driven definitions plus one effect class per power-up. |
 | Economy | `Wallet`, `Inventory`, `RewardService`, `ShopService`, `PowerUpService`, `ActionPolicy`, `ActivityTracker` | Coins (single source of truth + ledger), stock and trials, one-time claim keys, validated purchases, central eligibility rules. |
 | Monetisation (3.0) | `MonetisationServices`, `AdService`, `InterstitialPolicy`, `ContinueService`, `CoinOffers`, `PurchaseService`, `MonetisationAnalytics`, `MonetisationConfig`, `IAdNetwork`/`IConsentProvider`/`IStoreBackend` | The advertising manager (consent gate, loading, reward tickets granted exactly once, watchdogs, limits), interstitial timing, Out of Moves and shortfall offers, purchase processing (grant, save, then confirm) and the No Ads entitlement, the event log. SDKs only behind the three interfaces (docs/MONETISATION.md). |
+| Achievements | `AchievementCatalog`, `AchievementDefinition`, `AchievementService`, `AchievementText` | The fixed list as data (config asset or defaults); progress read from existing records and lifetime statistics; unlock on load, after runs and when a run is left; claim once into the wallet and inventory (claim keys `ach.<id>`). docs/ACHIEVEMENTS.md. |
 | Progression | `CampaignCatalog`, `CampaignDesign`, `MechanicSchedule`, `LayoutLibrary`, `LevelCalibrator`, `Bots`, `PlannerBot`, `LevelCodec`, `CampaignProgress`, `Regions`, `DefaultLevels` | Level generation and calibration, unlocks and stars. `CampaignDesign` holds the mechanic schedule, the built-in introduction levels, bands, rhythm and recipes that decorate generated boards. Bots: Greedy, Casual, Mixed (fire specials too) and Planner (goal-aware, one move of lookahead, integer-only so calibration is identical on every device). `LevelCodec` reads and writes levels as JSON. |
 | Challenges | `ChallengeCalendar`, `ChallengeFactory` | UTC day keys, ISO week keys, deterministic daily/weekly boards. |
 | Save | `SaveData`, `SaveCodec`, `Json`, `SaveSystem`, `ISaveStorage`, `FileSaveStorage` | Versioned JSON, atomic writes with backup, corruption recovery. |
@@ -85,10 +86,11 @@ the board and silently repairs any difference, so a visual glitch can never desy
 | Services | `ArtLibrary`, `Fonts`, `AudioService`, `Haptics` | Sprites from one generated atlas; Fredoka fonts; pooled audio sources and music; Android vibration. |
 | UI kit | `Theme`, `UI`, `CCButton`, `Tw`/`TweenRunner`, `Widgets` (SafeArea, ScreenAdapter, ToggleSwitch, SliderControl, ProgressBar, StarRow, CoinCounter, TabBar, Toast, CoachMark), `FxLayer` | Everything is built in code from these. `CCButton` debounces taps. The tween engine is pooled and replaces conflicting tweens. `FxLayer` simulates pooled particles without per-frame allocations. |
 | Navigation | `Router`, `ScreenBase`, `PopupBase` | Screens are built once and re-bound on show; popups are created per use. |
-| Screens | `HomeScreen`, `MapScreen`, `GameScreen`, `ShopScreen`, `SettingsScreen`, `HowToPlayScreen` | The map is virtualised: only on-screen levels exist as (pooled) objects. |
+| Screens | `HomeScreen`, `MapScreen`, `GameScreen`, `ShopScreen`, `SettingsScreen`, `HowToPlayScreen`, `AchievementsScreen` | The map is virtualised: only on-screen levels exist as (pooled) objects. |
 | Popups | `LevelPopup`, `ModePopup`, `ResultPopup`, `PausePopup`, `ConfirmPopup`, `PowerUpIntroPopup`, `QuickBuyPopup` | |
 | Board | `BoardView`, `TileView` | Rendering, press-and-hold preview, drag to explore, animation choreography. A `TileView` shows a colour tile with an obstacle overlay and strength badge, a stone, a special tile or treasure. |
 | UI | `GoalsPanel`, `GoalVisuals`, `MechanicTips`, `MechanicIntroPopup` | The goals row on the game screen, goal pictures and wording, and each mechanic's tutorial card and pointer. |
+| | `AchievementVisuals`, `AchievementNotifier` | Tier colours and category icons, claiming with feedback, and the unlock banners (one at a time, a summary for several, never during a game or over a popup). |
 
 ## Determinism
 
@@ -107,6 +109,8 @@ derive from stable seeds. `System.Random` and floating point are never used for 
   missing ones take defaults; `Normalize()` repairs impossible values (negative coins, a completed level
   beyond the unlocked one, duplicate records).
 * Temporary run state (the board in play) is deliberately not saved.
+* Developer builds can switch to a separate `save-test.json` (`GameContext.UseStorage`, Settings > Developer),
+  so fast-tracked test progress never touches `save.json` (docs/ACHIEVEMENTS.md §8).
 
 ## Extending the game
 
@@ -114,6 +118,8 @@ derive from stable seeds. `System.Random` and floating point are never used for 
   (and the config asset), and a class implementing `IPowerUpEffect` registered in `PowerUpEffects`. Add its art
   in `ArtBook.PowerUpIcon`. The shop, in-game bar, inventory, trial grant and eligibility rules pick it up.
 * **New shop category:** add a `ShopTab` subclass to the list in `ShopScreen.Build`.
+* **New achievement:** add an entry in the config asset (or `AchievementCatalog.CreateDefaults`) with a new ID; a
+  new kind of measure also needs an `AchievementStat` read in `AchievementService.Current` (docs/ACHIEVEMENTS.md §9).
 * **New hand-made level:** add a `LevelOverride` in the config asset (any field left at 0 is generated).
 * **New obstacle on tiles:** add an `ObstacleKind`, register an `ObstacleDefinition` in `Obstacles` (its flags
   decide how it behaves everywhere), a character for the layout notation in `Board.ObstacleChar` /

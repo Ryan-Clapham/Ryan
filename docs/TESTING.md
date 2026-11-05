@@ -14,7 +14,7 @@ reference assemblies:
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
 | SDK integrations (AdMob + UMP, Unity IAP 5) compile against **API shims written from the SDKs' documentation**, not the real SDKs (which couldn't be downloaded here), Android and iOS paths | `dotnet build SdkCheck`, `-p:UnityPlatform=iOS` | 0 errors, 0 warnings (shims only: docs/MONETISATION.md §11) |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **453 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **480 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Campaign mechanics: Casual and Planner bots play every level 1–200 (12 games each, every move played) and flag levels that look too easy, too hard, unfair, trivial or short of three stars | `Sim -- campaign 1 200 12 <csv>` | See DESIGN.md §3.1–3.2 and docs/campaign-simulation.csv |
@@ -26,7 +26,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (453 tests)
+### Automated test coverage (480 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -52,7 +52,7 @@ real Android builds provide it.
 | Goals | 11 | Score-goal fallback; tracker counting (stones never count, only last layer/link counts); collect by any means; meeting every goal passes the level and play goes on; Finish ends a passed level with nothing added for unused moves and is refused before passing; a passed level that runs out of moves is won; fail when moves run out with a goal unmet whatever the score; Extra Moves revive a goal level |
 | Stars and objectives (play on) | 13 | The level 67, 47 and 78 reports: the target passes without ending and stars rise with every move left (the HUD's stars are the stars awarded); the real level 67 keeps going after its goals; a high score with a treasure left fails, Extra Moves keep score and progress, a power-up finishes the goal, Finish and the saved result; the combinations tutorial is no longer a one-tap win; no level 21–60 is passed by move 2; three stars within reach on 21–60; make/set off/combination goals count only the kind asked, chain reactions, both halves of a combination and power-ups; all goals needed; the new goals round trip through level files; star requirements match the star rule on levels 1–60; the result says why the next star was missed; stars from playing on are saved |
 | Planner bot | 6 | Picks goal progress over the biggest group; breaks the ice/chains a goal needs; looks one move ahead; deterministic; beats Casual on levels 1–40 (120/120 vs 93/120) and on an ice level (29/30 vs 10/30) |
-| Save compatibility | 3 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte; the same play on the new code (every move played) makes exactly the same progress: levels unlocked and completed, plays and wins, first-clear and milestone rewards, Daily and Weekly plays, the purchase, inventory, tutorials and settings (scores, stars and star rewards differ, because levels are now played to the end and unused moves score nothing); and the whole save it writes matches a recorded fingerprint, which the build before the 2.1 clarifications also produced byte for byte (checked in a separate worktree); since 3.0 the save also has a monetisation record, which an old save gets empty, and the rest of the save still matches the 2.1 fingerprint exactly |
+| Save compatibility | 4 | A real save written by the pre-overhaul build (b0511bc) after 12 campaign levels, Daily, Weekly Rush, Endless, a purchase and settings changes: it loads and writes back byte for byte; the same play on the new code (every move played) makes exactly the same progress: levels unlocked and completed, plays and wins, first-clear and milestone rewards, Daily and Weekly plays, the purchase, inventory, tutorials and settings (scores, stars and star rewards differ, because levels are now played to the end and unused moves score nothing); and the whole save it writes matches a recorded fingerprint, which the build before the 2.1 clarifications also produced byte for byte (checked in a separate worktree); since 3.0 the save also has a monetisation record, which an old save gets empty, and the rest of the save still matches the 2.1 fingerprint exactly; since the achievements update it also has the achievement record and new lifetime counters (empty or zero in an old save, everything else unchanged), and the old save unlocks exactly the achievements it proves (level 10, Endless 5,000 and 10,000, group of 12, first Daily, bronze and gold medals), saved at once, with the coin balance untouched until claiming and nothing more on the next load |
 | Special tiles | 29 | Creation at 6/9/12 tiles and only as taught; configurable thresholds; row vs column rockets; placement (tapped cell, or nearest cleared cell); they fall and stop at stones; rocket, bomb and prism hits on every tile type; every combination; chain reactions in order, each once; goals count their clears; Blast, Tile Breaker, Swap, Colour Shift and Colour Burst with specials; a special is always a legal move |
 | Treasure | 9 | Falls and is collected at the bottom edge and on stones, never through them; waits on ice, chains, moss and tiles; stacked treasure; untouched by power-ups and reshuffles; layout rules; the treasure goal wins the level |
 | Moss | 11 | Leaves with its group and with area hits; scraped off by a neighbouring clear; grows by one free tile after a move that clears none, repeatably, never two moves in a row, never past its cap, never onto ice, chains, specials or treasure; falls with its tile; can't block every move; the moss goal follows the board |
@@ -62,6 +62,7 @@ real Android builds provide it.
 | Groups of specials (2.1) | 17 | Three rockets (a cross three lines wide), four rockets (five wide), three bombs (9 × 9, clipped), a rocket and two bombs (a five-line band), two rockets and a bomb (a three-wide cross), prism + rocket + bomb (the colour, then the band), two prisms + a bomb (every colour tile, and the bomb's area breaks stones), a snake of five specials fires as one; only orthogonal neighbours join (a diagonal special fires later, alone); a blast that reaches a special outside the group sets it off once, alone, with no loop; power-ups that hit specials set them off singly and never combine them; ice, chains, moss and stones in a combination's area each take one step and score once; make/fire/combination goals count every member once; the preview shows exactly the cells the combination clears; a group of three left at the end goes off as one combination; Finish uses the same groups; 200 random boards full of specials: every special fires at most once, no tile scores twice, score = breakdown, the session always settles |
 | Monetisation (3.0) | 68 | **With scripted fakes in place of the ad, consent and store SDKs** (not the SDKs themselves): a rewarded advert grants its reward only on the SDK's reward callback, exactly once (duplicate callbacks ignored), with exactly +10 moves or +50 coins and the balance saved at once; closed early, no reward callback, failed to show, failed to load (retried with growing delays up to 5 minutes), never answered, still open after the player is back, callbacks arriving after the game resumes, a reward just after the close (counts) or long after (granted once, reported); daily limit, cooldown and per-attempt limit survive a restart and a clock wound back; one advert at a time; Google's test ad units used and no live IDs built in; new opportunities added without changing the service. Out of Moves: +10 moves by advert and +5 for exactly 100 coins keep every tile, obstacle, score, goal and power-up; nothing taken without enough coins; an interrupted advert leaves the choice open; campaign only. Shortfall: the exact shortfall up to 50, explained when not enough, never buys anything. Interstitials: none before 5 completed levels, then at the next level or map only after a win, never after a failure, retry, abandoning or during play; 5 minutes apart; the count kept when none is loaded or one fails and reset only when one is displayed; none within 2 minutes of a rewarded advert, a coin pack or a coin purchase; none (not even loaded) with No Ads, while rewarded adverts stay; the count survives a restart. Consent: no ad SDK before consent, an earlier session's consent starts it at once, no consent or a consent error means no adverts while coins and purchases still work, privacy options can start adverts, settings reach the SDKs. Purchases: prices only from the store; granted, saved and only then confirmed; never granted twice (duplicates, redelivery after a crash); left unconfirmed if the save fails; cancelled, failed and pending purchases change nothing until paid; purchases blocked when they should be; a store that never answers unlocks the shop; unknown products neither granted nor confirmed; No Ads survives a restart (also offline), is restored on a new device and by Restore Purchases (a restore the store never answers ends as failed after 30 s), and a refund is applied after two store checks. Saves: old saves load with empty monetisation data, the record round trips and is capped, a progress reset keeps purchases, starting monetisation changes no progress; ledger reasons readable; 300 rounds of random callback storms never pay more than once per rewarded advert |
 | Retired power-up (3.0.1) | 6 | Extra Moves is in no list, bar, shop or introduction (level 50 introduces nothing; the others are unchanged) and can't be bought; an older config asset that still lists it is ignored; owned uses are paid back once at 200 coins each (or the price the config charged), saved at once, with a readable ledger line and never paid twice; free trial uses lapse without a refund; a save that never had it is not touched or rewritten. Also (in other suites): the retired power-up can't be applied, even to revive an out-of-moves level, and challenge modes refuse it |
+| Achievements | 26 | The catalog: 67 entries with unique IDs, every category and tier used, every one with a reward, the agreed ceilings (level 500, 15 regions, Endless 50,000), rewards rising at every step of every series (level 500 worth over 50× level 10), Easy ≤ 100 and Very hard ≥ 800 in value; targets and rewards taken from the config (unusable entries skipped, retired power-ups not paid). Every category through the real code: reaching a level when the run ends (a replay unlocks nothing again); stars count each level's best once; a region is perfect only with three stars on all 20 levels (19 and a two-star level don't count; 15 and more; the configured region size is followed); Endless counts finished runs only (a left run records no score, the same run can't be finished twice); stones, thick ice, chains and moss through Tile Breaker, a rocket + bomb combination (combo size and tiles in one tap; power-ups don't count as taps), treasure; lifetime totals after Out of Moves, continuing and leaving (nothing counted twice, leaving isn't a game played, leaving twice changes nothing); records keep the best; pure three-star levels distinct, from level 50, not with a power-up; power-up mastery capped per power-up, retired one excluded; Daily distinct days from claims and records; Weekly medals from claims. Unlocking: several at once in one event in catalog order, no event when nothing is new, completed/unclaimed counts and the percentage. Claiming: coins and power-ups paid exactly once (duplicate, locked and unknown refused), the ledger reason and its wording, Claim all. Saves: unlocks and claims survive a reload, an older save's progress unlocks on load (and counters not kept before start at zero), old saves without the new fields load, the new counters round trip, a progress reset starts achievements again, **the developer test save leaves the player's save byte for byte unchanged**. The screen's wording: rewards ("1,500 coins + two of each power-up", "Colour Burst ×2"), progress ("Level 37 / 50", "Best: Silver"), tiers and categories |
 | Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 3,400 actions, 400 specials made, combos, treasure, moss growth, 47 finales): score bookkeeping, the score breakdown always equals the score, no tile removed twice, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
@@ -127,6 +128,12 @@ real Android builds provide it.
   against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
   watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
   how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
+* **The achievements update has not been seen running.** The rules (unlocking, claiming, saving, retroactive
+  unlocks, the test save) are tested in the harness, and the Unity code compiles in all four variants and passes the
+  lint. Nobody has looked at any of the new UI yet: the achievements screen (summary card, 67 cards, Claim
+  buttons), the banners and their queue, the Home trophy and badge, the result popup's achievement line, or the
+  developer test-save switch. Also unchecked: scrolling smoothness of the full list on a low-end phone, and the
+  banners' timing against the consent form and adverts.
 * **The 3.0.1 layouts have not been seen running.** The new Level Complete layout, the No Ads card and the Best value
   badge compile and fit on paper: the results popup is at most about 1,424 units tall, against at least 1,592 available
   on the shortest supported screen. That arithmetic covers each supported aspect ratio, but nobody has looked at the
@@ -160,6 +167,45 @@ real Android builds provide it.
   about 17 ms on average in the harness (was 6 ms); on a phone the first opening of a level card may pause briefly.
 
 ## Manual test checklist (please run in Unity, then on a phone)
+
+### Achievements
+
+* **Existing save (the important one):** open the game on a save from before this update.
+  * One banner says "*N achievements unlocked — earned by your progress so far*".
+  * The trophy on Home shows the same number.
+  * Coins are unchanged until something is claimed.
+  * The achievements screen shows those unlocked (gold outline, Claim) and the counters that start at zero
+    (stones, ice, chains, moss, treasure, tiles in one tap, combinations, power-up uses, pure three-star levels).
+* **Achievements screen** on a 9:16 phone, a tall phone and a tablet:
+  * the summary card ("*N / 67 completed*", the percentage, the bar, Claim all) is clear of the top bar;
+  * every card's name, tier label, requirement (two lines at most), reward and progress fit without overlapping;
+  * the four tier colours are easy to tell apart;
+  * the list scrolls smoothly to the last category and the footer.
+* **Claiming:**
+  * Claim on a card: the coins count up in the counter, the toast lists the reward, the card turns to
+    "*Claimed*", and the power-ups appear in Shop > Power-ups as owned;
+  * Claim all claims every waiting reward and the toast totals them;
+  * close and reopen the game: everything claimed stays claimed and nothing can be claimed twice.
+* **Unlocking in play:**
+  * Win a level that crosses a threshold (for example, reach level 10 on a fresh save): the result popup shows
+    "*Achievement unlocked: First Steps*";
+  * press Next Level: no banner appears over the game;
+  * go back to Home or the map: the banner appears with the name, tier, reward and Claim;
+  * tapping the banner opens the achievements screen;
+  * unlock three or more at once (on the test save, Unlock next 10 levels a few times): one summary banner with
+    View.
+* **Endless:** leave an Endless run part-way. The best score doesn't change and no Endless achievement unlocks.
+  Finish one and the Endless achievements match the score and stage.
+* **Developer test save** (Editor or development build):
+  * on the player's save, Settings > Developer shows only the read-only tools;
+  * switch on *Use the test save*: the red **TEST SAVE** label appears, progress starts fresh, and the
+    fast-track tools appear;
+  * use them, then switch back: the player's progress, coins and achievements are exactly as before, and the
+    date is today again;
+  * restart the editor: the switch is remembered;
+  * in a release build the switch doesn't exist and the player's save is used.
+* **Reset all progress** erases achievements too (the warning says so). On the test save it is labelled
+  "*Reset the test save*".
 
 ### Update 3.0.1: results layout, shop cards, Extra Moves retired
 

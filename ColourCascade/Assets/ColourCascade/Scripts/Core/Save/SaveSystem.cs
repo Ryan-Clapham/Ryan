@@ -109,7 +109,7 @@ namespace ColourCascade.Core
     /// <summary>Loads and saves SaveData through an ISaveStorage, with corruption recovery.</summary>
     public sealed class SaveSystem
     {
-        readonly ISaveStorage storage;
+        ISaveStorage storage;
         readonly IClock clock;
         readonly int startingCoins;
 
@@ -179,6 +179,12 @@ namespace ColourCascade.Core
                 Log?.Invoke("Save failed: " + e.Message);
                 return false;
             }
+        }
+
+        /// <summary>Reads and writes another storage from now on (call Load next).</summary>
+        public void UseStorage(ISaveStorage other)
+        {
+            if (other != null) storage = other;
         }
 
         /// <summary>Erases all progress and writes a fresh save.</summary>

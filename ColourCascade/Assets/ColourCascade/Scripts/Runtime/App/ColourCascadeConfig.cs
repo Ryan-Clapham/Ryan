@@ -38,6 +38,9 @@ namespace ColourCascade.App
         [Header("Monetisation: adverts, interstitial frequency, store products, privacy (docs/MONETISATION.md)")]
         public MonetisationConfig monetisation = new MonetisationConfig();
 
+        [Header("Achievements: the fixed list, targets and rewards (docs/ACHIEVEMENTS.md). Never change a shipped id.")]
+        public AchievementDefinition[] achievements = AchievementCatalog.CreateDefaults();
+
         // Deliberately 0 when the field is missing from an older asset; the editor setup then moves the asset's
         // rewards to the current tuning (see EconomyTuning) and records the version here.
         [Tooltip("Reward tuning version of this asset. Older assets are updated automatically when the project opens; values edited by hand are kept.")]
@@ -54,6 +57,7 @@ namespace ColourCascade.App
             if (economy != null) d.Economy = economy;
             if (powerUps != null && powerUps.Length > 0) d.PowerUps = powerUps;
             if (monetisation != null) d.Monetisation = monetisation;
+            if (achievements != null && achievements.Length > 0) d.Achievements = achievements;
             return d;
         }
 
@@ -67,6 +71,7 @@ namespace ColourCascade.App
             economy = new EconomyConfig();
             powerUps = PowerUpCatalog.CreateDefaults();
             monetisation = new MonetisationConfig();
+            achievements = AchievementCatalog.CreateDefaults();
             rewardTuningVersion = EconomyTuning.Current;
         }
 

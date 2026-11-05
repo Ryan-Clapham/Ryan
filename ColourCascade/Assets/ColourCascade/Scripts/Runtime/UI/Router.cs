@@ -15,6 +15,7 @@ namespace ColourCascade.App
         Shop,
         Settings,
         HowToPlay,
+        Achievements,
     }
 
     /// <summary>Base class for full screens. Built once from code, then shown/hidden; OnShow re-binds data.</summary>
@@ -216,6 +217,7 @@ namespace ColourCascade.App
                 case ScreenId.Game: s = rt.gameObject.AddComponent<GameScreen>(); break;
                 case ScreenId.Shop: s = rt.gameObject.AddComponent<ShopScreen>(); break;
                 case ScreenId.Settings: s = rt.gameObject.AddComponent<SettingsScreen>(); break;
+                case ScreenId.Achievements: s = rt.gameObject.AddComponent<AchievementsScreen>(); break;
                 default: s = rt.gameObject.AddComponent<HowToPlayScreen>(); break;
             }
             s.Init();
