@@ -6,7 +6,8 @@ using ColourCascade.Core;
 
 // Balance simulation: automated players run the real game rules and report how hard each mode is.
 // Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>|economy [days] [levelsPerDay]|campaign [from] [to] [runs] [csv]
-//        |economy-trace <name> <levelsPerDay> <dailiesPerWeek> <endlessPerWeek> <bot> <maxLevel> <economyVersion>]
+//        |economy-trace <name> <levelsPerDay> <dailiesPerWeek> <endlessPerWeek> <bot> <maxLevel> <economyVersion>
+//        |campaign-shape [from] [to] [step] [legacy]]
 static class Program
 {
     static int Main(string[] args)
@@ -19,9 +20,12 @@ static class Program
         {
             int from = args.Length > 1 ? int.Parse(args[1]) : 1, to = args.Length > 2 ? int.Parse(args[2]) : 120;
             int runs = args.Length > 3 ? int.Parse(args[3]) : 30;
-            var rows = CampaignReport.Run(from, to, runs, Console.Out);
+            var rows = CampaignReport.Run(from, to, runs, Console.Out, args.Length > 5 && args[5] == "legacy");
             if (args.Length > 4) CampaignReport.WriteCsv(rows, args[4]);
         }
+        if (mode == "campaign-shape")
+            CampaignShapeReport.Run(args.Length > 1 ? int.Parse(args[1]) : 121, args.Length > 2 ? int.Parse(args[2]) : 500, args.Length > 3 ? int.Parse(args[3]) : 50,
+                args.Length > 4 && args[4] == "legacy", Console.Out);
         if (mode == "economy-trace")
             EconomyTrace.Run(Console.Out, args[1], int.Parse(args[2]), int.Parse(args[3]), int.Parse(args[4]), (BotKind)Enum.Parse(typeof(BotKind), args[5]),
                 int.Parse(args[6]), int.Parse(args[7]));

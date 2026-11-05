@@ -493,7 +493,9 @@ namespace ColourCascade.Tests
             var catalog = new CampaignCatalog(GameConfigData.CreateDefault().Campaign, new ScoringRules());
             for (int n = 1; n <= 3; n++) Assert.AreEqual((6, 6), (catalog.Get(n).Width, catalog.Get(n).Height), "level " + n);
             for (int n = 4; n <= 6; n++) Assert.AreEqual((7, 7), (catalog.Get(n).Width, catalog.Get(n).Height), "level " + n);
-            foreach (int n in new[] { 7, 8, 15, 60, 150 }) Assert.AreEqual((8, 9), (catalog.Get(n).Width, catalog.Get(n).Height), "level " + n + " is 8 columns × 9 rows");
+            foreach (int n in new[] { 7, 8, 15, 60, 120 }) Assert.AreEqual((8, 9), (catalog.Get(n).Width, catalog.Get(n).Height), "level " + n + " is 8 columns × 9 rows");
+            // From the progression (level 121) board sizes and shapes vary (CampaignProgressionTests).
+            Assert.AreEqual(121, GameConfigData.CreateDefault().Campaign.progressionFromLevel);
         }
 
         [Test]

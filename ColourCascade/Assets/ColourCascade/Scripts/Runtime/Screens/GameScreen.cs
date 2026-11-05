@@ -337,6 +337,8 @@ namespace ColourCascade.App
                 default:
                     if (!Ctx.Campaign.IsUnlocked(args.Level)) args.Level = Ctx.Campaign.CurrentLevel;
                     setup = Ctx.CreateCampaignRun(args.Level);
+                    // The next level is generated in the background while this one is played.
+                    Ctx.Catalog.Prewarm(args.Level + 1);
                     break;
             }
             session = new PuzzleSession(setup);

@@ -58,11 +58,11 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
 
 ## Run the tests
 
-* **In Unity:** Window → General → Test Runner → EditMode → Run All (514 tests).
+* **In Unity:** Window → General → Test Runner → EditMode → Run All (543 tests).
 * **Without Unity (CI or a terminal with .NET 8):**
   ```
   cd tools/Harness
-  dotnet test Tests/Tests.csproj            # the same 514 tests
+  dotnet test Tests/Tests.csproj            # the same 543 tests
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
@@ -70,6 +70,7 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
   dotnet run --project Sim -c Release -- balance x 60   # bots play levels 1-60, Endless, Rush and Daily
   dotnet run --project Sim -c Release -- economy        # coins a simulated player earns over 30 days
   # long-run economy (3.1): Sim -- economy-trace ... then python3 tools/economy_model.py (usage in that file)
+  dotnet run --project Sim -c Release -- campaign-shape 1 500 100   # what each range of levels contains (add legacy: before 3.2)
   dotnet run --project Sim -c Release -- art ./preview  # exports every generated sprite as PNG
   ```
 

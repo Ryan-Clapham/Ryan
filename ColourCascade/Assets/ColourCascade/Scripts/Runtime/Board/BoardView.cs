@@ -156,7 +156,7 @@ namespace ColourCascade.App
     /// </summary>
     public sealed class BoardView : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
     {
-        public const float FramePadding = 18f;
+        public const float FramePadding = BoardFit.FramePadding;
 
         /// <summary>Fill the list with the cells this press would affect; return 0 if nothing would happen.</summary>
         public Func<GridPos, List<GridPos>, int> PreviewProvider;
@@ -265,9 +265,7 @@ namespace ColourCascade.App
         public void FitInto(Vector2 area)
         {
             if (width == 0) return;
-            float maxCell = 172f;
-            cell = Mathf.Floor(Mathf.Min((area.x - FramePadding * 2) / width, (area.y - FramePadding * 2) / height, maxCell));
-            cell = Mathf.Max(40f, cell);
+            cell = BoardFit.CellSize(area.x, area.y, width, height);
             Relayout();
         }
 

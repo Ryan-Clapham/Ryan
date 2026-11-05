@@ -165,6 +165,42 @@ namespace ColourCascade.Core
             return needed[System.Math.Min(runs - 1, runs * percentile / 100)];
         }
 
+        /// <summary>
+        /// Moves a bot needs in the games it passes (at the given percentile of those games), and how many of the runs it
+        /// passed. A level it passes in fewer than half the runs reads as needing budget + 10. Unlike MovesNeeded, a game
+        /// that stalls doesn't stretch the moves: whether a level is fair is checked separately.
+        /// </summary>
+        public static int MovesNeededWhenPassed(LevelSpec spec, ScoringRules scoring, int runs, int budget, BotKind kind, int percentile, out int passed)
+        {
+            if (runs < 1) runs = 1;
+            var needed = new List<int>();
+            for (int i = 0; i < runs; i++)
+            {
+                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, budget), Scoring = scoring, BoardSeed = BoardSeedFor(spec, i) });
+                session.Start();
+                Bots.PlayOut(session, kind, new Rng(StableHash.Combine(spec.Seed, (ulong)(2000 + i))), 10000, true);
+                if (session.Passed) needed.Add(session.PassedAtMove);
+            }
+            passed = needed.Count;
+            if (passed * 2 < runs) return budget + 10;
+            needed.Sort();
+            return needed[System.Math.Min(needed.Count - 1, needed.Count * percentile / 100)];
+        }
+
+        /// <summary>How many of the runs a bot passes with the level's own moves (each game stops once it is passed).</summary>
+        public static int PassCount(LevelSpec spec, ScoringRules scoring, int runs, BotKind kind, int seedOffset)
+        {
+            int passed = 0;
+            for (int i = 0; i < runs; i++)
+            {
+                var session = new PuzzleSession(new SessionSetup { Mode = GameMode.Campaign, Level = CloneGoalProbe(spec, spec.Moves), Scoring = scoring, BoardSeed = BoardSeedFor(spec, seedOffset + i) });
+                session.Start();
+                Bots.PlayOut(session, kind, kind == BotKind.Planner ? null : new Rng(StableHash.Combine(spec.Seed, (ulong)(4000 + seedOffset + i))), 10000, true);
+                if (session.Passed) passed++;
+            }
+            return passed;
+        }
+
         public struct GameResult
         {
             /// <summary>Final score of a passed game played to its last move (specials left at the end included).</summary>

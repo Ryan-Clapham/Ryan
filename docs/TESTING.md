@@ -14,10 +14,11 @@ reference assemblies:
 | Same, for a project using **only the new Input System** | `UnityCheck -p:UnityPlatform=InputSystem` | 0 errors, 0 warnings |
 | Editor setup and build scripts compile against the UnityEditor reference | `dotnet build EditorCheck` | 0 errors |
 | SDK integrations (AdMob + UMP, Unity IAP 5) compile against **API shims written from the SDKs' documentation**, not the real SDKs (which couldn't be downloaded here), Android and iOS paths | `dotnet build SdkCheck`, `-p:UnityPlatform=iOS` | 0 errors, 0 warnings (shims only: docs/MONETISATION.md §11) |
-| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **514 passed, 0 failed** |
+| Automated tests (NUnit, identical to Unity's EditMode tests) | `dotnet test Tests` | **543 passed, 0 failed** |
 | Unity message methods (`Start`, `Update`…) have the signatures Unity accepts; no saved field has a type Unity can't serialize (UAC1001); audio has an AudioListener; every character in on-screen text exists in the Fredoka font | `dotnet run --project UnityLint` | No problems |
 | Balance: bots play campaign levels 1–130, Endless, Weekly Rush and 7 Daily Challenges with the real engine | `Sim -- balance` | See DESIGN.md §3–6 |
 | Campaign mechanics: Casual and Planner bots play every level 1–200 (12 games each, every move played) and flag levels that look too easy, too hard, unfair, trivial or short of three stars | `Sim -- campaign 1 200 12 <csv>` | See DESIGN.md §3.1–3.2 and docs/campaign-simulation.csv |
+| Campaign progression (3.2): the same report on levels 121–500 with 20 games per bot, before (`legacy`: the progression switched off) and after; and what every level contains, range by range (no games) | `Sim -- campaign 121 500 20 <csv> [legacy]`, `Sim -- campaign-shape 1 500 100 [legacy]` | See DESIGN.md §3.5 |
 | Mechanics in other modes: Daily success by unlock level (60 days), Weekly Rush medal rates with and without mechanics (16 weeks), Endless stage journey by bot (30 runs each) | `Sim -- modes` | See DESIGN.md §4–6 |
 | Economy: a simulated player earns coins for 30 days through the real reward code (versions 1, 2 and 3 side by side) | `Sim -- economy` | See DESIGN.md §8 |
 | Economy, long run (3.1): three player profiles play to level 520 through the real code under the old and new rewards (same boards), then spending, adverts and packs are modelled on top | `Sim -- economy-trace` + `tools/economy_model.py` | See DESIGN.md §8 |
@@ -27,7 +28,7 @@ reference assemblies:
 \* The Android reference set omits the mobile-only `Handheld` API, so a harness-only shim declares it;
 real Android builds provide it.
 
-### Automated test coverage (514 tests)
+### Automated test coverage (543 tests)
 
 | Area | Tests | Highlights |
 |---|---|---|
@@ -38,7 +39,7 @@ real Android builds provide it.
 | Sessions and modes | 14 | Win/lose/revive, Daily plays all moves, Endless bonus moves, Rush timer start/stop/expiry/pause, **only Weekly Rush is timed**, long randomised play keeps board invariants |
 | Power-ups | 17 | All six effects and their invalid targets, stones vs Blast/Tile Breaker, trial-first consumption, nothing consumed on failure, **challenge modes blocked at engine and service level** |
 | Wallet, shop, rewards | 25 | Ledger, insufficient funds, locked items, **purchases blocked during challenge runs**, first-clear once, new stars only, milestones once, daily/weekly/endless claims once, clock rollback refused, early-economy sanity; a power-up's free uses are lent on every attempt at its level (also after reopening the game), spent first, never added to the inventory or saved |; **3.1:** stars pay 2 / 3 / 5 once each (an upgrade pays only the stars still owed), first clears rise from 3 to at most 8 (checked to level 10,000), Daily 10 / +5, Endless milestones 5 / 10 / 15 / 25 / 40; older config assets move to version 3 and hand-edited values (including a hand-edited star reward) are kept
-| Progression | 9 | **Board sizes 6×6 / 7×7 / 8×9**, 120 generated levels valid and deterministic, stones from level 8, early levels ≥80% winnable by a casual bot, replays never reduce stars |
+| Progression | 9 | **Board sizes 6×6 / 7×7 / 8×9** up to level 120, 120 generated levels valid and deterministic, stones from level 8, early levels ≥80% winnable by a casual bot, replays never reduce stars |
 | Challenges | 15 | UTC day keys, ISO weeks (including year boundaries), Monday reset, same board and refills for the same date/week, different days differ, **Endless fresh board each run** |
 | Saves and settings | 14 | Full round trip, missing/corrupt/backup/temp recovery on a real file system, write failure, repair of inconsistent data, reload through the context, reset rebinding; sound toggles restore the chosen volume |
 | Navigation | 5 | Back stops at Home, no duplicates, no loops, leaving a game replaces it, Home clears history |
@@ -66,6 +67,8 @@ real Android builds provide it.
 | Achievements | 27 | The catalog: 67 entries with unique IDs, every category and tier used, every one with a reward, the agreed ceilings (level 500, 15 regions, Endless 50,000), rewards rising at every step of every series (level 500 worth over 50× level 10), Easy ≤ 100 and Very hard ≥ 800 in value; targets and rewards taken from the config (unusable entries skipped, retired power-ups not paid). Every category through the real code: reaching a level when the run ends (a replay unlocks nothing again); stars count each level's best once; a region is perfect only with three stars on all 20 levels (19 and a two-star level don't count; 15 and more; the configured region size is followed); Endless counts finished runs only (a left run records no score, the same run can't be finished twice); stones, thick ice, chains and moss through Tile Breaker, a rocket + bomb combination (combo size and tiles in one tap; power-ups don't count as taps), treasure; lifetime totals after Out of Moves, continuing and leaving (nothing counted twice, leaving isn't a game played, leaving twice changes nothing); records keep the best; pure three-star levels distinct, from level 50, not with a power-up; power-up mastery capped per power-up, retired one excluded; Daily distinct days from claims and records; Weekly medals from claims. Unlocking: several at once in one event in catalog order, no event when nothing is new, completed/unclaimed counts and the percentage. Claiming: coins and power-ups paid exactly once (duplicate, locked and unknown refused), the ledger reason and its wording, Claim all. Saves: unlocks and claims survive a reload, an older save's progress unlocks on load (and counters not kept before start at zero), old saves without the new fields load, the new counters round trip, a progress reset starts achievements again, **the developer test save leaves the player's save byte for byte unchanged**. The screen's wording: rewards ("1,500 coins + two of each power-up", "Colour Burst ×2"), progress ("Level 37 / 50", "Best: Silver"), tiers and categories |; **3.1:** the catalog pays exactly 1,810 coins and 59 power-ups (by type), Easy and Medium coins only, the capstones 300 coins + one of each
 | Endless finale (3.1) | 15 | Specials left when an Endless run's moves run out all go off before the run ends: a single rocket, several rockets, a bomb, a prism, different specials, a connected group, one setting off another; each goes off once, the final score is the score before plus exactly their points and equals the result's total, and the finale can't run twice; **treasure collected by the finale no longer gives the finished run more moves** (failed before the fix); the finale can set a new personal best, leaves a higher one alone, and counts towards Endless milestones and achievements; owned power-ups are never used; leaving while it waits still records the whole score; 40 real Endless runs never end with specials left |
 | Economy rebalance (3.1) | 16 | The Coins-tab advert pays 20, three a day; three Coins-tab adverts use up the not-enough-coins advert and the other way round; closed early, failed or unavailable adverts cost nothing (no count, no cooldown); the allowance resets at the player's own midnight ahead of and behind UTC and never comes back when the clock is wound back; counts from the day of the update still count; it survives a restart; three-packs at 200 / 270 / 340 / 400 / 675 (about 10% off, single prices unchanged), one debit and exactly three added ("Bought Blast ×3"), refused when short (with the shortfall), locked or during a challenge, prices from the config (0 = built in, negative = none, never more than three singles); a pre-3.1 save with 4,000 coins keeps its balance, progress, stars, inventory, No Ads and Endless best through a load and a save; claimed achievements are never paid again or topped up, unclaimed ones pay the 3.1 reward once; stars and Endless milestones already earned pay nothing; a config with the pre-3.1 achievement rewards moves to the new ones, keeping a hand-edited one |
+| Board shapes (3.2) | 17 | Every shape (45 variants of 12 families) is fair (sections of 12+ cells, no dead ends, at most 10 x 11) and keeps cells of at least 96 reference pixels on 16:9, 20:9 and 19.5:9 phones (with a notch) and 3:4 and 10:16 tablets; split shapes really have 2, 3 or 4 sections; unfair shapes are refused. Twin towers fall and fill on their own (the other tower untouched); the lower half fills from beneath the gap, the upper from the top, nothing crosses the gap; a narrow passage drains only its own column; groups never join across a gap or a stone wall but go round a hole; a rocket crosses a gap and breaks the stones in its line (and the cell refills); a bomb's 5 x 5 reaches both sides of a gap and leaves the gap alone; a prism clears its colour in all four islands; treasure is collected on its own section's floor (a gap); treasure is only placed where every tile under it can be matched (both sides open at the floor) and in separate columns; treasure held up by ice waits until the ice is freed, and a thoughtful player still brings it down; Blast clears only real cells, nothing swaps into a gap, Colour Burst works across sections, Tile Breaker opens a stone wall and the tiles pour through; recovery on an island board never fills a gap; 90 bot games with obstacles, treasure, specials and power-ups on every shape (about 5,300 actions) keep every board whole; chained tiles always have room for a match |
+| Campaign progression (3.2) | 12 | Levels 1–120 are exactly as before (their level files fingerprinted on the build before 3.2); every level 121–500 is fair, within its band, fits a 16:9 phone with touch-sized cells, asks for every obstacle it places and starts treasure where it can come down; a thoughtful player passes 20 levels across 121–500 (and four board introductions) on boards the generator never saw, 82%+ overall and never under half; goals, objectives and obstacles rise in every 100 levels; breathers ask for much less than the hard levels and some are score levels; combinations and three-objective levels are more common later and treasure held up by obstacles appears; each board family arrives at its level with its "New board" card, never before, and comes back soon after; shaped boards grow more common; neighbouring levels rarely share a board and 301–400 use 30+ geometries (19 before); the same levels on every device and from any thread (a background prewarm racing a request builds once); shaped levels export to JSON and load back to the same board; the progression can be switched off (level 323 is then its old one-treasure self); progress on a shaped level saves and loads |
 | Long play, every mechanic | 1 | 90 bot games on campaign levels 21–200 with random power-ups (about 3,400 actions, 400 specials made, combos, treasure, moss growth, 47 finales): score bookkeeping, the score breakdown always equals the score, no tile removed twice, one step per obstacle per action, ice and chains never move, treasure conserved, moss limits, goal counts, board invariants |
 | Long play with obstacles | 1 | 60 random 7×7 levels with ice, chains, stones and voids, about 3,100 bot actions with random power-ups: one step per obstacle per action, points = action + obstacle steps, obstacles never move, goal counts exact, board invariants hold, and reshuffles happen with obstacles in place |
 
@@ -131,6 +134,15 @@ real Android builds provide it.
   against Unity's assemblies in all four variants and passes the lint (including the font check). But nobody has
   watched it: layout of the goals panel on real screens, animation timing, how the art reads at phone size and
   how the new sounds mix are unverified. The texture atlas grew to 2048 × 1536 (12 MB) to hold the new art.
+* **Update 3.2 (campaign progression and board shapes) has not been seen running.** The shapes, their gravity,
+  matching, specials, treasure and the generator are tested in the harness, and the Unity code (the board view now
+  sizes cells with `BoardFit`; levels are generated in the background with `CampaignCatalog.Prewarm`) compiles in all
+  four variants and passes the lint. Nobody has looked at a shaped board yet: the frame is still one rectangle, so a
+  gap shows as frame-coloured space with no tile slot (readable, untested for looks); tiles appearing from beneath a
+  gap use the existing "from beneath a stone" animation; boards up to 10 x 11 keep cells of 96+ reference pixels on
+  paper at every supported aspect ratio. Not checked: the level card's longer notes ("Region finale · Twin towers ·
+  Ice + Chains") on a narrow phone, and whether background generation causes a stutter on a low-end phone (it takes
+  about 50–90 ms per level on a desktop, several times that on a phone). The difficulty figures come from bots.
 * **Update 3.1 has not been seen running.** The new values, the shared advert allowance, the three-packs, the
   config upgrade and the Endless fix are tested in the harness, and the Unity code compiles in all four variants and
   passes the lint (the "×" in the pack button is in the font). Nobody has looked at the shop's new **×3** pack
@@ -177,6 +189,22 @@ real Android builds provide it.
   about 17 ms on average in the harness (was 6 ms); on a phone the first opening of a level card may pause briefly.
 
 ## Manual test checklist (please run in Unity, then on a phone)
+
+### Update 3.2: campaign progression and board shapes
+
+* [ ] **Levels 1–120:** unchanged (same boards, goals and moves as before).
+* [ ] **Shapes:** play the introductions (131 hole, 151 tall, 161 wide, 171 twin towers, 191 upper and lower, 211
+  stone wall, 231 narrow passage, 251 lopsided, 271 three sections, 291 islands): the board fits, gaps read clearly as
+  gaps, tiles fall only within their section, the lower half of a split board fills from beneath the gap, and a
+  stone wall opens when a rocket or bomb hits it. Try a 16:9 phone, a tall phone and a tablet.
+* [ ] **Specials near gaps:** a rocket fired across a gap clears both sides; a bomb next to a gap; a prism on islands.
+* [ ] **Treasure:** on an upper-and-lower board it is collected when it lands on the gap; on a later level, treasure
+  sitting on a frozen tile waits until the ice is freed.
+* [ ] **Level card:** long notes ("Region finale · Narrow passage · Chains + Score") fit.
+* [ ] **Later levels (300+):** they feel harder and more varied than before, with moves that fit what they ask; a
+  breather (levels ending in 6) is easy; no level is impossible.
+* [ ] **Loading:** opening the map and a level card past 121, and moving to the next level, never pauses noticeably
+  (levels are built in the background).
 
 ### Update 3.1: economy, three-packs, Endless finale
 

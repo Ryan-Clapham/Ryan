@@ -150,6 +150,14 @@ namespace ColourCascade.Core
         public int stonesFromLevel = 8;
         /// <summary>First level that can contain shaped (void) boards in generated levels.</summary>
         public int shapedBoardsFromLevel = 25;
+        /// <summary>
+        /// First level of the progression (update 3.2, docs/DESIGN.md §3.5): from here generated levels get their
+        /// difficulty from CampaignProgression, are played on the board shapes below, and have moves sized from a
+        /// thoughtful player. Earlier levels are generated exactly as before.
+        /// </summary>
+        public int progressionFromLevel = 121;
+        /// <summary>When each board shape joins the campaign (from progressionFromLevel on).</summary>
+        public BoardShapeSchedule shapes = new BoardShapeSchedule();
         /// <summary>Keyframes: level -> target as a fraction (permille) of the reference bot's median score.</summary>
         public int[] targetCurveLevels = { 1, 4, 7, 10, 20, 35, 50, 75, 100, 150 };
         public int[] targetCurvePermille = { 330, 420, 450, 500, 560, 620, 670, 720, 760, 800 };

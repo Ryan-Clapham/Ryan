@@ -10,7 +10,7 @@ using ColourCascade.Core;
 /// Plays every campaign level in a range with the Casual and Planner bots and reports how hard each one is, and which
 /// look too easy, too hard or unfair. Bots play every move (a passed level goes on to its last move, as a player
 /// chasing stars would), so "moves" is when the level was passed and stars come from the final score.
-/// Usage: dotnet run --project Sim -c Release -- campaign [from] [to] [runs] [csvPath]
+/// Usage: dotnet run --project Sim -c Release -- campaign [from] [to] [runs] [csvPath] [legacy]
 /// </summary>
 static class CampaignReport
 {
@@ -26,9 +26,11 @@ static class CampaignReport
         public string Flag = "";
     }
 
-    public static List<Row> Run(int from, int to, int runs, TextWriter log)
+    public static List<Row> Run(int from, int to, int runs, TextWriter log, bool legacy = false)
     {
         var cfg = GameConfigData.CreateDefault();
+        // "legacy": the progression switched off, i.e. the campaign as generated before update 3.2.
+        if (legacy) cfg.Campaign.progressionFromLevel = 0;
         var catalog = new CampaignCatalog(cfg.Campaign, cfg.Scoring);
         var rows = new List<Row>();
         var sw = new Stopwatch();
@@ -41,7 +43,7 @@ static class CampaignReport
             long gen = sw.ElapsedMilliseconds;
             var row = new Row
             {
-                Level = n, Band = CampaignDesign.BandFor(n).Name, Note = spec.Note, Moves = spec.Moves, Colours = spec.Colours,
+                Level = n, Band = (n >= catalog.Config.progressionFromLevel ? CampaignDesign.ProgressionBand(n) : CampaignDesign.BandFor(n)).Name, Note = spec.Note, Moves = spec.Moves, Colours = spec.Colours,
                 Stones = spec.StoneCount, GenMs = gen, Goals = Describe(spec),
             };
             Play(spec, cfg, BotKind.Casual, runs, n, out row.CasualWin, out row.CasualMoves, out row.Casual2Star, out row.Casual3Star, out row.Shuffles, out row.Stuck);

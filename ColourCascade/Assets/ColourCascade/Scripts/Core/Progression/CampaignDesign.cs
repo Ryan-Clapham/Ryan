@@ -65,6 +65,18 @@ namespace ColourCascade.Core
         /// <summary>A practice level straight after an introduction: kept gentle.</summary>
         public bool Practice;
 
+        // Used by the progression from CampaignConfig.progressionFromLevel on (CampaignProgression).
+        /// <summary>0-100: how demanding the level is.</summary>
+        public int Intensity;
+        public IceStyle IceStyle;
+        /// <summary>Chained tiles may sit side by side (two of one colour free each other).</summary>
+        public bool ChainPairs;
+        /// <summary>Rows above its floor that treasure starts (deeper takes more digging).</summary>
+        public int TreasureDepthMin = 2, TreasureDepthMax = 5;
+        /// <summary>An obstacle right under each treasure that must be freed before it can fall (None = no dependency).</summary>
+        public ObstacleKind TreasureBlock;
+        public int TreasureBlockStrength = 1;
+
         public bool Has(Mechanic m) => Mechanics.Contains(m);
     }
 
@@ -87,6 +99,8 @@ namespace ColourCascade.Core
     {
         // ------------------------------------------------------------------ Bands and rhythm
 
+        /// <summary>The difficulty bands of the generator before update 3.2 (used up to CampaignConfig.progressionFromLevel,
+        /// and everywhere if the progression is switched off).</summary>
         public static DifficultyBand BandFor(int n)
         {
             if (n <= 20) return new DifficultyBand { Name = "Learn", MinMoves = 12, MaxMoves = 22, SlackPermille = 400 };
@@ -94,6 +108,22 @@ namespace ColourCascade.Core
             if (n <= 120) return new DifficultyBand { Name = "Combine", MinMoves = 20, MaxMoves = 35, SlackPermille = 180 };
             if (n <= 200) return new DifficultyBand { Name = "Advanced", MinMoves = 24, MaxMoves = 40, SlackPermille = 150 };
             return new DifficultyBand { Name = "Expert", MinMoves = 28, MaxMoves = 45, SlackPermille = 110 };
+        }
+
+        /// <summary>
+        /// The move range of a progression level (update 3.2): its moves come from a thoughtful player's needs plus spare
+        /// room (CampaignCatalog), and this is only the outer limit. Its name is the level's tier.
+        /// </summary>
+        public static DifficultyBand ProgressionBand(int n)
+        {
+            int tier = CampaignProgression.Tier(n);
+            return new DifficultyBand
+            {
+                Name = CampaignProgression.TierName(tier),
+                MinMoves = 18 + Math.Min(tier, 4),
+                MaxMoves = tier <= 1 ? 40 : tier <= 3 ? 44 : 46,
+                SlackPermille = 150,
+            };
         }
 
         /// <summary>
@@ -412,6 +442,9 @@ namespace ColourCascade.Core
         /// Stones (the board's barriers, which only rockets and bombs break) count as a partner. Treasure never sits
         /// on a stone board (it needs open columns).
         /// </summary>
+        /// <summary>The obstacle pairing first met at level n, if any (Showcase).</summary>
+        public static (Mechanic[] mechanics, bool stones, string note)? ShowcaseFor(int n, MechanicSchedule s) => Showcase(n, s);
+
         static (Mechanic[] mechanics, bool stones, string note)? Showcase(int n, MechanicSchedule s)
         {
             int c = s.chainsFromLevel, t = s.treasureFromLevel, m = s.mossFromLevel;
@@ -570,7 +603,7 @@ namespace ColourCascade.Core
         }
 
         /// <summary>One special tile somewhere in the middle of the board, on a free cell.</summary>
-        static void PlaceStartSpecial(LevelLayout layout, char piece, Rng rng)
+        public static void PlaceStartSpecial(LevelLayout layout, char piece, Rng rng)
         {
             for (int guard = 0; guard < 200; guard++)
             {
@@ -603,6 +636,13 @@ namespace ColourCascade.Core
                 TutorialKey = r.TutorialKey,
                 Note = r.Note,
                 Practice = r.Practice,
+                Intensity = r.Intensity,
+                IceStyle = r.IceStyle,
+                ChainPairs = r.ChainPairs,
+                TreasureDepthMin = r.TreasureDepthMin,
+                TreasureDepthMax = r.TreasureDepthMax,
+                TreasureBlock = r.TreasureBlock,
+                TreasureBlockStrength = r.TreasureBlockStrength,
             };
             c.Mechanics.AddRange(r.Mechanics);
             return c;

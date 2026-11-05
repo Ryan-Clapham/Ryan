@@ -38,7 +38,8 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
 
 ## 3. Campaign
 
-* **Board sizes:** levels 1–3 are 6 × 6, levels 4–6 are 7 × 7, level 7 onwards is 8 × 9.
+* **Board sizes:** levels 1–3 are 6 × 6, levels 4–6 are 7 × 7, levels 7–120 are 8 × 9. From level 121 sizes and
+  shapes vary (§3.5).
 * **Levels 1–10 are hand-made** to teach one idea at a time:
 
 | Level | Teaches |
@@ -57,7 +58,7 @@ Tiles removed by power-ups score a flat 20 each (they are not "groups").
   never changes between plays or devices. Every third level from 15 adds a fifth colour, all levels from 31
   use five, and from level 81 every fourth level uses six. Stone patterns (pillars, centre block, shelves, walls, steps, posts, scatter) appear from
   level 8 and grow over time; shaped boards with holes appear from level 25. Every fifth level is an open
-  "breather" board. Some levels have a dominant or a scarce colour.
+  "breather" board. Some levels have a dominant or a scarce colour. From level 121 the progression of §3.5 takes over.
 * **Targets are calibrated, not guessed (levels 1–20):** when a level is first needed, a reference bot (always
   takes the biggest group) plays it 16 times. The target is a percentage of its median score. These levels are
   unchanged by the campaign mechanics (a test checks them against the pre-mechanics build).
@@ -239,6 +240,126 @@ level with bombs is smaller than 8 × 9, where it reaches a quarter of the board
 strong (a centred bomb reaches over two thirds of the board), so a future small-board mode with bombs should test a
 smaller size first (config: scoring → specials → bombSize; odd sizes are centred, even sizes keep the old
 slide-inwards square).
+
+### 3.5 The progression from level 121 and board shapes (update 3.2)
+
+**Why it changed.** An audit of levels 200–400 (the generator before 3.2) found that later levels asked for no more
+than level 201 did, and often less:
+
+* **One difficulty band from level 201 on**, so levels 201 and 500 had the same parameters, and the last new mixture
+  of obstacles arrived at level 155.
+* **Content shrank to fit a move cap.** Moves were sized from a casual (nearly random) bot; whenever it would need
+  more than 45, the level's goals were cut to 80%, 65%, then 50%, and two or three kinds of goal were cut to 65% or
+  50% of a single one. So 94–100% of treasure levels had a single treasure, chains averaged 3 and moss 3.
+* **Moves were sized for a random player.** 41–48% of levels in 201–500 had 44–50 moves, while a thoughtful player
+  (Planner bot) passed them in about 11–30.
+* **One board.** Every level from 7 to 500 was 8 × 9, with seven stone patterns and three small cut-outs whose
+  intrusion stopped growing at level 53: 15–19 distinct board geometries per 100 levels.
+* **What difficulty there was came from luck.** 65 of levels 121–500 failed a thoughtful player more than one game
+  in five (two-link chains in edge columns, treasure stalls), while 18–27% were score-only.
+
+Levels 1–120 are unchanged (a test pins their level files to the build before 3.2). From level 121
+(`CampaignConfig.progressionFromLevel`; 0 switches the progression off and gives the old generator back) levels are
+built by `CampaignProgression`, `BoardShapes` and `CampaignPlacement`:
+
+**Difficulty is several things, not one number.** Each level gets an **intensity** (5–100): a base rising from 38 at
+level 121 to 75 by level 450; the ten-level rhythm (levels ending 1–3 easier, 6 a **breather**, 7–9 harder, 0 a
+milestone); the first levels of a region a little easier and its finale harder; and a little noise. The intensity
+then sets, together:
+
+| Factor | How it grows |
+|---|---|
+| Kinds of goal | One on gentle levels; two from the middle (72%–96% of levels as intensity rises); two or three on the hardest (three up to 70% of the time). Breathers are score levels or one light goal (60% amounts). |
+| Combinations | The second goal is usually another obstacle (mixed boards); a third is often about special tiles or a score. Pairs that matter to each other are favoured (treasure with ice or chains, chains with moss). |
+| Amounts | For a single goal about 7–22 ice, 4–12 chains, 4–10 moss seeds, 18–48 of a colour, 1–4 treasure, scaled to the board's size and shape; a little less of each when goals are combined (80%, 65% for three), never down to a token amount. |
+| Obstacle strength | Thick ice 30% → 60% of the ice; chains of 2 links from intensity 30, 3 from 65 (never 3 in an edge column). |
+| Dependencies | From intensity 40, treasure combined with ice or chains starts on a frozen or chained tile, which holds it up until freed. |
+| Treasure distance | Starts 2–4 rows above its floor on gentle levels, up to 4–8 on the hardest; one per section on split boards. |
+| Specials | Ice is usually laid in whole rows when a level asks for rockets and in blocks when it asks for bombs or any special; combination goals only on unsplit boards. |
+| Colours | Five as a rule; four for long chains, big specials, lots of treasure and boards whose smallest section is under 40 cells; six now and then on later open levels. |
+| Board shape | Introduced one family at a time (below); the slower shapes get fewer obstacles (Islands 60%, Three sections 70%, Passage, Hollow and stone boards 85%). |
+| Moves | What a thoughtful player needs in three of four of the games it passes, plus 50% (gentle) down to 20% (hardest) spare, more for breathers, new boards and treasure: at least 4 and at most 14 more than needed (more if the fairness check needs them), within 19–40 moves (121–160) up to 22–46 (from 281); treasure adds 3. |
+
+**Every level is checked before it is used.** The generator places the goals (with `CampaignPlacement`, which never
+puts an obstacle in a dead-end pocket, gives every chained tile room for a neighbour of its colour and starts treasure
+only where the last tile under it can be matched on both sides), sizes the moves and then plays it: a thoughtful
+player must pass 10 of 12 games (11 for breathers and new boards; 9 with treasure) **and** 9 of 12 more on other
+boards. A level that fails is placed again, given more moves within its band, then made 80%, 65% or 50% as big; a
+level needing more than 30% over its budget (12 + intensity / 4 moves of thoughtful play) is made smaller first; one
+cleared in a handful of moves is made bigger. If no version passes, the same goals are tried on a plain board, and failing
+that the gentlest version is kept with the band's most moves.
+
+**Board shapes.** All are made of cells the engine already has (MECHANICS.md §3.2): open cells, stones (rockets, bombs
+and Tile Breaker break them) and gaps (no cell). Every shape is at most 10 × 11, so cells stay touch-sized on every
+supported screen, every separate section has at least 12 cells, and no open cell is a dead end.
+
+| From level | Family | What makes it different |
+|---|---|---|
+| 121 | Varied rectangles | 7 × 9 to 9 × 10; and the stone patterns as before |
+| 131 | Hollow board | A hole (or two windows) in the middle: groups go round it; the columns under it fill from beneath it |
+| 151 | Tall board | 6 or 7 wide, 10 or 11 tall |
+| 161 | Wide board | 9 or 10 wide, 7 or 8 tall |
+| 171 | Twin towers | Two sections side by side; each falls and fills on its own; one may be shorter |
+| 191 | Upper and lower | Two halves split by a gap; the lower one fills from beneath the gap; treasure lands on the gap |
+| 211 | Break the wall | Two halves split by a wall of stones, down the middle or across; a rocket or bomb opens it and tiles pour through |
+| 231 | Narrow passage | Two halves joined by a one- or two-cell opening (in the middle, at a side, or a bridge near the floor) |
+| 251 | Lopsided board | An L, steps, or an uneven floor where treasure lands on the steps |
+| 271 | Three sections | Three floors; two towers over a wide section; a wide section over two towers |
+| 291 | Islands | Four separate sections of 16–25 cells |
+
+Each family's first level is its **introduction**: one familiar goal, gently sized, with "New board: ..." on the level
+card. It then comes back more often for twenty levels, and the most demanding shapes grow more common after 300. Each
+ten levels follow a plan, so a board never repeats on the next level, a family uses its next variant each time it
+appears, and every main mechanic appears twice in every ten levels (never twice in a row). The level card names the
+board ("Twin towers · Ice + Chains").
+
+**Specials and power-ups on shaped boards** act on their real area, as everywhere: a rocket's line crosses gaps
+(nothing there to clear) and breaks the stones in it; a bomb's 5 × 5 square reaches both sides of a gap; a prism and
+Colour Burst clear their colour in every section; Blast clears only cells that exist; nothing is ever swapped into a
+gap.
+
+**Results** (the same tools before and after: `Sim -- campaign-shape 1 500 100 [legacy]`, and `Sim -- campaign 121 500
+20 <csv> [legacy]`, 20 games per level per bot on boards the generator never saw):
+
+| Levels | Goals per level | Kinds of objective | Obstacles and treasure | Treasure levels with one | Moves (44+) | Board geometries | Shaped boards |
+|---|---|---|---|---|---|---|---|
+| 101–200 before / after | 1.66 / 1.72 | 1.36 / 1.52 | 3.8 / 5.8 | 96% / 84% | 32.6 (19%) / 29.8 (2%) | 15 / 35 | 9% / 21% |
+| 201–300 | 1.78 / 1.90 | 1.39 / 1.65 | 3.9 / 7.0 | 94% / 62% | 38.1 (48%) / 32.9 (16%) | 17 / 43 | 9% / 43% |
+| 301–400 | 1.78 / 2.21 | 1.38 / 1.75 | 4.5 / 7.7 | 100% / 47% | 37.4 (41%) / 35.4 (34%) | 19 / 38 | 16% / 64% |
+| 401–500 | 1.65 / 2.40 | 1.23 / 1.88 | 3.3 / 8.2 | 100% / 42% | 36.2 (43%) / 37.2 (33%) | 15 / 42 | 13% / 53% |
+
+| Tier (levels) | Thoughtful player passes, before / after | Casual player passes, before / after |
+|---|---|---|
+| Advanced (121–160) | 94% / 89% | 65% / 44% |
+| Skilled (161–220) | 91% / 92% | 59% / 48% |
+| Expert (221–280) | 87% / 89% | 52% / 38% |
+| Master (281–350) | 87% / 89% | 52% / 43% |
+| Grandmaster (351–450) | 87% / 90% | 52% / 41% |
+| Legend (451–500) | 86% / 88% | 45% / 39% |
+
+Later levels ask for more and a casual player passes fewer of them, while a thoughtful player passes as many or more,
+so the extra difficulty is planning, not luck. Levels a thoughtful player failed more than one game in five fell from
+65 to 56. Score-only levels fell from 17–27% to 4–7%. Levels 323–329, from the playtest that prompted the update:
+
+| Level | Before 3.2 | After |
+|---|---|---|
+| 323 | 8 × 9, 50 moves: one treasure | Lopsided 9 × 10, 24 moves: 6 ice and 3 chains |
+| 324 | 8 × 9, 44 moves: 3 moss, 3 chains | Three floors 7 × 11, 22 moves: treasure and 10 of a colour |
+| 325 | 8 × 9, 50 moves: one treasure and a score | Twin towers 10 × 9, 22 moves: 4 moss and a score |
+| 326 | 8 × 9, 20 moves: a score (breather) | 9 × 8, 22 moves: 7 ice (breather) |
+| 327 | 8 × 9, 22 moves: a score | Three sections 9 × 10, 22 moves: 3 moss and 18 of a colour |
+| 328 | 8 × 9, 50 moves: one treasure and 3 moss | Wide 10 × 7, 37 moves: a treasure and a score |
+| 329 | 8 × 9, 20 moves: a score | Narrow passage 9 × 10, 46 moves: 5 chains, a rocket and 10,000 points |
+
+Other examples: level 350 went from 7 ice and 18 of a colour to 16 ice, setting off 4 specials and 12,000 points on a
+tall board; level 400 (a region finale) from a 2,000-point score level to 2 treasures and 17 ice on a lopsided board.
+
+**Limits.** The fairness check uses the Planner bot, which looks one move ahead. On treasure levels it sometimes stalls
+with the last tile under a treasure unmatched (a player can change the tiles beside it, or use Tile Breaker), so
+treasure levels are allowed one more stalled game in twelve and average 85% for it (other goals 87–92%). Levels are
+built the first time they are needed: about 50–90 ms each in the harness (up to about 300 ms), several times that on a
+phone, so the game builds the current level while the art loads and the next level while one is played, on a
+background thread (`CampaignCatalog.Prewarm`).
 
 ## 4. Endless
 

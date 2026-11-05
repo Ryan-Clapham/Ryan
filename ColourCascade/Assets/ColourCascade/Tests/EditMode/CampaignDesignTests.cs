@@ -198,7 +198,7 @@ namespace ColourCascade.Tests
                 string at = "level " + n;
                 Assert.IsTrue(l.Validate(out var error), at + ": " + error);
                 Assert.Greater(spec.Moves, 0, at);
-                var band = CampaignDesign.BandFor(n);
+                var band = n >= cat.Config.progressionFromLevel ? CampaignDesign.ProgressionBand(n) : CampaignDesign.BandFor(n);
                 Assert.LessOrEqual(spec.Moves, band.MaxMoves + (l.TreasureCount > 0 ? 5 : 0), at);
                 Assert.Less(spec.Target, spec.Star2 + 1, at);
                 Assert.Less(spec.Star2, spec.Star3, at);

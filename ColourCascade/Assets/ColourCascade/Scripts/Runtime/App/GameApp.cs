@@ -161,6 +161,10 @@ namespace ColourCascade.App
                 RequestSave();
             };
 
+            // The current campaign level is generated in the background while the art loads (later levels check their
+            // fairness with bot games when first built, which takes a moment on a phone).
+            Ctx.Catalog.Prewarm(Ctx.Campaign.CurrentLevel);
+
             // Art and audio are generated off the main thread; the atlas is cached per app version.
             string cachePath = Path.Combine(Application.persistentDataPath, "art-cache.bin");
             string cacheKey = Application.version + "/" + ArtBook.Version + "/" + Application.unityVersion;

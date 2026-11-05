@@ -196,6 +196,27 @@ A section is split by any cell that holds up the tiles above it: stones, voids, 
 Each section compacts downwards and refills from its own top; a section under a barrier refills from beneath that
 barrier. Specials, treasure and mossy tiles fall within their section.
 
+**Board shapes (update 3.2).** The campaign's shaped boards from level 121 (DESIGN.md §3.5) use only these rules:
+
+* A **gap** is a void cell: nothing is drawn, nothing falls into it, nothing spawns in it and groups never join
+  across it. A whole column of gaps splits a board into sections side by side; a whole row of gaps into an upper
+  and a lower section. Each falls and fills on its own: the lower one gets its new tiles from beneath the gap.
+* A **wall** is a line of stones: it splits the board the same way until a rocket, a bomb or Tile Breaker breaks a
+  stone in it; that cell then fills like any other, and the tiles above pour through the opening.
+* A **passage** is a gap row with one or two open cells: only the columns through the opening drain downwards, and
+  groups can join through it.
+* A **hole** is a block of gaps inside the board: groups go round it, and the columns under it fill from beneath it.
+* **Treasure** is collected on its own section's floor (the bottom edge, a stone or a gap), so treasure in an upper
+  section lands on the gap below it.
+* **Specials and power-ups** act on their usual area, whatever the shape: a rocket's line crosses gaps (nothing there
+  to clear) and breaks the stones in its line; a bomb's 5 × 5 square reaches both sides of a gap; a prism and Colour
+  Burst take their colour everywhere; Blast clears the cells that exist in its 3 × 3; nothing can be swapped into a
+  gap.
+* **Fair shapes:** at most 10 × 11, every separate section at least 12 cells, no open cell with fewer than two open
+  neighbours. Obstacles go only on cells that can be played (a chained tile has three open neighbours or more), and
+  treasure starts where every tile under it, down to its floor, can be matched (the lowest needs open cells on both
+  sides).
+
 ### 3.3 No legal moves
 
 * After every action the board is checked. A legal move is a group of two or more tiles that join groups
@@ -353,6 +374,10 @@ No introduction teaches two new things. The levels are set in the config (campai
 | 101 | Moss | Two mossy tiles, each next to a tile of its own colour |
 
 A hand-made level in the config with the same number replaces the built-in introduction.
+
+From level 121 the board shapes arrive the same way, one at a time, each with an introduction level ("New board: ...",
+one familiar goal): a hole in the middle 131, tall 151, wide 161, twin towers 171, upper and lower 191, a stone wall
+211, a narrow passage 231, lopsided 251, three sections 271, islands 291 (`CampaignConfig.shapes`, DESIGN.md §3.5).
 
 ## 8. Implementation status
 
