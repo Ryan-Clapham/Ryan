@@ -164,6 +164,8 @@ namespace ColourCascade.App
         public override void OnShow(object args)
         {
             App.SetBackground(-1);
+            // A new day, week or campaign level may mean a new challenge: build it before it is opened.
+            Ctx.PrewarmChallenges();
             Ctx.Achievements.Changed -= RefreshAchievementBadge;
             Ctx.Achievements.Changed += RefreshAchievementBadge;
             Refresh();

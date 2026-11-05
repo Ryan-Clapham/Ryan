@@ -51,7 +51,13 @@ namespace ColourCascade.App
             var d = GameConfigData.CreateDefault();
             if (scoring != null) d.Scoring = scoring;
             if (campaign != null) d.Campaign = campaign;
-            if (endless != null) d.Endless = endless;
+            if (endless != null)
+            {
+                d.Endless = endless;
+                // An asset saved before 2.1 or 3.3 that the editor has not upgraded yet (EndlessTuning: only values still
+                // equal to an old default move, so hand-tuned ones are kept).
+                EndlessTuning.Upgrade(d.Endless);
+            }
             if (daily != null) d.Daily = daily;
             if (rush != null) d.Rush = rush;
             if (economy != null) d.Economy = economy;

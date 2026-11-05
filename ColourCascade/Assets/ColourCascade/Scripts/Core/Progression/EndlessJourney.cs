@@ -34,29 +34,36 @@ namespace ColourCascade.Core
         public string Title;
     }
 
-    /// <summary>When things arrive in an Endless run (config: endless → journey). One new thing per stage.</summary>
+    /// <summary>
+    /// When things arrive in an Endless run (config: endless → journey). One new thing per stage. Update 3.3 brought
+    /// rockets forward to stage 2 (they used to arrive with bombs at stage 6, which many runs never reached); the stages
+    /// before update 3.3 were stones 2, ice 3, breather 4, chains 5, rockets and bombs 6, treasure 7, breather 8, moss 9,
+    /// prisms 10 and mixing from 11 (EndlessTuning moves a config asset that still has those).
+    /// </summary>
     [Serializable]
     public class EndlessJourneyConfig
     {
-        public int stonesAt = 2;
-        public int iceAt = 3;
-        public int chainsAt = 5;
-        /// <summary>Rockets and bombs: big groups make them from here.</summary>
-        public int specialsAt = 6;
-        public int treasureAt = 7;
-        public int mossAt = 9;
-        public int prismsAt = 10;
+        /// <summary>Rockets: groups of 6+ make them from here.</summary>
+        public int rocketsAt = 2;
+        public int stonesAt = 3;
+        public int iceAt = 4;
+        public int chainsAt = 6;
+        /// <summary>Bombs (and so combinations of specials): groups of 9+ make them from here.</summary>
+        public int specialsAt = 7;
+        public int treasureAt = 8;
+        public int mossAt = 10;
+        public int prismsAt = 11;
         /// <summary>From here every stage mixes what came before (with a breather every breatherEvery stages).</summary>
-        public int mixFrom = 11;
+        public int mixFrom = 12;
         /// <summary>Breathers before the mixing starts.</summary>
-        public int[] breathers = { 4, 8 };
+        public int[] breathers = { 5, 9 };
         public int breatherEvery = 4;
         public int breatherBonusMoves = 5;
     }
 
     /// <summary>
     /// The Endless journey (docs/DESIGN.md §4): every run walks through the game's mechanics one stage at a time:
-    /// a warm-up, stones, frozen tiles, a breather, chains, rockets and bombs, treasure, a breather, moss, prisms, and
+    /// a warm-up, rockets, stones, frozen tiles, a breather, chains, bombs, treasure, a breather, moss, prisms, and
     /// then stages that mix them, two, three and four at a time and more densely, with a breather every few stages.
     /// Which mechanics a mixing stage uses, and where everything lands, comes from the run's own seed, so no two runs
     /// are alike. Deterministic for a given stage.
@@ -111,10 +118,11 @@ namespace ColourCascade.Core
         public static MechanicSet Introduced(int stage, EndlessJourneyConfig j)
         {
             var set = MechanicSet.None;
+            if (stage == j.rocketsAt) set |= MechanicSet.Rockets;
             if (stage == j.stonesAt) set |= MechanicSet.Stones;
             if (stage == j.iceAt) set |= MechanicSet.Ice;
             if (stage == j.chainsAt) set |= MechanicSet.Chains;
-            if (stage == j.specialsAt) set |= MechanicSet.Rockets | MechanicSet.Bombs;
+            if (stage == j.specialsAt) set |= MechanicSet.Bombs | (j.rocketsAt <= 0 || j.rocketsAt >= j.specialsAt ? MechanicSet.Rockets : MechanicSet.None);
             if (stage == j.treasureAt) set |= MechanicSet.Treasure;
             if (stage == j.mossAt) set |= MechanicSet.Moss;
             if (stage == j.prismsAt) set |= MechanicSet.Prisms;
@@ -125,6 +133,7 @@ namespace ColourCascade.Core
         public static MechanicSet MetBy(int stage, EndlessJourneyConfig j)
         {
             var set = MechanicSet.None;
+            if (j.rocketsAt > 0 && stage >= j.rocketsAt) set |= MechanicSet.Rockets;
             if (stage >= j.stonesAt) set |= MechanicSet.Stones;
             if (stage >= j.iceAt) set |= MechanicSet.Ice;
             if (stage >= j.chainsAt) set |= MechanicSet.Chains;
@@ -140,6 +149,7 @@ namespace ColourCascade.Core
         {
             if (stage >= j.prismsAt) return SpecialTier.Prisms;
             if (stage >= j.specialsAt) return SpecialTier.Bombs;
+            if (j.rocketsAt > 0 && stage >= j.rocketsAt) return SpecialTier.Rockets;
             return SpecialTier.None;
         }
 
@@ -157,7 +167,9 @@ namespace ColourCascade.Core
 
         public static string TitleFor(MechanicSet introduced)
         {
-            if (introduced.Has(MechanicSet.Rockets) || introduced.Has(MechanicSet.Bombs)) return "Rockets and bombs";
+            if (introduced.Has(MechanicSet.Rockets) && introduced.Has(MechanicSet.Bombs)) return "Rockets and bombs";
+            if (introduced.Has(MechanicSet.Bombs)) return "Bombs";
+            if (introduced.Has(MechanicSet.Rockets)) return "Rockets";
             if (introduced.Has(MechanicSet.Prisms)) return "Prisms";
             if (introduced.Has(MechanicSet.Stones)) return "Stones";
             if (introduced.Has(MechanicSet.Ice)) return "Frozen tiles";

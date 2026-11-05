@@ -206,6 +206,16 @@ namespace ColourCascade.Core
         public EndlessJourneyConfig journey = new EndlessJourneyConfig();
         /// <summary>Bonus moves for each treasure brought down in Endless.</summary>
         public int treasureBonusMoves = 3;
+        /// <summary>
+        /// Board shapes (update 3.3): once the player's best run has reached these stages, a run may start on a shaped
+        /// board instead of the plain one: tall, wide, hollow or cut corners; then also twin towers, upper and lower,
+        /// lopsided and stone walls; then also narrow passages, T, cross and diamond shapes.
+        /// </summary>
+        public int shapedRunsFromBestStage = 6;
+        public int splitRunsFromBestStage = 9;
+        public int advancedRunsFromBestStage = 12;
+        /// <summary>Runs (permille) that stay on the plain board even then.</summary>
+        public int plainRunPermille = 350;
         /// <summary>One-time coin rewards for reaching these run scores for the first time ever.</summary>
         public int[] milestoneScores = { 2500, 5000, 10000, 20000, 40000 };
         public int[] milestoneRewards = { 5, 10, 15, 25, 40 };
@@ -254,6 +264,13 @@ namespace ColourCascade.Core
         public int calibrationRuns = 16;
         /// <summary>On days with goals (tile mechanics), the target is this much lower (permille of the reference score).</summary>
         public int goalTargetEasingPermille = 120;
+        /// <summary>
+        /// Update 3.3: from this campaign level the Daily Challenge is an advanced puzzle (docs/DESIGN.md §5): a board
+        /// shape the player has met, two or three objectives with the target, and moves sized from a thoughtful player
+        /// (from `moves` up to advancedMaxMoves). 0 keeps every player on the original daily.
+        /// </summary>
+        public int advancedFromLevel = 121;
+        public int advancedMaxMoves = 30;
     }
 
     [Serializable]
@@ -267,6 +284,13 @@ namespace ColourCascade.Core
         public string[] tierNames = { "Bronze", "Silver", "Gold" };
         public int[] tierScores = { 2500, 5000, 8000 };
         public int[] tierRewards = { 10, 15, 25 };
+        /// <summary>
+        /// Update 3.3: from this campaign level the Weekly Rush board is an advanced one (docs/DESIGN.md §6): split and
+        /// irregular shapes, the theme with two more mechanics, and objectives that each add objectiveBonus points once
+        /// completed (medals stay score-based). 0 keeps every player on the original board.
+        /// </summary>
+        public int advancedFromLevel = 121;
+        public int objectiveBonus = 1000;
     }
 
     [Serializable]

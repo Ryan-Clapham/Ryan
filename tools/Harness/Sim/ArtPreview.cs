@@ -28,6 +28,15 @@ static class ArtPreview
         WritePng(Path.Combine(dir, "mock_board_symbols.png"), BoardMock.Render(true), null);
         WritePng(Path.Combine(dir, "mock_mechanics.png"), BoardMock.RenderMechanics(false), null);
         WritePng(Path.Combine(dir, "mock_mechanics_symbols.png"), BoardMock.RenderMechanics(true), null);
+        // Update 3.3: shaped boards on a panel that follows their cells.
+        foreach (var family in new[] { ColourCascade.Core.BoardFamily.TwinTowers, ColourCascade.Core.BoardFamily.Islands, ColourCascade.Core.BoardFamily.Passage,
+                     ColourCascade.Core.BoardFamily.Hollow, ColourCascade.Core.BoardFamily.Cross, ColourCascade.Core.BoardFamily.Diamond, ColourCascade.Core.BoardFamily.TShape,
+                     ColourCascade.Core.BoardFamily.Corners, ColourCascade.Core.BoardFamily.Asymmetric, ColourCascade.Core.BoardFamily.ThreeSections, ColourCascade.Core.BoardFamily.Bunks })
+            for (int v = 0; v < ColourCascade.Core.BoardShapes.VariantCount(family); v++)
+            {
+                var shape = ColourCascade.Core.BoardShapes.Build(family, v, 3, new ColourCascade.Core.Rng(1));
+                WritePng(Path.Combine(dir, "mock_shape_" + family + "_" + v + ".png"), BoardMock.RenderShape(shape.Layout, "shape"), null);
+            }
     }
 
     /// <summary>Writes RGBA (row 0 = bottom) as PNG, optionally composited over a background colour.</summary>

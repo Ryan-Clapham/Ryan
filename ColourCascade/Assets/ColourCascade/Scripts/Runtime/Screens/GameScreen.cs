@@ -429,14 +429,16 @@ namespace ColourCascade.App
             }
             badgeFill.gameObject.SetActive(session.IsTimed);
             badgeRing.gameObject.SetActive(true);
-            goalsMode = (session.Mode == GameMode.Campaign || session.Mode == GameMode.Daily) && level.Goals != null && level.Goals.Length > 0;
+            // Weekly Rush boards with objectives (update 3.3) show them too, with the medals under the score.
+            goalsMode = (session.Mode == GameMode.Campaign || session.Mode == GameMode.Daily || session.Mode == GameMode.WeeklyRush) &&
+                        level.Goals != null && level.Goals.Length > 0;
             goalsPanel.gameObject.SetActive(goalsMode);
             // The goals sit right of the score, so the score is set a little smaller there.
             scoreText.fontSize = goalsMode ? 64 : 78;
             targetText.gameObject.SetActive(!goalsMode);
             progress.gameObject.SetActive(!goalsMode);
             if (goalsMode) goalsPanel.Configure(session.Goals, Ctx.Settings.Symbols);
-            bool starsUnderScore = goalsMode && session.Mode == GameMode.Campaign;
+            bool starsUnderScore = goalsMode && (session.Mode == GameMode.Campaign || session.Mode == GameMode.WeeklyRush);
             hudStars.gameObject.SetActive(starsUnderScore);
             hudStarCaption.gameObject.SetActive(starsUnderScore);
             hudStars.Set(0);
@@ -455,6 +457,15 @@ namespace ColourCascade.App
             if (live < 2) return (shortForm ? "2nd: " : "2 stars at ") + NumberFormat.Thousands(level.Star2);
             if (live < 3) return (shortForm ? "3rd: " : "3 stars at ") + NumberFormat.Thousands(level.Star3);
             return shortForm ? "Top marks!" : "All 3 stars!";
+        }
+
+        /// <summary>Weekly Rush with objectives: the next medal's name and score, under the score.</summary>
+        static string NextMedalText(LevelSpec level, int medals, string[] names)
+        {
+            if (medals >= 3) return "Top medal!";
+            int next = medals == 0 ? level.Target : medals == 1 ? level.Star2 : level.Star3;
+            string name = names != null && medals < names.Length ? names[medals] : "Medal " + (medals + 1);
+            return name + " " + NumberFormat.Thousands(next);
         }
 
         void RefreshHud(bool animate)
@@ -514,7 +525,14 @@ namespace ColourCascade.App
                 default:
                     if (goalsMode)
                     {
-                        goalsPanel.Refresh(session.Goals, animate);
+                        var done = goalsPanel.Refresh(session.Goals, animate);
+                        if (session.Mode == GameMode.WeeklyRush)
+                        {
+                            if (done.HasValue) board.Fx.Sparkle(board.Fx.ToLocal(done.Value), Theme.Success, 14, 70f);
+                            int medals = StarRating.Compute(score, level.Target, level.Star2, level.Star3);
+                            hudStars.Set(medals);
+                            hudStarCaption.text = NextMedalText(level, medals, Ctx.Config.Rush.tierNames);
+                        }
                         break;
                     }
                     targetText.text = (session.Mode == GameMode.Daily ? "Target " : "Bronze ") + NumberFormat.Thousands(level.Target);
@@ -572,8 +590,15 @@ namespace ColourCascade.App
                 board.CancelPress();
                 board.InputEnabled = false;
                 CancelTargeting();
-                ShowBanner("Time's up!", 1.2f);
                 AudioService.Sfx(SfxNames.Go, 0.8f, 0.8f);
+                // Update 3.3: specials still on the board go off before the result, as when a level's moves run out
+                // (PlayFinale says "Time's up!" and shows what they scored).
+                if (session.FinalePending)
+                {
+                    PlayFinale(0.5f);
+                    return;
+                }
+                ShowBanner("Time's up!", 1.2f);
                 ScheduleEnd(1.3f);
                 return;
             }
@@ -838,7 +863,8 @@ namespace ColourCascade.App
             {
                 if (session == null || !session.FinalePending) return;
                 int specials = session.Board.CountType(CellType.Special);
-                ShowBanner(specials == 1 ? "Out of moves! Your special goes off" : "Out of moves! Your " + specials + " specials go off", 1.3f);
+                string why = session.IsTimed ? "Time's up!" : "Out of moves!";
+                ShowBanner(specials == 1 ? why + " Your special goes off" : why + " Your " + specials + " specials go off", 1.3f);
                 Tw.Delay(0.7f, () =>
                 {
                     if (session == null) return;
@@ -1011,6 +1037,14 @@ namespace ColourCascade.App
             {
                 var badgePos = board.Fx.ToLocal(badge.position);
                 fx.FloatText(badgePos + new Vector2(0, -120), "+" + o.BonusMoves + (o.BonusMoves == 1 ? " move" : " moves"), Theme.Success, 58, 90f, 1.0f, 0.2f);
+            }
+            if (o.ObjectiveBonus > 0)
+            {
+                // Weekly Rush objectives (update 3.3): each pays its bonus once, shown by the score.
+                var scorePos = board.Fx.ToLocal(scoreText.rectTransform.position);
+                fx.FloatText(scorePos + new Vector2(120, -110), "+" + NumberFormat.Thousands(o.ObjectiveBonus), Theme.Gold, 60, 90f, 1.1f, 0.15f);
+                AudioService.Sfx(SfxNames.Star(2), 0.8f);
+                ShowBanner("Objective complete!  +" + NumberFormat.Thousands(o.ObjectiveBonus), 1.0f);
             }
             if (o.StageUp)
             {
@@ -1602,9 +1636,10 @@ namespace ColourCascade.App
                     text = l.Goals != null && l.Goals.Length > 0 ? GoalVisuals.IntroLine(l) : l.Moves + " moves  ·  target " + NumberFormat.Thousands(l.Target);
                     break;
                 case GameMode.Endless:
-                    text = l.Moves + " moves  ·  big groups add more" + (l.Pool != MechanicSet.None ? "  ·  new stages bring " + Mechanics.Names(l.Pool, false) : "");
+                    text = (string.IsNullOrEmpty(l.BoardName) ? "" : l.BoardName + "  ·  ") + l.Moves + " moves  ·  big groups add more" +
+                           (l.Pool != MechanicSet.None ? "  ·  new stages bring " + Mechanics.Names(l.Pool, false) : "");
                     break;
-                default: text = l.Title; break;
+                default: text = string.IsNullOrEmpty(l.BoardName) ? l.Title : l.Title + "  ·  " + l.BoardName; break;
             }
             ShowBanner(text, 1.5f);
         }

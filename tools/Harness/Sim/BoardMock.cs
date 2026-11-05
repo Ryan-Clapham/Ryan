@@ -66,6 +66,69 @@ static class BoardMock
         return outImg;
     }
 
+    /// <summary>
+    /// A shaped board as the game draws it since update 3.3 (BoardView): the panel follows the playable cells
+    /// (BoardSilhouette), with the same padding, corner radius, outline and shadow as the rectangular frame, so gaps
+    /// between sections show the background. Same proportions as the game at a cell of `cell` reference pixels.
+    /// </summary>
+    public static ImageData RenderShape(ColourCascade.Core.LevelLayout layout, string name, int cell = 116)
+    {
+        var images = new Dictionary<string, ImageData>();
+        foreach (var i in ArtBook.BuildAtlasImages()) images[i.Name] = i;
+        const int ppc = 40;
+        float k = ppc / (float)cell;
+        var sil = ColourCascade.Core.BoardSilhouette.ForLayout(layout, ppc, 18f * k, 44f * k, 3f * k, 24f * k);
+        float scale = cell / (float)ppc;
+        int cols = layout.Width, rows = layout.Height;
+        int pad = (int)(sil.Margin * scale) + 30, W = cols * cell + pad * 2, H = rows * cell + pad * 2;
+        var outImg = new ImageData { Name = name, Width = W, Height = H, Pixels = new byte[W * H * 4] };
+        Blit(outImg, ArtBook.Background(-1, 180, 320), 0, 0, W, H, 1f, Rgba.White);
+        float ox = pad - sil.Margin * scale, oy = pad - sil.Margin * scale;
+        DrawMap(outImg, sil, sil.Shadow, ox, oy - 11, scale, new Rgba(0.02f, 0.01f, 0.08f, 1f), 0.55f);
+        DrawMap(outImg, sil, sil.Fill, ox, oy, scale, Palette.BoardBack, 0.82f);
+        DrawMap(outImg, sil, sil.Stroke, ox, oy, scale, Rgba.White, 0.08f);
+        var rng = new ColourCascade.Core.Rng(42);
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+            {
+                var type = layout.TypeAt(c, r);
+                if (type == ColourCascade.Core.CellType.Void) continue;
+                int x = pad + c * cell, y = pad + r * cell;
+                Blit(outImg, images[ArtNames.Round], x + 4, y + 4, cell - 8, cell - 8, 0.6f, Palette.Slot);
+                if (type == ColourCascade.Core.CellType.Stone) { Blit(outImg, images[ArtNames.Stone], x + 3, y + 3, cell - 6, cell - 6, 1f, Rgba.White); continue; }
+                Blit(outImg, images[ArtNames.Tile(rng.Next(5))], x + 3, y + 3, cell - 6, cell - 6, 1f, Rgba.White);
+            }
+        return outImg;
+    }
+
+    static void DrawMap(ImageData dst, ColourCascade.Core.BoardSilhouette sil, byte[] map, float ox, float oy, float scale, Rgba tint, float opacity)
+    {
+        int x0 = Math.Max(0, (int)ox), y0 = Math.Max(0, (int)oy), x1 = Math.Min(dst.Width, (int)(ox + sil.Width * scale) + 1), y1 = Math.Min(dst.Height, (int)(oy + sil.Height * scale) + 1);
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+            {
+                float sx = (x + 0.5f - ox) / scale - 0.5f, sy = (y + 0.5f - oy) / scale - 0.5f;
+                int ix = (int)Math.Floor(sx), iy = (int)Math.Floor(sy);
+                float fx = sx - ix, fy = sy - iy, a = 0;
+                for (int j = 0; j < 2; j++)
+                    for (int i = 0; i < 2; i++)
+                    {
+                        int xx = Math.Clamp(ix + i, 0, sil.Width - 1), yy = Math.Clamp(iy + j, 0, sil.Height - 1);
+                        a += map[yy * sil.Width + xx] / 255f * (i == 0 ? 1 - fx : fx) * (j == 0 ? 1 - fy : fy);
+                    }
+                a *= opacity;
+                if (a <= 0) continue;
+                int di = (y * dst.Width + x) * 4;
+                for (int c = 0; c < 3; c++)
+                {
+                    float sc = c == 0 ? tint.R : c == 1 ? tint.G : tint.B;
+                    float dc = dst.Pixels[di + c] / 255f;
+                    dst.Pixels[di + c] = (byte)Math.Clamp((int)((sc * a + dc * (1 - a)) * 255 + 0.5f), 0, 255);
+                }
+                dst.Pixels[di + 3] = 255;
+            }
+    }
+
     // Bilinear scaled alpha-over with tint. Destination rows are bottom-up like the sources.
     static void Blit(ImageData dst, ImageData src, int dx, int dy, int dw, int dh, float opacity, Rgba tint)
     {

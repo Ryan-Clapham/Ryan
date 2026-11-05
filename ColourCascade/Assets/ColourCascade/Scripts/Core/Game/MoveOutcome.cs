@@ -184,6 +184,8 @@ namespace ColourCascade.Core
         public bool UsedTrial;
         /// <summary>Some goal's progress changed during this action.</summary>
         public bool GoalsChanged;
+        /// <summary>Weekly Rush: points just added for completing objectives (update 3.3).</summary>
+        public int ObjectiveBonus;
         /// <summary>Campaign: this action completed the level's last goal. The level is now passed and play goes on.</summary>
         public bool JustPassed;
         /// <summary>The moves ran out with specials on the board: call PuzzleSession.RunFinale to set them off.</summary>
@@ -228,6 +230,7 @@ namespace ColourCascade.Core
             Ended = false;
             EndReason = EndReason.None;
             UsedTrial = false;
+            ObjectiveBonus = 0;
             GoalsChanged = false;
             JustPassed = false;
             FinalePending = false;

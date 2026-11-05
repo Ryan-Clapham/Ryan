@@ -148,9 +148,17 @@ namespace ColourCascade.Tests
         // The achievements update added lifetime counters and the unlocked list (3316499532689436422 before it).
         // Update 3.1 re-recorded it for the new reward values (coins, ledger amounts); with the old values the play still
         // writes the earlier save exactly (ExpectedSaveFingerprintBefore31, checked in SameRulesSameSave).
-        const ulong ExpectedSaveFingerprint = 14645177115692661380UL;
-        const ulong ExpectedSaveFingerprintBefore31 = 13269928510684773610UL;
-        const ulong ExpectedSaveFingerprintBefore3 = 7841276991854770152UL;
+        // Update 3.3 re-recorded both (14645177115692661380 and 13269928510684773610 before it): the Endless journey now
+        // brings rockets at stage 2, so the script's Endless run plays differently. A diff of the save JSON against the
+        // 3.2 build showed only that run's traces changed (Endless best score and moves, the lifetime counts of groups,
+        // tiles, chains, stones and the biggest combination, and one more achievement unlocked); campaign progress, the
+        // Daily and Weekly records, coins, ledger, inventory, purchases, tutorials and settings were identical. For the
+        // same reason ExpectedSaveFingerprintBefore3 (the save without what 3.0 and the achievements added) was
+        // re-recorded too (7841276991854770152 before 3.3): there, only the Endless record and the lifetime group and
+        // tile counts differ.
+        const ulong ExpectedSaveFingerprint = 7030304839453251067UL;
+        const ulong ExpectedSaveFingerprintBefore31 = 7737850365831949756UL;
+        const ulong ExpectedSaveFingerprintBefore3 = 10834997911156125324UL;
 
         static readonly string[] NewStatsKeys = { "stones", "ice", "chains", "moss", "treasures", "mostInMove", "biggestCombo", "powerUpUses", "pureLevels" };
 
@@ -204,6 +212,7 @@ namespace ColourCascade.Tests
             // wrote before 3.1 (so the Endless finale fix and the rest of 3.1 changed nothing else in it).
             var before = new MemorySaveStorage();
             PlayScript(before, 2);
+            if (System.Environment.GetEnvironmentVariable("PRINT_SAVE_FINGERPRINT") != null) System.Console.WriteLine("save fingerprint before 3.1 " + StableHash.Of(before.Main));
             Assert.AreEqual(ExpectedSaveFingerprintBefore31, StableHash.Of(before.Main), "with the old reward values, the old save exactly");
             var store = new MemorySaveStorage();
             PlayScript(store);
@@ -219,6 +228,7 @@ namespace ColourCascade.Tests
             root.Remove("achievements");
             var stats = (System.Collections.Generic.Dictionary<string, object>)root["stats"];
             foreach (var k in NewStatsKeys) stats.Remove(k);
+            if (System.Environment.GetEnvironmentVariable("PRINT_SAVE_FINGERPRINT") != null) System.Console.WriteLine("save fingerprint before 3.0 " + StableHash.Of(Json.Write(root)));
             Assert.AreEqual(ExpectedSaveFingerprintBefore3, StableHash.Of(Json.Write(root)), "updates 3.0 and achievements changed nothing else in the save");
         }
 

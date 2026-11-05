@@ -306,12 +306,39 @@ supported screen, every separate section has at least 12 cells, and no open cell
 | 251 | Lopsided board | An L, steps, or an uneven floor where treasure lands on the steps |
 | 271 | Three sections | Three floors; two towers over a wide section; a wide section over two towers |
 | 291 | Islands | Four separate sections of 16–25 cells |
+| 141 | Cut corners (3.3) | A rectangle with its corners cut away (square, stepped or a single cut): the corner columns are short |
+| 311 | T-shaped board (3.3) | A wide top over a narrow stem, or upside down: the cells under the arms are short columns that fill on their own |
+| 331 | Cross (3.3) | Four arms round a middle, with three-wide or four-wide arms |
+| 351 | Diamond (3.3) | Every column a different height (a diamond, or an octagon) |
 
 Each family's first level is its **introduction**: one familiar goal, gently sized, with "New board: ..." on the level
-card. It then comes back more often for twenty levels, and the most demanding shapes grow more common after 300. Each
-ten levels follow a plan, so a board never repeats on the next level, a family uses its next variant each time it
-appears, and every main mechanic appears twice in every ten levels (never twice in a row). The level card names the
-board ("Twin towers · Ice + Chains").
+card. **Since 3.3 it comes back about 4 and 13 levels later** (a "return": a little gentler, intensity −10; moved on a
+level or two if that level is a breather, another board's introduction or return, or one of the obstacle showcase
+levels, which keep their own boards), and comes up more often for twenty levels; the most demanding shapes grow more
+common after 300. (With sixteen families a random draw alone left the T, the cross and the diamond unseen for 40
+levels after their introductions.) An introduction or a return keeps its board: if its goals can't be made fair
+there, the goal becomes frozen tiles (which play well on every shape) rather than the board becoming a rectangle;
+before this, the diamond's introduction asked for treasure dug down its three-wide bottom, failed the check and fell
+back to a plain board. Each ten levels follow a plan, so a board never repeats on the next level, a family uses its
+next variant each time it appears, and every main mechanic appears twice in every ten levels (never twice in a row).
+The level card names the board ("Twin towers · Ice + Chains").
+
+**Shapes are data (3.3).** Every templated shape is a few rows of text in `BoardShapeLibrary` ('.' a cell, 'x' a gap,
+'#' a stone), the notation of level files; rectangles, tall, wide and stone boards are generated. More shapes can be
+added without code in the config (campaign → shapes → extraShapes: a family and its rows); each is checked when the
+game starts (fair: sections of 12+ cells, no dead ends, at most 10 × 11) and an unfair one is ignored. A config shape
+joins its family's variants wherever the family is used: campaign levels, advanced Daily and Weekly challenges and
+Endless runs. A new family needs only an enum value, its level in the schedule, a name and its rows. Gravity,
+matching, refills, obstacles, treasure, specials, power-ups and goals need nothing per shape: they already work on
+gaps and stones (MECHANICS.md §3.2).
+
+**The board's panel follows its shape (3.3).** Before 3.3 a shaped board sat on the same rectangle as a plain one, so
+a split board's gap showed as an empty strip inside the panel and holes as dark squares. Now a board with gaps gets a
+panel built from its cells (`BoardSilhouette`: a distance transform of the cell mask, grown a little past the cells
+with rounded outer corners, a faint outline and a soft shadow, all in the game's colours): each section of a split
+board has its own panel with the background showing between them, holes and cut corners are really open, and the
+panel is rebuilt whenever the cell size changes (screen size or orientation). Plain and stone boards keep the
+original rectangle. The art preview renders every shape this way (`Sim -- art`: mock_shape_*.png).
 
 **Specials and power-ups on shaped boards** act on their real area, as everywhere: a rocket's line crosses gaps
 (nothing there to clear) and breaks the stones in it; a bomb's 5 × 5 square reaches both sides of a gap; a prism and
@@ -354,6 +381,18 @@ so the extra difficulty is planning, not luck. Levels a thoughtful player failed
 Other examples: level 350 went from 7 ice and 18 of a colour to 16 ice, setting off 4 specials and 12,000 points on a
 tall board; level 400 (a region finale) from a 2,000-point score level to 2 treasures and 17 ice on a lopsided board.
 
+**Update 3.3** added the four new families, the returns and the keep-the-board rule, so levels from 135 on changed
+(levels 1–134 are unchanged; 1–120 are pinned by a test). What every level contains (`Sim -- campaign-shape 1 500 100`):
+
+| Levels | Shaped boards, 3.2 / 3.3 | Board geometries, 3.2 / 3.3 | Families seen |
+|---|---|---|---|
+| 101–200 | 21% / 30% | 35 / 37 | Hollow, tall, wide, twin towers, upper and lower, cut corners |
+| 201–300 | 43% / 63% | 43 / 47 | all twelve of 3.2, plus cut corners |
+| 301–400 | 64% / 66% | 38 / 47 | all sixteen (T 7 levels, cross 4, diamond 3 in 311–400) |
+| 401–500 | 53% / 69% | 42 / 46 | all sixteen |
+
+Goals, kinds of objective, obstacles and moves per range are as in 3.2 (within ±0.1 goals and ±1 move per level).
+
 **Limits.** The fairness check uses the Planner bot, which looks one move ahead. On treasure levels it sometimes stalls
 with the last tile under a treasure unmatched (a player can change the tiles beside it, or use Tile Breaker), so
 treasure levels are allowed one more stalled game in twelve and average 85% for it (other goals 87–92%). Levels are
@@ -366,25 +405,48 @@ background thread (`CampaignCatalog.Prewarm`).
 * A **fresh random board every run** (8 × 9). No timer.
 * Start with **30 moves**. Each group costs one move; groups of 6+ give +1 move, 9+ give +2 and 13+ give +3; each
   treasure brought down gives +3; breathers give +5.
-* **The stage journey (2.1):** every run walks through the game's mechanics, one new thing per stage, so the mode
-  feels like a journey rather than the same board with a bigger number (config: endless → journey; rules in
-  MECHANICS.md §9):
+* **The stage journey (2.1; reordered in 3.3):** every run walks through the game's mechanics, one new thing per
+  stage, so the mode feels like a journey rather than the same board with a bigger number (config: endless →
+  journey; rules in MECHANICS.md §9):
 
 | Stage | Score | What it brings |
 |---|---|---|
 | 1 | 0 | Warm-up: ordinary matching, 4 colours |
-| 2 | 1,200 | Stones appear (they hold tiles up; rockets and bombs break them later) |
-| 3 | 2,800 | Frozen tiles |
-| 4 | 4,800 | Breather: +5 moves, nothing new (a fifth colour arrives) |
-| 5 | 7,200 | Chains |
-| 6 | 10,000 | Rockets and bombs: big groups make them from now on; one rocket is placed to try |
-| 7 | 13,500 | Treasure |
-| 8 | 17,500 | Breather |
-| 9 | 22,000 | Moss |
-| 10 | 27,000 | Prisms (one is placed) |
-| 11+ | 32,500, then +6,000 a stage | Mixes of everything met so far: 2 kinds at a time, 3 from 15, 4 from 19, each denser (+8% a stage, up to double); a breather every fourth stage (14, 18, 22...); a sixth colour from 12 |
+| 2 | 1,200 | **Rockets** (3.3): big groups make them from now on; one is placed to try |
+| 3 | 2,800 | Stones appear (they hold tiles up; rockets and bombs break them) |
+| 4 | 4,800 | Frozen tiles (a fifth colour arrives) |
+| 5 | 7,200 | Breather: +5 moves, nothing new |
+| 6 | 10,000 | Chains |
+| 7 | 13,500 | Bombs (one is placed) |
+| 8 | 17,500 | Treasure |
+| 9 | 22,000 | Breather |
+| 10 | 27,000 | Moss |
+| 11 | 32,500 | Prisms (one is placed) |
+| 12+ | 38,500, then +6,000 a stage | Mixes of everything met so far: 2 kinds at a time, 3 from 16, 4 from 20, each denser (+8% a stage, up to double); a breather every fourth stage (15, 19, 23...); a sixth colour from 12 |
 
-* Each new stage is announced on a banner ("Stage 5 · New: chains"; "Stage 11 · Mix: frozen tiles and moss") and a
+* **Why players saw no specials (fixed in 3.3).** Before 3.3 rockets and bombs arrived together at stage 6. Most runs
+  barely reach it, and a config asset saved before update 2.1 (as the project's was) kept the old stage scores (26,000
+  for stage 6, with six colours from stage 6), so stage 6 was out of reach and specials never appeared at all. Now
+  rockets come at stage 2 and bombs at 7, and an old asset is brought up to date: stage scores, stage colours and the
+  journey move to the current values only where they still equal an old default, so values a designer changed are
+  kept (`EndlessTuning.Upgrade`). The editor does this to the asset (and saves it) when the project opens, logging
+  what it moved; the game also applies it to its in-memory copy when it loads the config, so a build made from an
+  asset that was never upgraded still plays the 3.3 journey. Measured with the same 30 runs per
+  bot (`Sim -- modes` and a comparison run):
+
+| Setup | Casual: runs with a special / per run | Mixed: runs with a special / per run |
+|---|---|---|
+| Asset saved before 2.1, 3.2 journey | 0 / 30, 0.0 | 0 / 30, 0.0 |
+| 3.2 defaults | 4 / 30, 0.2 | 9 / 30, 0.7 |
+| 3.3 | 30 / 30, 4.6 | 30 / 30, 7.0 (Planner 18.2) |
+
+* **Board shapes (3.3).** Once the player's best run has reached stage 6 (endless → shapedRunsFromBestStage), about
+  two runs in three start on a shape instead of the 8 × 9 rectangle: tall, wide, hollow or cut corners; from best
+  stage 9 also twin towers, upper and lower, lopsided and a stone wall; from 12 also a narrow passage, T, cross and
+  diamond. So progression adds new boards as well as obstacles, mixes and denser waves, not just bigger numbers. The
+  shape comes from the run's seed (named on the run's opening banner, e.g. "Twin towers · 30 moves"); every stage wave places its
+  stones, obstacles and specials only on the shape's cells, by the same rules as on the rectangle.
+* Each new stage is announced on a banner ("Stage 6 · New: chains"; "Stage 12 · Mix: frozen tiles and moss") and a
   mechanic seen for the first time outside the campaign gets its tutorial card. Mixing stages pick their mechanics,
   and every wave its cells, from the run's own seed, so runs differ. Waves never cover more than a third of the
   board, so later stages are harder (denser, more combined) without becoming unwinnable.
@@ -393,11 +455,12 @@ background thread (`CampaignCatalog.Prewarm`).
   longer gates anything. The mode card shows the best stage and the next new thing; the result shows the stage
   reached (or a new best) and what the next introduction is.
 * Coins: one-time milestone rewards the first time any run reaches 2,500 / 5,000 / 10,000 / 20,000 / 40,000
-  points (20/30/50/75/100). Endless never grants campaign rewards and never unlocks levels.
-* **Simulation** (`Sim -- modes`, 30 runs per bot): median stage 5 (Casual bot), 6 (Mixed), 8 (Planner); the best
-  10% of Planner runs reach 11 (best 12), into the mixing stages; runs last about 45–60 moves with 12–14 obstacles, stones,
-  treasures and specials added. Before 2.1 runs stopped around stage 4–5 under the old stage scores (2,000 / 5,000 /
-  10,000 / 17,000 / 26,000 / 38,000) and mechanics only arrived after many runs (Endless levels 5–40).
+  points (5/10/15/25/40 since 3.1). Endless never grants campaign rewards and never unlocks levels. Stage scores,
+  milestones and records are unchanged by 3.3.
+* **Simulation** (`Sim -- modes`, 30 runs per bot): median stage 5 (Casual bot), 6 (Mixed), 9 (Planner); the best
+  10% of Planner runs reach 11 (best 13), into the mixing stages; runs last about 44–66 moves with 11–16 obstacles,
+  stones, treasures and specials added. Before 2.1 runs stopped around stage 4–5 under the old stage scores (2,000 /
+  5,000 / 10,000 / 17,000 / 26,000 / 38,000) and mechanics only arrived after many runs (Endless levels 5–40).
 
 ## 5. Daily Challenge
 
@@ -414,6 +477,30 @@ background thread (`CampaignCatalog.Prewarm`).
   puzzle, and a new player plays the original daily. Obstacles add goals (shown in the goals panel, with the target
   as the first goal); the day is complete when the target and every goal are met. Days with goals have a target 12%
   lower. Simulation (60 days): Casual-bot success 47% on plain days, 50–56% with mechanics; Planner 90–100%.
+* **Advanced Daily Challenge (update 3.3).** From campaign level 121 (daily → advancedFromLevel; 0 turns it off) the
+  day's puzzle is advanced, built with the campaign's own systems (rules in MECHANICS.md §9):
+  * **A board shape the player has played**, drawn from the date: any family whose first campaign level is behind
+    them, mostly shaped (plain and stone boards are drawn about half as often as the others; the slowest shapes,
+    three sections and islands, less often too).
+  * **The target plus two objectives that go together**: the day's planned obstacle and a partner the campaign pairs
+    with it (another obstacle, a special-tile goal, or treasure held up by ice or chains on harder days), sized by
+    the campaign's rules for the board's size and shape, at an intensity that rises with the shapes met (about 38 at
+    level 121 to 64 once every shape is met, a little either way by the date). Colours follow the campaign's rule
+    (four with multi-link chains, big specials, lots of treasure or small sections).
+  * **Moves from a thoughtful player**: what the Planner bot needs in three games of four, plus room, within 20–30
+    (daily → advancedMaxMoves). Too long for 30 moves: a smaller version. The target is 68% of a Mixed bot's score
+    (the goal-day easing), two and three stars at 105% and 125%, as before.
+  * **A fairness check**: a thoughtful player completes the target and both objectives in 9 of 12 games with varied
+    refills, and again in 8 of 12 more (one fewer with treasure); each size is placed twice before a smaller one is
+    tried. If nothing passes, the day falls back to the original daily, so nobody is ever given an unfair puzzle.
+  * Everyone with the same unlocks and the same shapes met gets the same puzzle and refills; records, best scores,
+    replays and the 10 + 5 coin rewards (once per day) are keyed by the date as before. A player below level 121 gets
+    exactly the original daily (pinned by a fingerprint test). Built in the background when the game starts and
+    whenever the home screen opens (about 0.06 s, at most 0.15 s, in the harness), so opening it never waits.
+  * Simulation (`Sim -- advanced`, 30 days at each of levels 150 / 250 / 400, 6 games per bot per day with varied
+    refills): 28 / 30 / 29 of 30 days advanced (the rest fell back), 2.9–3.0 goals and 24–26 moves a day, on 12–23
+    different board geometries; success Casual 34% / 33% / 36%, Mixed 44% / 37% / 34%, thoughtful (Planner) 82% / 83% /
+    83%, against 50% and 90% on the original days: harder, and the difficulty is planning rather than luck.
 * **Limitation:** the date comes from the device clock. A player who changes their clock can view other days'
   puzzles. Mitigation: rewards are refused for any date earlier than the latest one the player has opened.
   Moving the clock forward is not detected. All time reads go through `IClock`, so a server time source can
@@ -436,8 +523,34 @@ background thread (`CampaignCatalog.Prewarm`).
   45-move bot score, and rewards use the medal scores of the board played. Simulation (16 weeks): with everything
   unlocked the medal scores were 1.42× the plain ones on average (1.19× before 5 × 5 bombs and groups of
   specials), and the bot earned bronze, silver and gold at close to the plain boards' rates (100% / 97% / 48%
-  against 100% / 98% / 42%). The Weekly Rush has no end-of-level specials (it is timed) and never had a spare-move
-  bonus.
+  against 100% / 98% / 42%). It never had a spare-move bonus.
+* **Specials at the end (fixed in update 3.3).** Before 3.3 the run ended the instant the clock reached zero: the
+  end-of-level finale was written for runs of moves, and the timer path skipped it, so specials still on the board
+  were lost. Now, when the time is up with specials on the board, play stops (no taps, the clock stays at zero),
+  "Time's up! Your specials go off" is shown, they go off exactly as in the other modes (connected ones together,
+  each once, chain reactions included), their points appear as "Specials at the end", and only then does the run end
+  (reason: time's up). The week's best and the medals use the full score. If the screen is left while they wait, the
+  result still sets them off and records it. Tested on plain and advanced Weekly boards (MECHANICS.md §4.4).
+* **Advanced Weekly Rush (update 3.3).** From campaign level 121 (rush → advancedFromLevel) the week's board is
+  harder than the Daily's:
+  * **Split and irregular shapes** the player has met (hollow, cut corners, twin towers, upper and lower, a stone
+    wall, a narrow passage, lopsided, T, cross, diamond, three sections, islands; stone boards until the first is
+    met), drawn from the week.
+  * **The theme plus up to two more mechanics**, placed by the campaign's rules, and **up to three objectives** (free
+    the ice, break the chains, clear the moss, bring down treasure; on specials weeks, set off that special, with a
+    few of them on the board at the start).
+  * **Objectives add points, they never end the run**: each pays rush → objectiveBonus (1,000) once, the first time
+    it is complete ("Objective complete! +1,000"; "Objectives" on the result). They are sized so a thoughtful player
+    completes them all within a typical run (45 moves) in 6 games of 8, trying a bigger version first. The goals
+    panel shows them, with the medals under the score.
+  * **Medals stay score-based**, whether or not the objectives are finished: the medal scores move with the board,
+    bonuses included, so they are earned at about the plain board's rates; the range is 0.7× to 4× (shaped boards
+    with specials and bonuses score far more than a plain one: in a first trial at the old 1.8× cap, the average bot
+    took gold in 83–88% of runs). Rewards stay once per medal per week, keyed by the week.
+  * A player below level 121 keeps exactly the original board (pinned by a fingerprint test).
+  * Simulation (`Sim -- advanced`, 12 weeks at each of levels 150 / 250 / 400, 8 runs of 45 moves per bot): about
+    2.6 objectives a week; the Mixed bot earns bronze 100%, silver 91–98%, gold 38–40% and completes 62–69% of the
+    objectives; a thoughtful player completes 87–90% and earns gold 75–100%.
 
 ## 7. Power-ups
 

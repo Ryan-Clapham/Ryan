@@ -53,16 +53,19 @@ or Player Settings before publishing.
 Select **Colour Cascade → Select Game Config**. Every number lives in one asset
 (`Assets/ColourCascade/Resources/ColourCascadeConfig.asset`): scoring, board sizes by level, the difficulty
 curve, hand-made levels (layouts are text: `.` tile, `#` stone, `x` hole, `R/Y/B/G/P/O` fixed colours),
-Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
+Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels. Board shapes are data too
+(update 3.3): add a shape under campaign → shapes → extraShapes (a family and rows in the same notation) and it is
+used wherever that family appears, once it passes the fairness check; daily → advancedFromLevel and rush →
+advancedFromLevel choose when the advanced challenges start (0 turns them off).
 **Colour Cascade → Reset Game Config To Defaults** restores the built-in values.
 
 ## Run the tests
 
-* **In Unity:** Window → General → Test Runner → EditMode → Run All (543 tests).
+* **In Unity:** Window → General → Test Runner → EditMode → Run All (562 tests).
 * **Without Unity (CI or a terminal with .NET 8):**
   ```
   cd tools/Harness
-  dotnet test Tests/Tests.csproj            # the same 543 tests
+  dotnet test Tests/Tests.csproj            # the same 562 tests
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
@@ -71,6 +74,8 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
   dotnet run --project Sim -c Release -- economy        # coins a simulated player earns over 30 days
   # long-run economy (3.1): Sim -- economy-trace ... then python3 tools/economy_model.py (usage in that file)
   dotnet run --project Sim -c Release -- campaign-shape 1 500 100   # what each range of levels contains (add legacy: before 3.2)
+  dotnet run --project Sim -c Release -- modes          # Daily, Weekly and Endless with mechanics (Endless specials, run shapes)
+  dotnet run --project Sim -c Release -- advanced 30 12 # 3.3 advanced Daily (30 days) and Weekly (12 weeks) at levels 150/250/400
   dotnet run --project Sim -c Release -- art ./preview  # exports every generated sprite as PNG
   ```
 

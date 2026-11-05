@@ -29,7 +29,14 @@ namespace ColourCascade.Tests
         // Endless, Daily and Rush: re-recorded for 2.1 because Endless runs now walk the stage journey (Daily and Weekly
         // boards for a player with nothing unlocked were checked to play exactly as before); unchanged by 2.1's later
         // changes. Before 2.1: 318364672465816974.
-        const ulong ExpectedChallengeModes = 6941777045657669987UL;
+        // Update 3.3 re-recorded it (6941777045657669987 before it) for the Endless journey's new order (rockets from
+        // stage 2, bombs from 7): the Endless part changed (19659783481413691 before 3.3) and the Daily and Weekly part
+        // did not, which ExpectedDailyAndRush now pins on its own.
+        const ulong ExpectedChallengeModes = 7925516612437713790UL;
+        const ulong ExpectedEndless = 9339972918220277480UL;
+        // Daily Challenges and Weekly Rush boards for a player who has unlocked nothing: unchanged since 2.1. Update
+        // 3.3's advanced challenges start at campaign level 121, so new players keep exactly these puzzles.
+        const ulong ExpectedDailyAndRush = 2670500139227997825UL;
         // Scripted power-ups: re-recorded for 2.1 because a stone broken by Tile Breaker now scores 100 (before:
         // 2022348128171972134), and for 3.0.1 because the script's Extra Moves step was dropped with the retired
         // power-up (before: 13805293097089027243); the 3.0 build gives this same value with only that step removed.
@@ -105,11 +112,11 @@ namespace ColourCascade.Tests
             return h;
         }
 
-        static ulong ChallengeModes()
+        static ulong ChallengeModes() => DailyAndRush(Endless(47));
+
+        static ulong Endless(ulong h)
         {
             var ctx = TestUtil.Context();
-            var cfg = ctx.Config;
-            ulong h = 47;
             for (int i = 0; i < 6; i++)
             {
                 var setup = ctx.CreateEndlessRun();
@@ -119,6 +126,13 @@ namespace ColourCascade.Tests
                 Bots.PlayOut(s, BotKind.Mixed, new Rng((ulong)(900 + i)), 400);
                 h = Fingerprint(h, s);
             }
+            return h;
+        }
+
+        /// <summary>Daily Challenges and Weekly Rush boards for a player who has unlocked nothing in the campaign.</summary>
+        static ulong DailyAndRush(ulong h)
+        {
+            var ctx = TestUtil.Context();
             foreach (var day in new[] { "2026-10-25", "2026-10-26", "2026-10-27", "2026-12-31" })
             {
                 var s = new PuzzleSession(ctx.CreateDailyRun(day));
@@ -183,7 +197,8 @@ namespace ColourCascade.Tests
         public void PrintFingerprints()
         {
             System.IO.File.WriteAllText(System.Environment.GetEnvironmentVariable("OUT"),
-                CampaignLevels(20) + " " + SeededPlay(20) + " " + CampaignLevels() + " " + SeededPlay() + " " + ChallengeModes() + " " + ScriptedPowerUps());
+                CampaignLevels(20) + " " + SeededPlay(20) + " " + CampaignLevels() + " " + SeededPlay() + " " + ChallengeModes() + " " + ScriptedPowerUps() +
+                " endless " + Endless(47) + " daily+rush " + DailyAndRush(47));
         }
 
         [Test]
@@ -208,6 +223,8 @@ namespace ColourCascade.Tests
         [Test]
         public void EndlessDailyAndRushPlayExactlyAsBefore()
         {
+            Assert.AreEqual(ExpectedDailyAndRush, DailyAndRush(47), "Daily and Weekly for a player with nothing unlocked");
+            Assert.AreEqual(ExpectedEndless, Endless(47), "Endless runs");
             Assert.AreEqual(ExpectedChallengeModes, ChallengeModes());
         }
 

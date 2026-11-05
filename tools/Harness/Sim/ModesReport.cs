@@ -99,7 +99,7 @@ static class ModesReport
             var scores = new List<int>();
             var stages = new List<int>();
             var moves = new List<int>();
-            int added = 0, finales = 0;
+            int added = 0, finales = 0, created = 0, fired = 0, runsWithSpecials = 0;
             for (int i = 0; i < 30; i++)
             {
                 var setup = ctx.CreateEndlessRun();
@@ -111,6 +111,7 @@ static class ModesReport
                 var finder = new GroupFinder();
                 var groups = new List<GroupInfo>();
                 var o = new MoveOutcome();
+                int runCreated = 0;
                 while (s.AcceptsMoves && s.MovesMade < 2000)
                 {
                     GridPos p;
@@ -120,7 +121,11 @@ static class ModesReport
                     if (bot == null && s.NeedsColourChoice(p)) c = PlannerBot.PrismColour(s);
                     s.TryPlay(p, o, c);
                     added += o.Added.Count;
+                    if (o.HasCreated) runCreated++;
+                    fired += o.SpecialsFired.Count;
                 }
+                created += runCreated;
+                if (runCreated > 0) runsWithSpecials++;
                 if (s.FinalePending)
                 {
                     s.RunFinale(o);
@@ -133,9 +138,129 @@ static class ModesReport
             scores.Sort();
             stages.Sort();
             moves.Sort();
-            Console.WriteLine($"  {kind,-8} stage P25 {stages[7]}  median {stages[15]}  P90 {stages[27]}  max {stages.Max()}  ·  median score {scores[15],6}  ·  median moves {moves[15]}  ·  items added per run {added / 30.0:0.0}  ·  runs ending with specials left {finales}");
+            Console.WriteLine($"  {kind,-8} stage P25 {stages[7]}  median {stages[15]}  P90 {stages[27]}  max {stages.Max()}  ·  median score {scores[15],6}  ·  median moves {moves[15]}  ·  items added per run {added / 30.0:0.0}  ·  runs ending with specials left {finales}  ·  specials made per run {created / 30.0:0.0}, fired {fired / 30.0:0.0}, runs with any {runsWithSpecials}/30");
         }
         Console.WriteLine("  journey: " + string.Join("  ", Enumerable.Range(1, 16).Select(st => st + " " + EndlessJourney.For(st, e.journey).Title + " (" + NumberFormat.Thousands(e.ScoreForStage(st)) + ")")));
+        Console.WriteLine("  run boards by best stage: " + string.Join("  ", new[] { 1, 6, 9, 12 }.Select(b =>
+        {
+            var names = new Dictionary<string, int>();
+            for (ulong k = 1; k <= 200; k++)
+            {
+                string n = GameContext.EndlessBoard(e, b, k).Family.ToString();
+                names[n] = names.TryGetValue(n, out var c) ? c + 1 : 1;
+            }
+            return "best " + b + ": " + string.Join(", ", names.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " " + kv.Value / 2 + "%"));
+        })));
+        Advanced(cfg);
+    }
+
+    /// <summary>
+    /// Update 3.3: the advanced Daily Challenge and Weekly Rush for players at campaign levels 150, 250 and 400 (all
+    /// mechanics unlocked): build time, board shapes, objectives, moves and success rates.
+    /// </summary>
+    public static void Advanced(GameConfigData cfg, int days = 30, int weeks = 12)
+    {
+        var catalog = new CampaignCatalog(cfg.Campaign, cfg.Scoring);
+        var f = new ChallengeFactory(cfg.Daily, cfg.Rush, cfg.Scoring, catalog.Progression);
+        var day0 = new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc);
+        Console.WriteLine();
+        Console.WriteLine($"ADVANCED DAILY CHALLENGE (update 3.3): {days} days per campaign level, 6 games per bot per day; success = target and every goal");
+        foreach (int level in new[] { 150, 250, 400 })
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            double casual = 0, mixed = 0, planner = 0, slowest = 0;
+            int advanced = 0, goalsTotal = 0, movesTotal = 0;
+            var shapes = new Dictionary<string, int>();
+            var mixes = new Dictionary<string, int>();
+            for (int d = 0; d < days; d++)
+            {
+                string key = ChallengeCalendar.DayKey(day0.AddDays(d));
+                var t0 = sw.Elapsed.TotalSeconds;
+                var spec = f.Daily(key, MechanicSet.All, level);
+                slowest = Math.Max(slowest, sw.Elapsed.TotalSeconds - t0);
+                bool adv = spec.Note.Contains("Reach the target and complete every goal") && spec.Goals != null && spec.Goals.Length >= 3;
+                if (adv) advanced++;
+                goalsTotal += spec.Goals != null ? spec.Goals.Length : 0;
+                movesTotal += spec.Moves;
+                string shape = ShapeName(spec.Layout);
+                shapes[shape] = shapes.TryGetValue(shape, out var c) ? c + 1 : 1;
+                string mix = spec.Goals == null ? "score" : string.Join("+", spec.Goals.Skip(1).Select(g => g.kind.ToString()));
+                mixes[mix] = mixes.TryGetValue(mix, out var m) ? m + 1 : 1;
+                casual += VariedRate(spec, cfg, BotKind.Casual, 6);
+                mixed += VariedRate(spec, cfg, BotKind.Mixed, 6);
+                planner += VariedRate(spec, cfg, BotKind.Planner, 6);
+            }
+            Console.WriteLine($"  level {level}: build {sw.Elapsed.TotalSeconds / days:0.00} s per day (slowest {slowest:0.00} s, includes the bot games below)  advanced {advanced}/{days}  goals per day {goalsTotal / (double)days:0.0}  moves {movesTotal / (double)days:0.0}");
+            Console.WriteLine($"     success: Casual {casual / days:0}%  Mixed {mixed / days:0}%  Planner {planner / days:0}%");
+            Console.WriteLine("     shapes: " + string.Join(", ", shapes.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " " + kv.Value)));
+            Console.WriteLine("     objectives: " + string.Join(", ", mixes.OrderByDescending(kv => kv.Value).Take(10).Select(kv => kv.Key + " " + kv.Value)));
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"ADVANCED WEEKLY RUSH (update 3.3): {weeks} weeks per campaign level, 8 runs of 45 moves (about 60 seconds) per bot");
+        foreach (int level in new[] { 150, 250, 400 })
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            int runs = 0, objectivesTotal = 0, goalCount = 0;
+            var medals = new int[2, 3];
+            var objectivesDone = new int[2];
+            var shapes = new Dictionary<string, int>();
+            double slowest = 0;
+            for (int w = 0; w < weeks; w++)
+            {
+                string week = ChallengeCalendar.WeekKey(day0.AddDays(7 * w));
+                var t0 = sw.Elapsed.TotalSeconds;
+                var spec = f.Weekly(week, MechanicSet.All, level);
+                slowest = Math.Max(slowest, sw.Elapsed.TotalSeconds - t0);
+                string shape = ShapeName(spec.Layout);
+                shapes[shape] = shapes.TryGetValue(shape, out var c) ? c + 1 : 1;
+                goalCount += spec.Goals != null ? spec.Goals.Length : 0;
+                for (int i = 0; i < 8; i++)
+                {
+                    runs++;
+                    for (int b = 0; b < 2; b++)
+                    {
+                        var s = new PuzzleSession(new SessionSetup { Mode = GameMode.WeeklyRush, Level = spec, Scoring = cfg.Scoring, BoardSeed = spec.Seed });
+                        s.Start();
+                        s.StartTimer();
+                        int score = Bots.PlayOut(s, b == 0 ? BotKind.Mixed : BotKind.Planner, new Rng((ulong)(w * 100 + i + 7)), ChallengeFactory.RushProbeMoves);
+                        if (score >= spec.Target) medals[b, 0]++;
+                        if (score >= spec.Star2) medals[b, 1]++;
+                        if (score >= spec.Star3) medals[b, 2]++;
+                        objectivesDone[b] += s.ObjectivesDone;
+                    }
+                }
+                objectivesTotal += (spec.Goals != null ? spec.Goals.Length : 0) * 8;
+            }
+            Console.WriteLine($"  level {level}: build {sw.Elapsed.TotalSeconds / weeks:0.00} s per week (slowest {slowest:0.00} s)  objectives per week {goalCount / (double)weeks:0.0}");
+            for (int b = 0; b < 2; b++)
+                Console.WriteLine($"     {(b == 0 ? "Mixed  " : "Planner")} bronze {100.0 * medals[b, 0] / runs:0}%  silver {100.0 * medals[b, 1] / runs:0}%  gold {100.0 * medals[b, 2] / runs:0}%  objectives done {100.0 * objectivesDone[b] / Math.Max(1, objectivesTotal):0}%");
+            Console.WriteLine("     shapes: " + string.Join(", ", shapes.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " " + kv.Value)));
+        }
+    }
+
+    static string ShapeName(LevelLayout l)
+    {
+        int voids = 0, stones = l.StoneCount;
+        for (int r = 0; r < l.Height; r++)
+            for (int c = 0; c < l.Width; c++)
+                if (l.TypeAt(c, r) == CellType.Void) voids++;
+        int sections = BoardShapes.Sections(l).Count;
+        return l.Width + "x" + l.Height + (voids > 0 ? " gaps" + voids : "") + (stones > 0 ? " stones" + stones : "") + (sections > 1 ? " " + sections + "sec" : "");
+    }
+
+    /// <summary>Success rate with the refills varying between games (a fixed-seed puzzle would replay a deterministic bot's one game).</summary>
+    static double VariedRate(LevelSpec spec, GameConfigData cfg, BotKind kind, int runs)
+    {
+        int ok = 0;
+        for (int i = 0; i < runs; i++)
+        {
+            var s = new PuzzleSession(new SessionSetup { Mode = GameMode.Daily, Level = spec, Scoring = cfg.Scoring, BoardSeed = StableHash.Combine(spec.Seed, (ulong)(i + 77)) });
+            s.Start();
+            Bots.PlayOut(s, kind, new Rng((ulong)(i * 31 + 5)));
+            if (s.Succeeded) ok++;
+        }
+        return 100.0 * ok / runs;
     }
 
     static string Describe(LevelLayout l)

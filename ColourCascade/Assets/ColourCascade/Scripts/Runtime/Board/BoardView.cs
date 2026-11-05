@@ -169,6 +169,12 @@ namespace ColourCascade.App
 
         RectTransform frame;
         Image frameImage;
+        Image frameShadow, frameStroke;
+        // Update 3.3: boards with gaps sit on a panel that follows their cells (BoardSilhouette) instead of the rectangle.
+        Image shapeShadow, shapeBack, shapeStroke;
+        readonly List<Texture2D> shapeTextures = new List<Texture2D>();
+        bool shaped;
+        float shapeCell;
         RectTransform slotsLayer;
         RectTransform tilesLayer;
         public FxLayer Fx { get; private set; }
@@ -209,11 +215,16 @@ namespace ColourCascade.App
             bv.frame.Centre(800, 900);
             var shadow = UI.Rounded(bv.frame, new Color(0.02f, 0.01f, 0.08f, 0.55f), 52, "Shadow", ArtNames.RoundShadow);
             shadow.rectTransform.Fill(-24, -36, -24, -14);
+            bv.frameShadow = shadow;
             bv.frameImage = UI.Rounded(bv.frame, Theme.BoardBack.WithAlpha(0.82f), 44, "Back");
             bv.frameImage.rectTransform.Fill();
             bv.frameImage.raycastTarget = true;
             var stroke = UI.Rounded(bv.frame, new Color(1, 1, 1, 0.08f), 44, "Stroke", ArtNames.RoundStroke);
             stroke.rectTransform.Fill();
+            bv.frameStroke = stroke;
+            bv.shapeShadow = bv.ShapeImage("ShapeShadow", new Color(0.02f, 0.01f, 0.08f, 0.55f));
+            bv.shapeBack = bv.ShapeImage("ShapeBack", Theme.BoardBack.WithAlpha(0.82f));
+            bv.shapeStroke = bv.ShapeImage("ShapeStroke", new Color(1, 1, 1, 0.08f));
             bv.slotsLayer = UI.Rect("Slots", bv.frame);
             bv.slotsLayer.Centre(100, 100);
             var clip = UI.Rect("Clip", bv.frame);
@@ -239,6 +250,9 @@ namespace ColourCascade.App
             foreach (var slot in slots) UI.Destroy(slot);
             slots.Clear();
             Fx.Clear();
+            shaped = BoardSilhouette.IsShaped(s.Board);
+            shapeCell = -1f;
+            ShowShapedFrame(shaped);
             highlight.Clear();
             marked.Clear();
             highlightShown = false;
@@ -274,6 +288,7 @@ namespace ColourCascade.App
             if (width == 0) return;
             var size = new Vector2(width * cell, height * cell);
             frame.sizeDelta = size + new Vector2(FramePadding * 2, FramePadding * 2);
+            if (shaped && Mathf.Abs(cell - shapeCell) > 0.5f) BuildShapedFrame();
             slotsLayer.sizeDelta = size;
             tilesLayer.sizeDelta = size;
             int i = 0;
@@ -295,6 +310,82 @@ namespace ColourCascade.App
                 v.Rt.anchoredPosition = CellLocal(v.Cell);
             }
         }
+
+        // ------------------------------------------------------------------ Shaped boards (update 3.3)
+
+        const int ShapePixelsPerCell = 40;
+
+        Image ShapeImage(string name, Color colour)
+        {
+            var img = UI.Image(frame, null, colour, name);
+            img.raycastTarget = false;
+            img.rectTransform.anchorMin = img.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            img.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            // Behind the slots and tiles: right after the rectangle frame's own pieces.
+            img.transform.SetSiblingIndex(slotsLayer != null ? slotsLayer.GetSiblingIndex() : img.transform.GetSiblingIndex());
+            img.gameObject.SetActive(false);
+            return img;
+        }
+
+        /// <summary>The rectangle frame for plain boards, the shaped panel for boards with gaps. The rectangle's back stays
+        /// as an invisible hit area, so presses anywhere on the board still reach it.</summary>
+        void ShowShapedFrame(bool on)
+        {
+            frameShadow.gameObject.SetActive(!on);
+            frameStroke.gameObject.SetActive(!on);
+            frameImage.color = on ? new Color(0, 0, 0, 0) : Theme.BoardBack.WithAlpha(0.82f);
+            // The panel's images come back when BuildShapedFrame has given them their textures (never shown blank).
+            shapeShadow.gameObject.SetActive(false);
+            shapeBack.gameObject.SetActive(false);
+            shapeStroke.gameObject.SetActive(false);
+            ReleaseShapeTextures();
+        }
+
+        /// <summary>Draws the panel for the current board at the current cell size: the rectangle frame's padding (18),
+        /// corner radius (44), outline and shadow, measured in reference pixels like the rest of the board.</summary>
+        void BuildShapedFrame()
+        {
+            // Not laid out yet (a tiny cell would make a huge texture): wait for FitInto.
+            if (session == null || session.Board == null || cell < 8f) return;
+            shapeCell = cell;
+            float k = ShapePixelsPerCell / Mathf.Max(1f, cell);
+            var sil = BoardSilhouette.ForBoard(session.Board, ShapePixelsPerCell, FramePadding * k, 44f * k, 3f * k, 24f * k);
+            ReleaseShapeTextures();
+            var size = new Vector2(sil.Width, sil.Height) / k;
+            SetShapeSprite(shapeShadow, sil, sil.Shadow, size, new Vector2(0, -11));
+            SetShapeSprite(shapeBack, sil, sil.Fill, size, Vector2.zero);
+            SetShapeSprite(shapeStroke, sil, sil.Stroke, size, Vector2.zero);
+        }
+
+        void SetShapeSprite(Image img, BoardSilhouette sil, byte[] alpha, Vector2 size, Vector2 offset)
+        {
+            var tex = new Texture2D(sil.Width, sil.Height, TextureFormat.RGBA32, false) { name = img.name, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var pixels = new Color32[alpha.Length];
+            for (int i = 0; i < alpha.Length; i++) pixels[i] = new Color32(255, 255, 255, alpha[i]);
+            tex.SetPixels32(pixels);
+            tex.Apply(false, true);
+            shapeTextures.Add(tex);
+            img.sprite = Sprite.Create(tex, new Rect(0, 0, sil.Width, sil.Height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+            img.type = Image.Type.Simple;
+            img.rectTransform.sizeDelta = size;
+            img.rectTransform.anchoredPosition = offset;
+            img.gameObject.SetActive(true);
+        }
+
+        void ReleaseShapeTextures()
+        {
+            foreach (var img in new[] { shapeShadow, shapeBack, shapeStroke })
+                if (img != null && img.sprite != null)
+                {
+                    Destroy(img.sprite);
+                    img.sprite = null;
+                }
+            foreach (var t in shapeTextures)
+                if (t != null) Destroy(t);
+            shapeTextures.Clear();
+        }
+
+        void OnDestroy() => ReleaseShapeTextures();
 
         public Vector2 CellLocal(GridPos p)
         {

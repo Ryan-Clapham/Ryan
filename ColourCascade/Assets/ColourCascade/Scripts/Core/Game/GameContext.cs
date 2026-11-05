@@ -197,7 +197,7 @@ namespace ColourCascade.Core
             Activity = new ActivityTracker();
             Catalog = new CampaignCatalog(Config.Campaign, Config.Scoring);
             PowerUps = new PowerUpCatalog(Config.PowerUps);
-            Challenges = new ChallengeFactory(Config.Daily, Config.Rush, Config.Scoring);
+            Challenges = new ChallengeFactory(Config.Daily, Config.Rush, Config.Scoring, Catalog.Progression);
             Settings = new GameSettings(() => Saves.Data);
             Tutorials = new TutorialService(() => Saves.Data);
             Monetisation = new MonetisationServices(Config.Monetisation, () => Saves.Data, () => Wallet, Clock, monotonicSeconds, Save, Activity);
@@ -334,33 +334,88 @@ namespace ColourCascade.Core
             // Every run walks the Endless journey (docs/DESIGN.md §4): its stages bring stones, ice, chains, specials,
             // treasure and moss in turn, then mix them. The board starts clean.
             var pool = Mechanics.EndlessObstacles | MechanicSet.Rockets | MechanicSet.Bombs | MechanicSet.Prisms;
+            ulong seed = FreshSeed();
+            var shape = EndlessBoard(e, Data.Endless != null ? Data.Endless.BestStage : 0, seed);
             var spec = new LevelSpec
             {
                 Id = "endless",
                 Mode = GameMode.Endless,
                 Title = "Endless",
-                Layout = LevelLayout.Open(e.columns, e.rows),
+                Layout = shape.Layout,
                 Colours = e.ColoursForStage(1),
                 AssistPermille = e.assistPermille,
                 Moves = Math.Max(1, e.startMoves),
-                Note = "Big groups earn extra moves",
+                Note = string.IsNullOrEmpty(shape.Name) ? "Big groups earn extra moves" : shape.Name + " · Big groups earn extra moves",
+                BoardName = shape.Name ?? "",
                 Pool = pool,
                 Specials = EndlessJourney.SpecialsAt(1, e.journey),
             };
-            return new SessionSetup { Mode = GameMode.Endless, Level = spec, Scoring = Config.Scoring, Endless = e, BoardSeed = FreshSeed() };
+            return new SessionSetup { Mode = GameMode.Endless, Level = spec, Scoring = Config.Scoring, Endless = e, BoardSeed = seed };
+        }
+
+        static readonly BoardFamily[] EndlessShaped = { BoardFamily.Tower, BoardFamily.Wide, BoardFamily.Hollow, BoardFamily.Corners };
+        static readonly BoardFamily[] EndlessSplit = { BoardFamily.TwinTowers, BoardFamily.Bunks, BoardFamily.Asymmetric, BoardFamily.StoneWall };
+        static readonly BoardFamily[] EndlessAdvanced = { BoardFamily.Passage, BoardFamily.TShape, BoardFamily.Cross, BoardFamily.Diamond };
+
+        /// <summary>
+        /// The board an Endless run starts on (update 3.3): the plain one until the player's best run has reached
+        /// shapedRunsFromBestStage, then, for most runs, a shape drawn from the families their best stage has opened
+        /// (EndlessConfig). Stage waves place their obstacles on whatever cells the shape has.
+        /// </summary>
+        public static BoardShape EndlessBoard(EndlessConfig e, int bestStage, ulong seed)
+        {
+            var plain = new BoardShape { Family = BoardFamily.Rectangle, Name = "", Layout = LevelLayout.Open(e.columns, e.rows) };
+            if (e.shapedRunsFromBestStage <= 0 || bestStage < e.shapedRunsFromBestStage) return plain;
+            var rng = new Rng(StableHash.Combine(seed, 0xE5A9E));
+            if (rng.ChancePermille(e.plainRunPermille)) return plain;
+            var families = new List<BoardFamily>(EndlessShaped);
+            if (e.splitRunsFromBestStage > 0 && bestStage >= e.splitRunsFromBestStage) families.AddRange(EndlessSplit);
+            if (e.advancedRunsFromBestStage > 0 && bestStage >= e.advancedRunsFromBestStage) families.AddRange(EndlessAdvanced);
+            var family = families[rng.Next(families.Count)];
+            var shape = BoardShapes.Build(family, rng.Next(BoardShapes.VariantCount(family)), 1, rng);
+            return BoardShapes.IsFair(shape.Layout, out _) ? shape : plain;
+        }
+
+        /// <summary>The Daily Challenge this player gets for a date: their unlocked mechanics and, from
+        /// DailyConfig.advancedFromLevel, the advanced puzzle on the board shapes they have met (update 3.3).</summary>
+        public LevelSpec DailyFor(string dayKey) => Challenges.Daily(dayKey, CampaignMechanics, Campaign.HighestUnlocked);
+
+        /// <summary>The Weekly Rush this player gets for a week (see DailyFor).</summary>
+        public LevelSpec WeeklyFor(string weekKey) => Challenges.Weekly(weekKey, CampaignMechanics, Campaign.HighestUnlocked);
+
+        /// <summary>
+        /// Builds today's Daily Challenge and this week's Weekly Rush in the background, so opening them never waits
+        /// for their calibration (an advanced puzzle plays a few hundred bot games once). Safe to call often.
+        /// </summary>
+        public void PrewarmChallenges()
+        {
+            string day = TodayKey, week = ThisWeekKey;
+            var unlocked = CampaignMechanics;
+            int level = Campaign.HighestUnlocked;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    Challenges.Daily(day, unlocked, level);
+                    Challenges.Weekly(week, unlocked, level);
+                }
+                catch (Exception)
+                {
+                }
+            });
         }
 
         public SessionSetup CreateDailyRun(string dayKey = null)
         {
             dayKey = dayKey ?? TodayKey;
             NoteDaySeen(dayKey);
-            var spec = Challenges.Daily(dayKey, CampaignMechanics);
+            var spec = DailyFor(dayKey);
             return new SessionSetup { Mode = GameMode.Daily, Level = spec, Scoring = Config.Scoring, BoardSeed = spec.Seed };
         }
 
         public SessionSetup CreateWeeklyRun(string weekKey = null)
         {
-            var spec = Challenges.Weekly(weekKey ?? ThisWeekKey, CampaignMechanics);
+            var spec = WeeklyFor(weekKey ?? ThisWeekKey);
             return new SessionSetup { Mode = GameMode.WeeklyRush, Level = spec, Scoring = Config.Scoring, BoardSeed = spec.Seed };
         }
 

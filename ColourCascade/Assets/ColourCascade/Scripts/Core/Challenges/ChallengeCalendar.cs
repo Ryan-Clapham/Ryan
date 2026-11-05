@@ -56,17 +56,21 @@ namespace ColourCascade.Core
     }
 
     /// <summary>Builds the Daily Challenge and Weekly Rush puzzles from their date keys.</summary>
-    public sealed class ChallengeFactory
+    public sealed partial class ChallengeFactory
     {
         readonly DailyConfig daily;
         readonly RushConfig rush;
         readonly ScoringRules scoring;
+        readonly CampaignProgression campaign;
 
-        public ChallengeFactory(DailyConfig daily, RushConfig rush, ScoringRules scoring)
+        /// <param name="campaign">The campaign's board shapes and when each is met (update 3.3): advanced challenges use
+        /// the shapes a player has played. Null keeps every player on the original challenges.</param>
+        public ChallengeFactory(DailyConfig daily, RushConfig rush, ScoringRules scoring, CampaignProgression campaign = null)
         {
             this.daily = daily;
             this.rush = rush;
             this.scoring = scoring;
+            this.campaign = campaign;
         }
 
         /// <summary>Today's puzzle for a player who has not unlocked any tile mechanics (the original daily).</summary>
@@ -78,16 +82,43 @@ namespace ColourCascade.Core
         /// gets exactly the same puzzle. With mechanics, the obstacles bring goals that must be met as well as the target.
         /// </summary>
         // Generated puzzles, by period and unlocks: calibrating one plays several bot games, so it is done once.
-        readonly Dictionary<string, LevelSpec> made = new Dictionary<string, LevelSpec>();
+        // A puzzle being built (in the background, by GameContext.PrewarmChallenges) is waited for, never built twice.
+        readonly Dictionary<string, Lazy<LevelSpec>> made = new Dictionary<string, Lazy<LevelSpec>>();
 
-        public LevelSpec Daily(string dayKey, MechanicSet unlocked)
+        LevelSpec Made(string key, Func<LevelSpec> build)
         {
-            string key = "d:" + dayKey + ":" + (int)unlocked;
-            LevelSpec cached;
-            if (made.TryGetValue(key, out cached)) return cached;
-            var spec = BuildDaily(dayKey, unlocked);
-            made[key] = spec;
-            return spec;
+            Lazy<LevelSpec> entry;
+            lock (made)
+                if (!made.TryGetValue(key, out entry))
+                {
+                    entry = new Lazy<LevelSpec>(build, System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+                    made[key] = entry;
+                }
+            try
+            {
+                return entry.Value;
+            }
+            catch
+            {
+                // Never keep a failed build: the next request tries again.
+                lock (made)
+                    if (made.TryGetValue(key, out var current) && current == entry) made.Remove(key);
+                throw;
+            }
+        }
+
+        public LevelSpec Daily(string dayKey, MechanicSet unlocked) => Daily(dayKey, unlocked, 0);
+
+        /// <summary>
+        /// The Daily Challenge for a player at a campaign level: from DailyConfig.advancedFromLevel on, an advanced
+        /// puzzle on a board shape they have met (BuildAdvancedDaily); before it, the original daily. Everyone with the
+        /// same unlocks and the same shapes met gets the same puzzle, and records stay keyed by the date.
+        /// </summary>
+        public LevelSpec Daily(string dayKey, MechanicSet unlocked, int campaignLevel)
+        {
+            int met = AdvancedDaily(campaignLevel) ? FamiliesMet(campaignLevel) : 0;
+            string key = "d:" + dayKey + ":" + (int)unlocked + (met != 0 ? ":a" + met : "");
+            return Made(key, () => (met != 0 ? BuildAdvancedDaily(dayKey, unlocked, met) : null) ?? BuildDaily(dayKey, unlocked));
         }
 
         LevelSpec BuildDaily(string dayKey, MechanicSet unlocked)
@@ -172,17 +203,22 @@ namespace ColourCascade.Core
         /// (ChallengeMechanics.WeeklyFor). Rush is scored only, so obstacles bring points rather than goals; the medal
         /// scores are adjusted by how much the mechanics change a typical score, so medals stay as hard to earn.
         /// </summary>
-        public LevelSpec Weekly(string weekKey, MechanicSet unlocked)
+        public LevelSpec Weekly(string weekKey, MechanicSet unlocked) => Weekly(weekKey, unlocked, 0);
+
+        /// <summary>
+        /// The Weekly Rush for a player at a campaign level: from RushConfig.advancedFromLevel on, an advanced board
+        /// (BuildAdvancedWeekly: split and irregular shapes, more mechanics, objectives worth bonus points); before it,
+        /// the original board.
+        /// </summary>
+        public LevelSpec Weekly(string weekKey, MechanicSet unlocked, int campaignLevel)
         {
-            string key = "w:" + weekKey + ":" + (int)unlocked;
-            LevelSpec cached;
-            if (made.TryGetValue(key, out cached)) return cached;
-            var spec = BuildWeekly(weekKey, unlocked);
-            made[key] = spec;
-            return spec;
+            int met = AdvancedWeekly(campaignLevel) ? FamiliesMet(campaignLevel) : 0;
+            string key = "w:" + weekKey + ":" + (int)unlocked + (met != 0 ? ":a" + met : "");
+            return Made(key, () => (met != 0 ? BuildAdvancedWeekly(weekKey, unlocked, met) : null) ?? BuildWeekly(weekKey, unlocked));
         }
 
-        LevelSpec BuildWeekly(string weekKey, MechanicSet unlocked)
+        /// <summary>The week's plain board, before any mechanics: open, or with stone posts (the original Weekly Rush).</summary>
+        LevelSpec WeeklyPlain(string weekKey)
         {
             ulong seed = StableHash.Of("weekly:" + weekKey);
             var rng = new Rng(seed);
@@ -207,6 +243,12 @@ namespace ColourCascade.Core
                 Star3 = last >= 2 ? rush.tierScores[2] : 0,
                 Note = rush.seconds + " seconds. Clear as fast as you can!",
             };
+            return spec;
+        }
+
+        LevelSpec BuildWeekly(string weekKey, MechanicSet unlocked)
+        {
+            var spec = WeeklyPlain(weekKey);
             MechanicSet theme;
             var set = ChallengeMechanics.WeeklyFor(weekKey, unlocked, out theme);
             if (set == MechanicSet.None) return spec;

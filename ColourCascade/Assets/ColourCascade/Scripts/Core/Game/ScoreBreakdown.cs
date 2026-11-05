@@ -23,8 +23,10 @@ namespace ColourCascade.Core
         public int Treasure;
         /// <summary>Everything the specials left on the board scored when the moves ran out (or at Finish).</summary>
         public int Finale;
+        /// <summary>Weekly Rush: bonuses for completed objectives (update 3.3).</summary>
+        public int Objectives;
 
-        public int Total => Groups + Specials + ComboBonus + PowerUps + Obstacles + Stones + Treasure + Finale;
+        public int Total => Groups + Specials + ComboBonus + PowerUps + Obstacles + Stones + Treasure + Finale + Objectives;
 
         public ScoreBreakdown Clone() => (ScoreBreakdown)MemberwiseClone();
     }

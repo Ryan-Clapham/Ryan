@@ -36,6 +36,28 @@ namespace ColourCascade.Core
         ThreeSections,
         /// <summary>Four separate sections in a 2 × 2 grid.</summary>
         Islands,
+        // Update 3.3 (kept at the end so stored values never change).
+        /// <summary>A rectangle with its corners cut away.</summary>
+        Corners,
+        /// <summary>A T (or an upside-down T): the cells under its arms are short columns.</summary>
+        TShape,
+        /// <summary>A plus: four arms around a middle.</summary>
+        Cross,
+        /// <summary>A diamond: every column a different height.</summary>
+        Diamond,
+    }
+
+    /// <summary>
+    /// A board shape as data: rows top first, '.' an open cell, 'x' a gap, '#' a stone (the notation of LevelLayout).
+    /// The built-in shapes are listed in BoardShapeLibrary; more can be added in the config (campaign → shapes →
+    /// extraShapes) and join their family's variants, wherever that family is used, as long as they pass
+    /// BoardShapes.IsFair.
+    /// </summary>
+    [Serializable]
+    public class BoardShapeTemplate
+    {
+        public BoardFamily family = BoardFamily.Asymmetric;
+        public string[] rows = new string[0];
     }
 
     /// <summary>A board shape: its layout, its family and the name shown on the level card.</summary>
@@ -48,8 +70,178 @@ namespace ColourCascade.Core
     }
 
     /// <summary>
-    /// Builds the campaign's board shapes and checks that they play fairly. All of them fit the game's board area on
-    /// every supported screen with touch-sized cells (at most MaxColumns × MaxRows, BoardFit).
+    /// The board shapes, as text templates (BoardShapeTemplate) plus a few generated families: plain rectangles of the
+    /// listed sizes, tall and wide boards, and the stone patterns of LayoutLibrary. A library can carry extra templates
+    /// from the config; an extra that is not fair (BoardShapes.IsFair) is left out. Gameplay never refers to a shape:
+    /// the engine plays any layout of open cells, stones and gaps.
+    /// </summary>
+    public sealed class BoardShapeLibrary
+    {
+        static readonly Dictionary<BoardFamily, string[][]> BuiltIn = new Dictionary<BoardFamily, string[][]>
+        {
+            [BoardFamily.Hollow] = new[]
+            {
+                new[] { "........", "........", "........", "...xx...", "...xx...", "........", "........", "........", "........" },
+                new[] { ".........", ".........", ".........", "...xxx...", "...xxx...", "...xxx...", ".........", ".........", "........." },
+                new[] { "........", "........", "........", ".xx..xx.", ".xx..xx.", "........", "........", "........", "........" },
+                new[] { ".........", ".........", ".........", "...xxx...", "...xxx...", "...xxx...", "...xxx...", ".........", ".........", "........." },
+            },
+            [BoardFamily.TwinTowers] = new[]
+            {
+                new[] { "....x....", "....x....", "....x....", "....x....", "....x....", "....x....", "....x....", "....x....", "....x...." },
+                new[] { "....xx....", "....xx....", "....xx....", "....xx....", "....xx....", "....xx....", "....xx....", "....xx....", "....xx...." },
+                new[] { "....xxxxx", "....xxxxx", "....x....", "....x....", "....x....", "....x....", "....x....", "....x....", "....x....", "....x...." },
+            },
+            [BoardFamily.Bunks] = new[]
+            {
+                new[] { "........", "........", "........", "........", "xxxxxxxx", "........", "........", "........", "........", "........" },
+                new[] { ".........", ".........", ".........", ".........", ".........", "xxxxxxxxx", ".........", ".........", ".........", "........." },
+            },
+            [BoardFamily.StoneWall] = new[]
+            {
+                new[] { "....#....", "....#....", "....#....", "....#....", "....#....", "....#....", "....#....", "....#....", "....#...." },
+                new[] { "........", "........", "........", "........", "########", "........", "........", "........", "........", "........" },
+                new[] { ".........", ".........", ".........", ".........", "....#....", "....#....", "....#....", "....#....", "....#...." },
+            },
+            [BoardFamily.Passage] = new[]
+            {
+                new[] { "........", "........", "........", "........", "xxx..xxx", "........", "........", "........", "........", "........" },
+                new[] { ".........", ".........", ".........", ".........", "xxxx.xxxx", ".........", ".........", ".........", ".........", "........." },
+                new[] { "....x....", "....x....", "....x....", "....x....", "....x....", "....x....", ".........", ".........", "....x...." },
+                new[] { "........", "........", "........", "........", "..xxxxxx", "........", "........", "........", "........", "........" },
+            },
+            [BoardFamily.Asymmetric] = new[]
+            {
+                new[] { ".....xxxx", ".....xxxx", ".....xxxx", ".........", ".........", ".........", ".........", ".........", ".........", "........." },
+                new[] { ".....xxxx", "......xxx", ".......xx", "........x", ".........", ".........", ".........", ".........", "........." },
+                new[] { ".........", ".........", ".........", ".........", ".........", "x........", "xx.......", "xxx......", "xxxx....." },
+            },
+            [BoardFamily.ThreeSections] = new[]
+            {
+                new[] { "....x....", "....x....", "....x....", "....x....", "....x....", "xxxxxxxxx", ".........", ".........", ".........", "........." },
+                new[] { ".......", ".......", ".......", "xxxxxxx", ".......", ".......", ".......", "xxxxxxx", ".......", ".......", "......." },
+                new[] { ".........", ".........", ".........", ".........", "xxxxxxxxx", "....x....", "....x....", "....x....", "....x....", "....x...." },
+            },
+            [BoardFamily.Islands] = new[]
+            {
+                new[] { "....x....", "....x....", "....x....", "....x....", "....x....", "xxxxxxxxx", "....x....", "....x....", "....x....", "....x....", "....x...." },
+                new[] { "....x.....", "....x.....", "....x.....", "....x.....", "....x.....", "xxxxxxxxxx", "....x.....", "....x.....", "....x.....", "....x....." },
+            },
+            [BoardFamily.Corners] = new[]
+            {
+                new[] { "x......x", "........", "........", "........", "........", "........", "........", "........", "x......x" },
+                new[] { "xx.....xx", "x.......x", ".........", ".........", ".........", ".........", ".........", "x.......x", "xx.....xx" },
+                new[] { "xx....xx", "x......x", "........", "........", "........", "........", "........", "........", "x......x", "xx....xx" },
+            },
+            [BoardFamily.TShape] = new[]
+            {
+                new[] { ".........", ".........", ".........", ".........", "xx.....xx", "xx.....xx", "xx.....xx", "xx.....xx", "xx.....xx", "xx.....xx" },
+                new[] { "xx.....xx", "xx.....xx", "xx.....xx", "xx.....xx", ".........", ".........", ".........", ".........", "........." },
+            },
+            [BoardFamily.Cross] = new[]
+            {
+                new[] { "xxx...xxx", "xxx...xxx", "xxx...xxx", ".........", ".........", ".........", "xxx...xxx", "xxx...xxx", "xxx...xxx" },
+                new[] { "xxx....xxx", "xxx....xxx", "xxx....xxx", "..........", "..........", "..........", "..........", "xxx....xxx", "xxx....xxx", "xxx....xxx" },
+            },
+            [BoardFamily.Diamond] = new[]
+            {
+                new[] { "xxx...xxx", "xx.....xx", "x.......x", ".........", ".........", ".........", "x.......x", "xx.....xx", "xxx...xxx" },
+                new[] { "xxx....xxx", "xx......xx", "x........x", "..........", "..........", "..........", "..........", "..........", "x........x", "xx......xx", "xxx....xxx" },
+            },
+        };
+
+        // After BuiltIn: static fields are set in the order they are written.
+        public static readonly BoardShapeLibrary Default = new BoardShapeLibrary(null);
+
+        readonly Dictionary<BoardFamily, List<string[]>> templates = new Dictionary<BoardFamily, List<string[]>>();
+
+        public BoardShapeLibrary(IEnumerable<BoardShapeTemplate> extras)
+        {
+            foreach (var kv in BuiltIn) templates[kv.Key] = new List<string[]>(kv.Value);
+            if (extras == null) return;
+            foreach (var t in extras)
+            {
+                if (t == null || t.rows == null || t.rows.Length == 0 || !Templated(t.family)) continue;
+                try
+                {
+                    var l = LevelLayout.Parse(t.rows);
+                    if (!BoardShapes.IsFair(l, out _)) continue;
+                }
+                catch (ArgumentException)
+                {
+                    continue;
+                }
+                if (!templates.TryGetValue(t.family, out var list)) templates[t.family] = list = new List<string[]>();
+                list.Add((string[])t.rows.Clone());
+            }
+        }
+
+        /// <summary>Families described by templates (the others are generated: rectangles, tall, wide, stone patterns).</summary>
+        public static bool Templated(BoardFamily f) => f != BoardFamily.Rectangle && f != BoardFamily.Obstructed && f != BoardFamily.Tower && f != BoardFamily.Wide;
+
+        public int VariantCount(BoardFamily f)
+        {
+            switch (f)
+            {
+                case BoardFamily.Rectangle: return BoardShapes.RectangleSizes.Length;
+                case BoardFamily.Obstructed: return LayoutLibrary.StonePatterns.Length;
+                case BoardFamily.Tower: return 3;
+                case BoardFamily.Wide: return 3;
+                default: return templates.TryGetValue(f, out var list) && list.Count > 0 ? list.Count : 1;
+            }
+        }
+
+        /// <summary>The template rows of a templated family's variant (top first).</summary>
+        public string[] Rows(BoardFamily f, int variant)
+        {
+            if (!templates.TryGetValue(f, out var list) || list.Count == 0) return null;
+            return list[((variant % list.Count) + list.Count) % list.Count];
+        }
+
+        /// <summary>Builds one variant of a family. tier (0-3) only affects Obstructed (how much its stones intrude).</summary>
+        public BoardShape Build(BoardFamily f, int variant, int tier, Rng rng)
+        {
+            int count = VariantCount(f);
+            variant = ((variant % count) + count) % count;
+            LevelLayout l;
+            switch (f)
+            {
+                case BoardFamily.Obstructed:
+                    {
+                        // Random patterns (Scatter) can leave a dead-end pocket: try again, then fall back to the pattern
+                        // at its gentlest.
+                        var (w, h) = BoardShapes.RectangleSizes[2 + rng.Next(2)];
+                        l = null;
+                        for (int attempt = 0; attempt < 8 && l == null; attempt++)
+                        {
+                            var candidate = LayoutLibrary.Build(LayoutLibrary.StonePatterns[variant], w, h, attempt < 6 ? tier : 0, rng);
+                            if (BoardShapes.IsFair(candidate, out _)) l = candidate;
+                        }
+                        if (l == null) l = LevelLayout.Open(w, h);
+                        break;
+                    }
+                case BoardFamily.Tower: l = variant == 0 ? LevelLayout.Open(6, 11) : variant == 1 ? LevelLayout.Open(7, 11) : LevelLayout.Open(6, 10); break;
+                case BoardFamily.Wide: l = variant == 0 ? LevelLayout.Open(10, 7) : variant == 1 ? LevelLayout.Open(10, 8) : LevelLayout.Open(9, 7); break;
+                case BoardFamily.Rectangle:
+                    {
+                        var (w, h) = BoardShapes.RectangleSizes[variant];
+                        l = LevelLayout.Open(w, h);
+                        break;
+                    }
+                default:
+                    {
+                        var rows = Rows(f, variant);
+                        l = rows != null ? LevelLayout.Parse(rows) : LevelLayout.Open(8, 9);
+                        break;
+                    }
+            }
+            return new BoardShape { Family = f, Variant = variant, Name = BoardShapes.NameOf(f), Layout = l };
+        }
+    }
+
+    /// <summary>
+    /// Board shape helpers and fairness checks. Every shape fits the game's board area on every supported screen with
+    /// touch-sized cells (at most MaxColumns × MaxRows, BoardFit).
     /// </summary>
     public static class BoardShapes
     {
@@ -61,25 +253,10 @@ namespace ColourCascade.Core
         /// <summary>Plain board sizes, smallest first; later levels may use the bigger ones.</summary>
         public static readonly (int w, int h)[] RectangleSizes = { (7, 9), (8, 8), (8, 9), (9, 9), (7, 10), (9, 8), (8, 10), (9, 10) };
 
-        public static int VariantCount(BoardFamily f)
-        {
-            switch (f)
-            {
-                case BoardFamily.Rectangle: return RectangleSizes.Length;
-                case BoardFamily.Obstructed: return LayoutLibrary.StonePatterns.Length;
-                case BoardFamily.Hollow: return 4;
-                case BoardFamily.Tower: return 3;
-                case BoardFamily.Wide: return 3;
-                case BoardFamily.TwinTowers: return 3;
-                case BoardFamily.Bunks: return 2;
-                case BoardFamily.StoneWall: return 3;
-                case BoardFamily.Passage: return 4;
-                case BoardFamily.Asymmetric: return 3;
-                case BoardFamily.ThreeSections: return 3;
-                case BoardFamily.Islands: return 2;
-                default: return 1;
-            }
-        }
+        public static int VariantCount(BoardFamily f) => BoardShapeLibrary.Default.VariantCount(f);
+
+        /// <summary>Builds one variant of a built-in family (BoardShapeLibrary.Default).</summary>
+        public static BoardShape Build(BoardFamily f, int variant, int tier, Rng rng) => BoardShapeLibrary.Default.Build(f, variant, tier, rng);
 
         /// <summary>The name shown on the level card ("Twin towers", "Break the wall", ...); empty for a plain rectangle.</summary>
         public static string NameOf(BoardFamily f)
@@ -96,6 +273,10 @@ namespace ColourCascade.Core
                 case BoardFamily.Asymmetric: return "Lopsided board";
                 case BoardFamily.ThreeSections: return "Three sections";
                 case BoardFamily.Islands: return "Islands";
+                case BoardFamily.Corners: return "Cut corners";
+                case BoardFamily.TShape: return "T-shaped board";
+                case BoardFamily.Cross: return "Cross";
+                case BoardFamily.Diamond: return "Diamond";
                 default: return "";
             }
         }
@@ -115,230 +296,12 @@ namespace ColourCascade.Core
                 case BoardFamily.Asymmetric: return "New board: lopsided";
                 case BoardFamily.ThreeSections: return "New board: three sections";
                 case BoardFamily.Islands: return "New board: four islands";
+                case BoardFamily.Corners: return "New board: cut corners";
+                case BoardFamily.TShape: return "New board: a T, with short columns under its arms";
+                case BoardFamily.Cross: return "New board: a cross";
+                case BoardFamily.Diamond: return "New board: a diamond";
                 default: return "";
             }
-        }
-
-        /// <summary>Builds one variant of a family. tier (0-3) only affects Obstructed (how much its stones intrude).</summary>
-        public static BoardShape Build(BoardFamily f, int variant, int tier, Rng rng)
-        {
-            int count = VariantCount(f);
-            variant = ((variant % count) + count) % count;
-            LevelLayout l;
-            switch (f)
-            {
-                case BoardFamily.Obstructed:
-                    {
-                        // Random patterns (Scatter) can leave a dead-end pocket: try again, then fall back to the pattern
-                        // at its gentlest.
-                        var (w, h) = RectangleSizes[2 + rng.Next(2)];
-                        l = null;
-                        for (int attempt = 0; attempt < 8 && l == null; attempt++)
-                        {
-                            var candidate = LayoutLibrary.Build(LayoutLibrary.StonePatterns[variant], w, h, attempt < 6 ? tier : 0, rng);
-                            if (IsFair(candidate, out _)) l = candidate;
-                        }
-                        if (l == null) l = LevelLayout.Open(w, h);
-                        break;
-                    }
-                case BoardFamily.Hollow: l = Hollow(variant); break;
-                case BoardFamily.Tower: l = variant == 0 ? LevelLayout.Open(6, 11) : variant == 1 ? LevelLayout.Open(7, 11) : LevelLayout.Open(6, 10); break;
-                case BoardFamily.Wide: l = variant == 0 ? LevelLayout.Open(10, 7) : variant == 1 ? LevelLayout.Open(10, 8) : LevelLayout.Open(9, 7); break;
-                case BoardFamily.TwinTowers: l = TwinTowers(variant); break;
-                case BoardFamily.Bunks: l = Bunks(variant); break;
-                case BoardFamily.StoneWall: l = StoneWall(variant); break;
-                case BoardFamily.Passage: l = Passage(variant); break;
-                case BoardFamily.Asymmetric: l = Asymmetric(variant); break;
-                case BoardFamily.ThreeSections: l = ThreeSections(variant); break;
-                case BoardFamily.Islands: l = Islands(variant); break;
-                default:
-                    {
-                        var (w, h) = RectangleSizes[variant];
-                        l = LevelLayout.Open(w, h);
-                        break;
-                    }
-            }
-            return new BoardShape { Family = f, Variant = variant, Name = NameOf(f), Layout = l };
-        }
-
-        // ------------------------------------------------------------------ The shapes (rows top first: '.' open, 'x' gap, '#' stone)
-
-        static LevelLayout Hollow(int v)
-        {
-            switch (v)
-            {
-                case 0:
-                    return LevelLayout.Parse(new[] { "........", "........", "........", "...xx...", "...xx...", "........", "........", "........", "........" });
-                case 1:
-                    return LevelLayout.Parse(new[] { ".........", ".........", ".........", "...xxx...", "...xxx...", "...xxx...", ".........", ".........", "........." });
-                case 2:
-                    // Two windows: four short columns fill from beneath them.
-                    return LevelLayout.Parse(new[] { "........", "........", "........", ".xx..xx.", ".xx..xx.", "........", "........", "........", "........" });
-                default:
-                    return LevelLayout.Parse(new[] { ".........", ".........", ".........", "...xxx...", "...xxx...", "...xxx...", "...xxx...", ".........", ".........", "........." });
-            }
-        }
-
-        static LevelLayout TwinTowers(int v)
-        {
-            switch (v)
-            {
-                case 0: return Columns(9, 9, 4);
-                case 1: return Columns(10, 9, 4, 5);
-                default:
-                    {
-                        // Towers of different heights: the right one is lower, and fills from beneath the gap above it.
-                        var l = Columns(9, 10, 4);
-                        for (int c = 5; c < 9; c++)
-                            for (int r = 8; r < 10; r++) l.SetType(c, r, CellType.Void);
-                        return l;
-                    }
-            }
-        }
-
-        static LevelLayout Bunks(int v)
-        {
-            return v == 0 ? RowsGap(8, 10, 5) : RowsGap(9, 10, 4);
-        }
-
-        static LevelLayout StoneWall(int v)
-        {
-            switch (v)
-            {
-                case 0:
-                    {
-                        // A wall down the middle: left and right never meet until a rocket or bomb breaks through.
-                        var l = LevelLayout.Open(9, 9);
-                        for (int r = 0; r < 9; r++) l.SetType(4, r, CellType.Stone);
-                        return l;
-                    }
-                case 1:
-                    {
-                        // A floor of stones across the board: break it and the upper tiles pour into the lower half.
-                        var l = LevelLayout.Open(8, 10);
-                        for (int c = 0; c < 8; c++) l.SetType(c, 5, CellType.Stone);
-                        return l;
-                    }
-                default:
-                    {
-                        // A wall across the lower half only: the halves meet above it.
-                        var l = LevelLayout.Open(9, 9);
-                        for (int r = 0; r < 5; r++) l.SetType(4, r, CellType.Stone);
-                        return l;
-                    }
-            }
-        }
-
-        static LevelLayout Passage(int v)
-        {
-            switch (v)
-            {
-                case 0:
-                    {
-                        // Upper and lower joined by a two-wide opening in the middle: only those columns drain down.
-                        var l = RowsGap(8, 10, 5);
-                        l.SetType(3, 5, CellType.Empty);
-                        l.SetType(4, 5, CellType.Empty);
-                        return l;
-                    }
-                case 1:
-                    {
-                        // A single-cell opening.
-                        var l = RowsGap(9, 10, 5);
-                        l.SetType(4, 5, CellType.Empty);
-                        return l;
-                    }
-                case 2:
-                    {
-                        // Left and right joined by a bridge near the floor: groups can cross there only.
-                        var l = Columns(9, 9, 4);
-                        l.SetType(4, 1, CellType.Empty);
-                        l.SetType(4, 2, CellType.Empty);
-                        return l;
-                    }
-                default:
-                    {
-                        // The opening at one side.
-                        var l = RowsGap(8, 10, 5);
-                        l.SetType(0, 5, CellType.Empty);
-                        l.SetType(1, 5, CellType.Empty);
-                        return l;
-                    }
-            }
-        }
-
-        static LevelLayout Asymmetric(int v)
-        {
-            switch (v)
-            {
-                case 0:
-                    // An L: the top right corner is missing, so those columns are short and fill from beneath it.
-                    return LevelLayout.Parse(new[] { ".....xxxx", ".....xxxx", ".....xxxx", ".........", ".........", ".........", ".........", ".........", ".........", "........." });
-                case 1:
-                    // Steps down to the right.
-                    return LevelLayout.Parse(new[] { ".....xxxx", "......xxx", ".......xx", "........x", ".........", ".........", ".........", ".........", "........." });
-                default:
-                    // An uneven floor: the left columns stop higher up (treasure lands on the steps).
-                    return LevelLayout.Parse(new[] { ".........", ".........", ".........", ".........", ".........", "x........", "xx.......", "xxx......", "xxxx....." });
-            }
-        }
-
-        static LevelLayout ThreeSections(int v)
-        {
-            switch (v)
-            {
-                case 0:
-                    {
-                        // Two upper towers over a wide lower section.
-                        var l = RowsGap(9, 10, 4);
-                        for (int r = 5; r < 10; r++) l.SetType(4, r, CellType.Void);
-                        return l;
-                    }
-                case 1:
-                    {
-                        // Three floors, each filling on its own.
-                        var l = LevelLayout.Open(7, 11);
-                        for (int c = 0; c < 7; c++)
-                        {
-                            l.SetType(c, 3, CellType.Void);
-                            l.SetType(c, 7, CellType.Void);
-                        }
-                        return l;
-                    }
-                default:
-                    {
-                        // A wide upper section over two lower towers.
-                        var l = RowsGap(9, 10, 5);
-                        for (int r = 0; r < 5; r++) l.SetType(4, r, CellType.Void);
-                        return l;
-                    }
-            }
-        }
-
-        static LevelLayout Islands(int v)
-        {
-            // Four islands of 16 to 25 cells.
-            var l = v == 0 ? Columns(9, 11, 4) : Columns(10, 10, 4);
-            int gap = v == 0 ? 5 : 4;
-            for (int c = 0; c < l.Width; c++) l.SetType(c, gap, CellType.Void);
-            return l;
-        }
-
-        /// <summary>An open board with whole void columns.</summary>
-        static LevelLayout Columns(int w, int h, params int[] gaps)
-        {
-            var l = LevelLayout.Open(w, h);
-            foreach (int c in gaps)
-                for (int r = 0; r < h; r++) l.SetType(c, r, CellType.Void);
-            return l;
-        }
-
-        /// <summary>An open board with one whole void row (r counted from the bottom).</summary>
-        static LevelLayout RowsGap(int w, int h, int row)
-        {
-            var l = LevelLayout.Open(w, h);
-            for (int c = 0; c < w; c++) l.SetType(c, row, CellType.Void);
-            return l;
         }
 
         // ------------------------------------------------------------------ Fair play checks

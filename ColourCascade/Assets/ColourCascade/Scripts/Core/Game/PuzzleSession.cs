@@ -162,7 +162,8 @@ namespace ColourCascade.Core
             get
             {
                 if (Mode == GameMode.Campaign) return State == SessionState.Won ? CampaignStars(FinalScore) : 0;
-                if (!GoalsMet) return 0;
+                // Weekly Rush objectives only add points (update 3.3): its medals stay score-based.
+                if (Mode != GameMode.WeeklyRush && !GoalsMet) return 0;
                 return StarRating.Compute(FinalScore, Level.Target, Level.Star2, Level.Star3);
             }
         }
@@ -246,7 +247,11 @@ namespace ColourCascade.Core
             Paused = paused;
         }
 
-        /// <summary>Advances the countdown (Weekly Rush only). Returns true on the tick the time ran out.</summary>
+        /// <summary>
+        /// Advances the countdown (Weekly Rush only). Returns true on the tick the time ran out. If special tiles are still
+        /// on the board then (update 3.3), FinalePending is set and the run ends once RunFinale has set them off, exactly as
+        /// when a level's moves run out; otherwise the run is finished at once.
+        /// </summary>
         public bool Tick(double deltaSeconds)
         {
             if (!IsTimed || State != SessionState.Playing || Paused || !TimerRunning || deltaSeconds <= 0) return false;
@@ -254,6 +259,11 @@ namespace ColourCascade.Core
             if (TimeLeft > 0) return false;
             TimeLeft = 0;
             TimerRunning = false;
+            if (!finaleDone && Board.CountType(CellType.Special) > 0)
+            {
+                FinalePending = true;
+                return true;
+            }
             State = SessionState.Finished;
             EndReason = EndReason.TimeUp;
             return true;
@@ -611,6 +621,14 @@ namespace ColourCascade.Core
             if (!FinalePending) return false;
             FinalePending = false;
             FireFinale(o);
+            // Weekly Rush: the time ran out; the run ends once the specials have gone off.
+            if (IsTimed && TimeLeft <= 0 && State == SessionState.Playing)
+            {
+                State = SessionState.Finished;
+                EndReason = EndReason.TimeUp;
+                o.Ended = true;
+                o.EndReason = EndReason;
+            }
             return true;
         }
 
@@ -917,10 +935,47 @@ namespace ColourCascade.Core
             pendingWave = false;
             if (inFinale && Mode == GameMode.Endless) UpdateEndlessStage(o);
             if (Goals != null) o.GoalsChanged = Goals.Record(o, Score, Board);
+            AwardObjectives(o);
             Tally(o);
             // No reshuffle once the level is ending: nobody plays the board again.
             if (boardChanged && !inFinale) Recover(o);
             EvaluateEnd(o);
+        }
+
+        bool[] objectiveAwarded;
+
+        /// <summary>
+        /// Weekly Rush objectives (update 3.3): the first time each one is complete, its bonus is added to the score once
+        /// (it shows on the result as "Objectives"). The run still ends only when the time is up.
+        /// </summary>
+        void AwardObjectives(MoveOutcome o)
+        {
+            if (Mode != GameMode.WeeklyRush || Goals == null || Level.Goals == null || Level.Goals.Length == 0 || ObjectiveBonusPoints <= 0) return;
+            if (objectiveAwarded == null) objectiveAwarded = new bool[Goals.Count];
+            for (int i = 0; i < Goals.Count && i < objectiveAwarded.Length; i++)
+            {
+                if (objectiveAwarded[i] || !Goals.IsComplete(i)) continue;
+                objectiveAwarded[i] = true;
+                Score += ObjectiveBonusPoints;
+                Breakdown.Objectives += ObjectiveBonusPoints;
+                o.ScoreGained += ObjectiveBonusPoints;
+                o.ObjectiveBonus += ObjectiveBonusPoints;
+            }
+        }
+
+        /// <summary>Points each completed Weekly Rush objective adds (the level's own value, else none).</summary>
+        int ObjectiveBonusPoints => Level.ObjectiveBonus;
+
+        /// <summary>Weekly Rush objectives completed so far.</summary>
+        public int ObjectivesDone
+        {
+            get
+            {
+                if (objectiveAwarded == null) return 0;
+                int n = 0;
+                foreach (var a in objectiveAwarded) if (a) n++;
+                return n;
+            }
         }
 
         /// <summary>Adds one action's results to the run's gameplay tallies.</summary>
@@ -993,7 +1048,9 @@ namespace ColourCascade.Core
                     }
                     break;
                 case EndlessStep.Introduce:
+                    // A new special tile arrives with one on the board, so the player can try it at once.
                     if (plan.Mechanics.Has(MechanicSet.Rockets)) PlaceSpecial(SpecialKind.RocketRow, o);
+                    else if (plan.Mechanics.Has(MechanicSet.Bombs)) PlaceSpecial(SpecialKind.Bomb, o);
                     else if (plan.Mechanics.Has(MechanicSet.Prisms)) PlaceSpecial(SpecialKind.Prism, o);
                     else AddWave(plan.Mechanics, 100, plan.Stage, false, o);
                     break;

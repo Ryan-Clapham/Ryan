@@ -170,10 +170,11 @@ namespace ColourCascade.Tests
             var j = new EndlessJourneyConfig();
             var expected = new[]
             {
-                (1, EndlessStep.WarmUp, MechanicSet.None), (2, EndlessStep.Introduce, MechanicSet.Stones), (3, EndlessStep.Introduce, MechanicSet.Ice),
-                (4, EndlessStep.Breather, MechanicSet.None), (5, EndlessStep.Introduce, MechanicSet.Chains),
-                (6, EndlessStep.Introduce, MechanicSet.Rockets | MechanicSet.Bombs), (7, EndlessStep.Introduce, MechanicSet.Treasure),
-                (8, EndlessStep.Breather, MechanicSet.None), (9, EndlessStep.Introduce, MechanicSet.Moss), (10, EndlessStep.Introduce, MechanicSet.Prisms),
+                // Update 3.3: rockets at stage 2 (they came with bombs at stage 6 before, and many runs never got there).
+                (1, EndlessStep.WarmUp, MechanicSet.None), (2, EndlessStep.Introduce, MechanicSet.Rockets), (3, EndlessStep.Introduce, MechanicSet.Stones),
+                (4, EndlessStep.Introduce, MechanicSet.Ice), (5, EndlessStep.Breather, MechanicSet.None), (6, EndlessStep.Introduce, MechanicSet.Chains),
+                (7, EndlessStep.Introduce, MechanicSet.Bombs), (8, EndlessStep.Introduce, MechanicSet.Treasure),
+                (9, EndlessStep.Breather, MechanicSet.None), (10, EndlessStep.Introduce, MechanicSet.Moss), (11, EndlessStep.Introduce, MechanicSet.Prisms),
             };
             foreach (var (stage, step, what) in expected)
             {
@@ -182,14 +183,16 @@ namespace ColourCascade.Tests
                 if (step == EndlessStep.Introduce) Assert.AreEqual(what, plan.Mechanics, "stage " + stage);
                 Assert.IsFalse(string.IsNullOrEmpty(plan.Title), "stage " + stage + " says what it is");
             }
-            Assert.AreEqual(SpecialTier.None, EndlessJourney.SpecialsAt(5, j), "no specials before they are introduced");
-            Assert.AreEqual(SpecialTier.Bombs, EndlessJourney.SpecialsAt(6, j));
-            Assert.AreEqual(SpecialTier.Prisms, EndlessJourney.SpecialsAt(10, j));
-            Assert.Greater(EndlessJourney.For(4, j).BonusMoves, 0, "a breather gives moves");
+            Assert.AreEqual(SpecialTier.None, EndlessJourney.SpecialsAt(1, j), "no specials before they are introduced");
+            Assert.AreEqual(SpecialTier.Rockets, EndlessJourney.SpecialsAt(2, j), "rockets from stage 2");
+            Assert.AreEqual(SpecialTier.Rockets, EndlessJourney.SpecialsAt(6, j));
+            Assert.AreEqual(SpecialTier.Bombs, EndlessJourney.SpecialsAt(7, j));
+            Assert.AreEqual(SpecialTier.Prisms, EndlessJourney.SpecialsAt(11, j));
+            Assert.Greater(EndlessJourney.For(5, j).BonusMoves, 0, "a breather gives moves");
 
-            // From 11 every stage mixes what came before: more kinds and more of each as stages rise, a breather every 4.
+            // From 12 every stage mixes what came before: more kinds and more of each as stages rise, a breather every 4.
             int lastKinds = 0, lastDensity = 0;
-            for (int stage = 11; stage <= 30; stage++)
+            for (int stage = 12; stage <= 31; stage++)
             {
                 var plan = EndlessJourney.For(stage, j);
                 if (plan.Step == EndlessStep.Breather) continue;
@@ -201,16 +204,16 @@ namespace ColourCascade.Tests
                 lastKinds = plan.Kinds;
                 lastDensity = plan.DensityPercent;
             }
-            Assert.AreEqual(EndlessStep.Breather, EndlessJourney.For(14, j).Step);
-            Assert.AreEqual(EndlessStep.Breather, EndlessJourney.For(18, j).Step);
-            Assert.AreEqual(4, EndlessJourney.For(23, j).Kinds);
-            Assert.AreEqual(5, EndlessJourney.NextIntroduction(3, j, out var next));
+            Assert.AreEqual(EndlessStep.Breather, EndlessJourney.For(15, j).Step);
+            Assert.AreEqual(EndlessStep.Breather, EndlessJourney.For(19, j).Step);
+            Assert.AreEqual(4, EndlessJourney.For(24, j).Kinds);
+            Assert.AreEqual(6, EndlessJourney.NextIntroduction(4, j, out var next));
             Assert.AreEqual(MechanicSet.Chains, next);
-            Assert.AreEqual(0, EndlessJourney.NextIntroduction(10, j, out _), "everything has arrived by stage 10");
+            Assert.AreEqual(0, EndlessJourney.NextIntroduction(11, j, out _), "everything has arrived by stage 11");
 
-            j.iceAt = 2;
-            j.stonesAt = 3;
-            Assert.AreEqual(MechanicSet.Ice, EndlessJourney.For(2, j).Mechanics, "the order comes from the config");
+            j.iceAt = 3;
+            j.stonesAt = 4;
+            Assert.AreEqual(MechanicSet.Ice, EndlessJourney.For(3, j).Mechanics, "the order comes from the config");
         }
 
         // ------------------------------------------------------------------ Daily Challenge
@@ -439,7 +442,8 @@ namespace ColourCascade.Tests
                     Assert.IsTrue(s.TryPlay(pick, o, colour));
                     if (o.HasCreated)
                     {
-                        Assert.GreaterOrEqual(s.Stage, j.specialsAt, "specials only once the journey has brought them");
+                        Assert.GreaterOrEqual(s.Stage, j.rocketsAt, "specials only once the journey has brought them");
+                        if (o.Created.Kind == SpecialKind.Bomb) Assert.GreaterOrEqual(s.Stage, j.specialsAt);
                         if (o.Created.Kind == SpecialKind.Prism) Assert.GreaterOrEqual(s.Stage, j.prismsAt);
                     }
                     if (!o.StageUp)

@@ -174,6 +174,15 @@ namespace ColourCascade.EditorTools
             var asset = AssetDatabase.LoadAssetAtPath<ColourCascadeConfig>(ConfigPath);
             if (asset == null) return;
             RemoveRetiredPowerUps(asset);
+            // Update 3.3: Endless values still at an older build's defaults (stage scores, colours, the journey) move to
+            // the current ones; values edited by hand are kept.
+            var endless = EndlessTuning.Upgrade(asset.endless);
+            if (endless.Count > 0)
+            {
+                EditorUtility.SetDirty(asset);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Colour Cascade] Updated the game config's Endless settings to the current defaults (" + string.Join(", ", endless) + ").");
+            }
             if (asset.rewardTuningVersion >= EconomyTuning.Current) return;
             var changed = EconomyTuning.Upgrade(asset.ToData(), asset.rewardTuningVersion);
             // Update 3.1: achievement rewards still at their pre-3.1 defaults move to the new ones (edited ones stay).

@@ -280,8 +280,8 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
 
 ### 4.4 Special tiles left when the moves run out (2.1)
 
-* If the last move leaves special tiles on the board (campaign, Daily Challenge and Endless; not the timed Weekly
-  Rush), they all go off before the result is decided. They go group by group, top row first: each **connected
+* If the last move leaves special tiles on the board (campaign, Daily Challenge and Endless; and, since update 3.3,
+  when the Weekly Rush timer runs out), they all go off before the result is decided. They go group by group, top row first: each **connected
   group fires as one combination** (the same rules as a tap, led by its top-left member; a prism takes the most
   common colour), a lone special fires alone, and chain reactions resolve before the next group. No move is
   charged and no inventory power-up is ever used. Their points and their goal progress count: a goal they complete
@@ -303,6 +303,12 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
   (the run is over). Leaving the game screen while they are waiting to go off (Quit, or anything else that leaves
   the run) still sets them off and records the whole score; pausing or minimising the app never does. Each special
   goes off once, and the end-of-run sequence can't repeat (recording it twice returns the same result).
+* **Weekly Rush (fixed in update 3.3):** before 3.3 the run ended the instant the clock reached zero, so specials still
+  on the board were simply lost (the finale was written for runs of moves only). Now, when the time is up with
+  specials on the board, play stops (no more taps, the clock stays at zero and never fires again), "Time's up!" is
+  shown and the specials go off exactly as above; then the run ends with the reason "time's up". Their points are
+  "Specials at the end" on the result and count towards the week's best and its medals. Leaving the game screen while
+  they wait still sets them off and records the whole score. Each special goes off once and the finale can't repeat.
 
 ## 5. Points
 
@@ -399,9 +405,9 @@ free), as are rewards and records.
 | | Campaign | Daily Challenge | Weekly Rush | Endless |
 |---|---|---|---|---|
 | Unlocked by | Its introduction levels (section 7) | Campaign: a mechanic counts once its introduction level is completed | Campaign, as for Daily | The stages of each run (below) |
-| Boards | Hand-made introductions, then recipes by band | The day's plan from the date | A weekly theme plus more | The stage journey (below) |
-| Goals | 1–3 per level | The target plus the obstacles' goals | None (scored) | None (scored) |
-| Special tiles | From their introductions | Whatever the player has unlocked | Whatever the player has unlocked | Rockets and bombs from stage 6, prisms from 10 |
+| Boards | Hand-made introductions, then recipes by band | The day's plan from the date; from campaign level 121 an advanced puzzle on a board shape the player has met (3.3) | A weekly theme plus more; from level 121 on a split or irregular board (3.3) | The stage journey (below); shaped boards once the best run has gone far enough (3.3) |
+| Goals | 1–3 per level | The target plus the obstacles' goals (from level 121: the target and two objectives) | None (scored); from level 121 up to three objectives that add bonus points | None (scored) |
+| Special tiles | From their introductions | Whatever the player has unlocked | Whatever the player has unlocked | Rockets from stage 2, bombs from 7, prisms from 11 (3.3) |
 
 **Daily Challenge.** The day's plan comes from the date alone: one mechanic, or a pair that plays fairly on a
 20-move board (ice with treasure, moss or a colour goal; treasure with moss or a colour goal; moss with a colour
@@ -412,6 +418,16 @@ last move, and stars need the goals too. Days with goals have a slightly lower t
 goalTargetEasingPermille). Records and rewards stay keyed by the date. If the day's obstacles would be too many for a
 casual player in 20 moves, they are scaled down (70%, then 50%).
 
+**Advanced Daily Challenge (update 3.3).** From campaign level 121 (config: daily → advancedFromLevel; 0 turns it off)
+the day's puzzle is built with the campaign's own tools: a board shape the player has already played (drawn from the
+date; plain and stone boards are rarer), the target plus two objectives that go together (the day's planned obstacle
+and a partner the campaign would pair with it: another obstacle, a special-tile goal, or treasure held up by ice or
+chains on harder days), amounts sized by the campaign's rules for the board's size and shape, and moves sized from a
+thoughtful player (20–30). It must pass a fairness check (a thoughtful player completes the target and both objectives
+in 9 games of 12 with varied refills, and again in 8 of 12 more) or it is placed again or made smaller; if no version
+passes, the day falls back to the original daily (about one day in twenty). Everyone with the same unlocks and the
+same shapes met plays exactly the same puzzle; records and rewards stay keyed by the date.
+
 **Weekly Rush.** Each week has a theme (frozen, rocket, chain, bomb, treasure, prism or moss week); special-tile
 themes start the board with a few of that special. If the player has not unlocked the theme, their most recent
 obstacle stands in. Up to two more of the player's obstacles join it, so weekly boards combine more than daily ones
@@ -419,15 +435,33 @@ obstacle stands in. Up to two more of the player's obstacles join it, so weekly 
 board: a bot plays 45 moves on the board with and without the mechanics, and the medal scores are multiplied by the
 ratio (0.7× to 1.8×), so a medal takes the same effort. Rewards use the medal scores of the board that was played.
 
-**Endless (2.1): the stage journey.** Every run starts with a clean board and walks through the game's mechanics, one
-new thing per stage (config: endless → journey; DESIGN.md §4): 1 warm-up, 2 stones, 3 frozen tiles, 4 a breather
-(+5 moves), 5 chains, 6 rockets and bombs (big groups make them from here; one rocket is placed to try), 7 treasure,
-8 a breather, 9 moss, 10 prisms (one is placed), then from 11 every stage mixes what came before, two kinds at
-first, three from 15 and four from 19, each more densely (amounts grow 8% a stage, up to double), with a breather
-every fourth stage (14, 18, 22...). Mixing stages draw their mechanics, and every wave its cells, from the run's own
+**Advanced Weekly Rush (update 3.3).** From campaign level 121 (config: rush → advancedFromLevel) the week's board is a
+split or irregular shape the player has met (hollow, cut corners, twin towers, upper and lower, a stone wall, a narrow
+passage, lopsided, T, cross, diamond, three sections or islands; stone boards until the first is met), with the theme
+and up to two more mechanics, and **up to three objectives** (free the ice, break the chains, clear the moss, bring
+down treasure; on specials weeks, set off that special). Objectives never end the run: each adds rush →
+objectiveBonus points (1,000) to the score the first time it is complete, shown as "Objective complete! +1,000" and as
+"Objectives" on the result. They are sized so a thoughtful player completes all of them within a typical run (45
+moves) in 6 games of 8, trying a bigger version first. Medals stay score-based (finished objectives or not): the
+medal scores move with the board as above, bonuses included, within 0.7× to 4× (shaped boards with specials and
+bonuses can score far more than a plain one), so they are earned at about the plain board's rates.
+
+**Endless (2.1, reordered in 3.3): the stage journey.** Every run starts with a clean board and walks through the
+game's mechanics, one new thing per stage (config: endless → journey; DESIGN.md §4): 1 warm-up, 2 rockets (big groups
+make them from here; one is placed to try), 3 stones, 4 frozen tiles, 5 a breather (+5 moves), 6 chains, 7 bombs (one
+is placed), 8 treasure, 9 a breather, 10 moss, 11 prisms (one is placed), then from 12 every stage mixes what came
+before, two kinds at first, three from 16 and four from 20, each more densely (amounts grow 8% a stage, up to
+double), with a breather every fourth stage (15, 19, 23...). Before 3.3 rockets and bombs arrived together at stage
+6, which most runs barely reached, so many players never saw a special in Endless. Mixing stages draw their mechanics, and every wave its cells, from the run's own
 seed, so no two runs are alike. Waves never cover more than a third of the board; stones appear in the middle rows,
 at most one per column and never under treasure. Each treasure brought down gives 3 bonus moves. Stage scores rise
 with the stage: 1,200, 2,800, 4,800, 7,200, 10,000, 13,500, 17,500, 22,000, 27,000, 32,500, then +6,000 each.
+
+**Endless board shapes (update 3.3).** Once the player's best run has reached stage 6 (config: endless →
+shapedRunsFromBestStage), most runs (65%) start on a board shape instead of the 8 × 9 rectangle: tall, wide, hollow or
+cut corners; from best stage 9 also twin towers, upper and lower, lopsided and a stone wall; from 12 also a narrow
+passage, T, cross and diamond. The shape comes from the run's seed; the stage waves place their obstacles, stones
+and specials on whatever cells it has, by the same rules as on the rectangle.
 
 **Endless level.** Still saved with the player's progress: it starts at 1 and goes up by one for every stage reached in
 any run. It no longer unlocks anything (the journey replaced the old Endless milestones); the mode card and the result

@@ -270,7 +270,7 @@ namespace ColourCascade.Core
             var plan = progression.Plan(n);
             var region = RegionForLevel(n);
             var shapeRng = new Rng(StableHash.Combine(seed, 0x5A9E));
-            var shape = BoardShapes.Build(plan.Family, plan.Variant, 3, shapeRng);
+            var shape = progression.Library.Build(plan.Family, plan.Variant, 3, shapeRng);
             string error;
             if (!BoardShapes.IsFair(shape.Layout, out error))
             {
@@ -305,6 +305,29 @@ namespace ColourCascade.Core
             if (recipe != null)
             {
                 var result = DecorateProgression(spec, plan, recipe, n);
+                if (result == Decoration.Unproven && (plan.ShapeIntro || plan.ShapeReprise) && !(recipe.Mechanics.Count == 1 && recipe.Has(Mechanic.Ice)))
+                {
+                    // A board's introduction and its returns keep their board (update 3.3): when the goals can't be made
+                    // fair there (treasure dug down a narrow column, say), the goal becomes frozen tiles, which play well
+                    // on every shape.
+                    var ice = new LevelRecipe { Intensity = recipe.Intensity };
+                    ice.Mechanics.Add(Mechanic.Ice);
+                    CampaignProgression.Size(ice, plan, new Rng(StableHash.Combine(seed, 0x1CE)));
+                    CampaignProgression.ScaleToBoard(ice, shape.Layout.OpenCellCount, CampaignProgression.BoardPermille(plan.Family));
+                    var keep = (spec.Layout, spec.Goals, spec.Moves);
+                    spec.Layout = shape.Layout;
+                    var again = DecorateProgression(spec, plan, ice, n);
+                    if (again == Decoration.Proven)
+                    {
+                        recipe = ice;
+                        result = again;
+                    }
+                    else
+                    {
+                        (spec.Layout, spec.Goals, spec.Moves) = keep;
+                        SetMossCap(spec);
+                    }
+                }
                 if (result == Decoration.Unproven && plan.Family != BoardFamily.Rectangle)
                 {
                     // No version passed the fairness check on this board: the same goals on a plain board instead.

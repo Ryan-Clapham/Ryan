@@ -18,6 +18,14 @@ namespace ColourCascade.Core
         public int asymmetricFromLevel = 251;
         public int threeSectionsFromLevel = 271;
         public int islandsFromLevel = 291;
+        // Update 3.3.
+        public int cornersFromLevel = 141;
+        public int tShapeFromLevel = 311;
+        public int crossFromLevel = 331;
+        public int diamondFromLevel = 351;
+        /// <summary>More board shapes as data (rows top first: '.' open, 'x' gap, '#' stone). Each joins its family's variants
+        /// in every mode that uses the family; one that isn't fair (BoardShapes.IsFair) is ignored.</summary>
+        public BoardShapeTemplate[] extraShapes = new BoardShapeTemplate[0];
 
         public int FromLevel(BoardFamily f)
         {
@@ -35,6 +43,10 @@ namespace ColourCascade.Core
                 case BoardFamily.Asymmetric: return asymmetricFromLevel;
                 case BoardFamily.ThreeSections: return threeSectionsFromLevel;
                 case BoardFamily.Islands: return islandsFromLevel;
+                case BoardFamily.Corners: return cornersFromLevel;
+                case BoardFamily.TShape: return tShapeFromLevel;
+                case BoardFamily.Cross: return crossFromLevel;
+                case BoardFamily.Diamond: return diamondFromLevel;
                 default: return int.MaxValue;
             }
         }
@@ -52,6 +64,9 @@ namespace ColourCascade.Core
         public bool Breather;
         /// <summary>The first level on a new kind of board: one familiar goal, gently sized.</summary>
         public bool ShapeIntro;
+        /// <summary>A new board's return, 4 or 13 levels after its introduction (update 3.3): a little gentler, and it keeps
+        /// its board as an introduction does.</summary>
+        public bool ShapeReprise;
         public BoardFamily Family;
         public int Variant;
         /// <summary>Null for a score level.</summary>
@@ -75,12 +90,14 @@ namespace ColourCascade.Core
         {
             BoardFamily.Rectangle, BoardFamily.Obstructed, BoardFamily.Hollow, BoardFamily.Tower, BoardFamily.Wide, BoardFamily.TwinTowers,
             BoardFamily.Bunks, BoardFamily.StoneWall, BoardFamily.Passage, BoardFamily.Asymmetric, BoardFamily.ThreeSections, BoardFamily.Islands,
+            BoardFamily.Corners, BoardFamily.TShape, BoardFamily.Cross, BoardFamily.Diamond,
         };
 
         static readonly Mechanic[] Primaries = { Mechanic.Ice, Mechanic.Chains, Mechanic.Treasure, Mechanic.Moss, Mechanic.Colour };
 
         readonly int from;
         readonly BoardShapeSchedule shapes;
+        readonly BoardShapeLibrary library;
         readonly MechanicSchedule mechanics;
         readonly Dictionary<int, (BoardFamily family, int variant)[]> familyPlans = new Dictionary<int, (BoardFamily, int)[]>();
         readonly Dictionary<int, Mechanic[]> mechanicPlans = new Dictionary<int, Mechanic[]>();
@@ -92,10 +109,24 @@ namespace ColourCascade.Core
             from = Math.Max(1, fromLevel);
             this.shapes = shapes ?? new BoardShapeSchedule();
             this.mechanics = mechanics ?? new MechanicSchedule();
+            library = this.shapes.extraShapes != null && this.shapes.extraShapes.Length > 0 ? new BoardShapeLibrary(this.shapes.extraShapes) : BoardShapeLibrary.Default;
+            // Every family's return levels, worked out once (each depends on the earlier families' returns); after this
+            // the table is only read, from any thread.
+            foreach (var f in AllFamilies)
+            {
+                RepriseLevel(f, 4);
+                RepriseLevel(f, 13);
+            }
+            repriseTableReady = true;
         }
+
+        readonly Dictionary<(BoardFamily, int), int> repriseLevels = new Dictionary<(BoardFamily, int), int>();
+        bool repriseTableReady;
 
         public int FromLevel => from;
         public BoardShapeSchedule Shapes => shapes;
+        /// <summary>The board shapes this campaign uses (the built-in ones and the config's extras).</summary>
+        public BoardShapeLibrary Library => library;
 
         // ------------------------------------------------------------------ Tiers and intensity
 
@@ -160,6 +191,59 @@ namespace ColourCascade.Core
             return false;
         }
 
+        /// <summary>
+        /// A new board comes back about 4 and 13 levels after its introduction (update 3.3), so players meet it again
+        /// while it is new; with sixteen families a random draw alone often left a new shape unseen for 40 levels or
+        /// more. A return moves on a level or two when its level is a breather (ending in 6), a board's introduction,
+        /// another board's return, or one of the obstacle showcase levels (which keep their own boards).
+        /// </summary>
+        public bool IsShapeReprise(int n, out BoardFamily family)
+        {
+            foreach (var f in AllFamilies)
+            {
+                if (f == BoardFamily.Rectangle || f == BoardFamily.Obstructed) continue;
+                int start = shapes.FromLevel(f);
+                if (start < from || n <= start || n > start + 20) continue;
+                if (RepriseLevel(f, 4) == n || RepriseLevel(f, 13) == n)
+                {
+                    family = f;
+                    return true;
+                }
+            }
+            family = BoardFamily.Rectangle;
+            return false;
+        }
+
+        /// <summary>The level of a family's return at about `after` levels past its introduction (see IsShapeReprise).</summary>
+        int RepriseLevel(BoardFamily family, int after)
+        {
+            if (repriseLevels.TryGetValue((family, after), out int known)) return known;
+            int level = FindRepriseLevel(family, after);
+            if (!repriseTableReady) repriseLevels[(family, after)] = level;
+            return level;
+        }
+
+        int FindRepriseLevel(BoardFamily family, int after)
+        {
+            int start = shapes.FromLevel(family);
+            for (int n = start + after; n < start + after + 4; n++)
+            {
+                if (n % 10 == 6 || IsShapeIntro(n, out _) || CampaignDesign.ShowcaseFor(n, mechanics) != null) continue;
+                bool taken = false;
+                // An earlier family's return already there (families are checked in order, so this never loops).
+                foreach (var f in AllFamilies)
+                {
+                    if (f == family) break;
+                    if (f == BoardFamily.Rectangle || f == BoardFamily.Obstructed) continue;
+                    int s = shapes.FromLevel(f);
+                    if (s < from || s >= start) continue;
+                    if (RepriseLevel(f, 4) == n || RepriseLevel(f, 13) == n) taken = true;
+                }
+                if (!taken) return n;
+            }
+            return -1;
+        }
+
         /// <summary>How often a family is picked at level n: none before its introduction, rising for 40 levels, with
         /// a boost for the 20 levels after it arrives so players meet it again while it is new.</summary>
         int Weight(BoardFamily f, int n)
@@ -175,11 +259,12 @@ namespace ColourCascade.Core
             int w = Math.Min(10, 4 + age / 8);
             if (age > 0 && age <= 20) w = w * 5 / 2;
             // The most demanding shapes grow more common deep in the campaign.
-            if (n >= 301 && (f == BoardFamily.Passage || f == BoardFamily.ThreeSections || f == BoardFamily.Islands || f == BoardFamily.StoneWall || f == BoardFamily.Asymmetric)) w += 3;
+            if (n >= 301 && (f == BoardFamily.Passage || f == BoardFamily.ThreeSections || f == BoardFamily.Islands || f == BoardFamily.StoneWall || f == BoardFamily.Asymmetric ||
+                             f == BoardFamily.TShape || f == BoardFamily.Cross || f == BoardFamily.Diamond)) w += 3;
             return w;
         }
 
-        static bool Simple(BoardFamily f) => f == BoardFamily.Rectangle || f == BoardFamily.Wide || f == BoardFamily.Tower || f == BoardFamily.Hollow;
+        static bool Simple(BoardFamily f) => f == BoardFamily.Rectangle || f == BoardFamily.Wide || f == BoardFamily.Tower || f == BoardFamily.Hollow || f == BoardFamily.Corners;
 
         /// <summary>The board family and variant of level n (from the ten-level plans, built in order and kept).</summary>
         readonly object gate = new object();
@@ -212,6 +297,7 @@ namespace ColourCascade.Core
                     BoardFamily pick;
                     if (n < from) pick = BoardFamily.Rectangle;
                     else if (IsShapeIntro(n, out var intro)) pick = intro;
+                    else if (IsShapeReprise(n, out var again) && (!(havePrevious || i > 0) || again != previous)) pick = again;
                     else
                     {
                         var options = new List<BoardFamily>();
@@ -222,6 +308,8 @@ namespace ColourCascade.Core
                             if (w <= 0) continue;
                             if (n % 10 == 6 && !Simple(f)) continue;
                             if ((havePrevious || i > 0) && f == previous) continue;
+                            // Not right before the family's planned return (it would push the return out).
+                            if (IsShapeReprise(n + 1, out var next) && next == f) continue;
                             options.Add(f);
                             weights.Add(w);
                         }
@@ -230,7 +318,7 @@ namespace ColourCascade.Core
                     appearances.TryGetValue(pick, out int seen);
                     appearances[pick] = seen + 1;
                     // Each appearance of a family uses its next variant, so a family never repeats a board in a row.
-                    plan[i] = (pick, seen % BoardShapes.VariantCount(pick));
+                    plan[i] = (pick, seen % library.VariantCount(pick));
                     previous = pick;
                     havePrevious = true;
                 }
@@ -302,8 +390,9 @@ namespace ColourCascade.Core
                 Level = n, Tier = Tier(n), Intensity = Intensity(n), Breather = n % 10 == 6, Family = family, Variant = variant,
                 ShapeIntro = IsShapeIntro(n, out _),
             };
+            plan.ShapeReprise = !plan.ShapeIntro && IsShapeReprise(n, out var reprised) && reprised == family;
             var rng = new Rng(StableHash.Of("plan", n));
-            int intensity = plan.Intensity - (plan.ShapeIntro ? 20 : 0);
+            int intensity = plan.Intensity - (plan.ShapeIntro ? 20 : plan.ShapeReprise ? 10 : 0);
             intensity = Math.Max(5, intensity);
             plan.Intensity = intensity;
 
@@ -355,7 +444,7 @@ namespace ColourCascade.Core
                 }
                 Size(r, plan, rng);
                 // Amounts are for a board of about 72 open cells: bigger and smaller boards get more or fewer.
-                int open = OpenCells(plan.Family, plan.Variant);
+                int open = library.Build(plan.Family, plan.Variant, 3, new Rng(1)).Layout.OpenCellCount;
                 if (open > 0 && showcase == null) ScaleToBoard(r, open, BoardPermille(plan.Family));
             }
             plan.Recipe = r;
@@ -365,7 +454,7 @@ namespace ColourCascade.Core
 
         /// <summary>A second or third goal that goes well with the ones chosen (pairs that make each other matter). The
         /// second is usually another obstacle, so boards mix them; a third is more often about special tiles or a score.</summary>
-        static Mechanic? Partner(LevelRecipe r, Rng rng, int intensity, int n, BoardFamily family)
+        public static Mechanic? Partner(LevelRecipe r, Rng rng, int intensity, int n, BoardFamily family)
         {
             bool small = family == BoardFamily.Islands || family == BoardFamily.ThreeSections;
             var options = new List<Mechanic>();
@@ -394,7 +483,7 @@ namespace ColourCascade.Core
             return options[PickIndex(weights, rng)];
         }
 
-        static void ChooseSpecialGoal(LevelRecipe r, int n, Rng rng)
+        public static void ChooseSpecialGoal(LevelRecipe r, int n, Rng rng)
         {
             // Bombs and prisms by name depend too much on the board; ask for rockets, any special, or a combination.
             int x = rng.Next(100);
@@ -407,7 +496,7 @@ namespace ColourCascade.Core
 
         /// <summary>How much of each goal, from the intensity: more with every tier, a little less of each when a level
         /// has several (never down to a token single obstacle), and stronger obstacles later on.</summary>
-        static void Size(LevelRecipe r, LevelPlan plan, Rng rng)
+        public static void Size(LevelRecipe r, LevelPlan plan, Rng rng)
         {
             int I = r.Intensity;
             int kinds = 0;
@@ -465,21 +554,6 @@ namespace ColourCascade.Core
             if (plan.ShapeIntro) r.ThickPermille = Math.Min(r.ThickPermille, 250);
         }
 
-        static int OpenCells(BoardFamily f, int variant)
-        {
-            var shape = BoardShapes.Build(f, variant, 3, new Rng(1));
-            return shape.Layout.OpenCellCount;
-        }
-
-        /// <summary>Cells in the board's smallest separate section.</summary>
-        public static int SmallestSection(BoardFamily f, int variant)
-        {
-            var shape = BoardShapes.Build(f, variant, 3, new Rng(1));
-            int smallest = int.MaxValue;
-            foreach (var s in BoardShapes.Sections(shape.Layout)) smallest = Math.Min(smallest, s.Count);
-            return smallest;
-        }
-
         /// <summary>
         /// How much a board shape slows play, as the share of a plain board's obstacles it gets (measured: a thoughtful
         /// player needed a median 24 moves for a level's goals on a plain board, 34 on a hollow or stone board, 38
@@ -493,13 +567,17 @@ namespace ColourCascade.Core
                 case BoardFamily.ThreeSections: return 700;
                 case BoardFamily.Passage:
                 case BoardFamily.Hollow:
+                case BoardFamily.Cross:
                 case BoardFamily.Obstructed: return 850;
+                case BoardFamily.TShape:
+                case BoardFamily.Diamond: return 900;
                 case BoardFamily.TwinTowers: return 1100;
                 default: return 1000;
             }
         }
 
-        static void ScaleToBoard(LevelRecipe r, int open, int boardPermille)
+        /// <summary>Amounts are for a board of about 72 open cells: bigger and smaller boards (and slower shapes) get more or fewer.</summary>
+        public static void ScaleToBoard(LevelRecipe r, int open, int boardPermille)
         {
             int permille = Math.Max(800, Math.Min(1200, open * 1000 / 72)) * boardPermille / 1000;
             int S(int v, int min) => v <= 0 ? v : Math.Max(min, v * permille / 1000);
@@ -513,7 +591,7 @@ namespace ColourCascade.Core
         /// Colours: five as a rule; four when chains of several links or a goal about big specials need large groups;
         /// six now and then on a later score-heavy level with room to match (and every fourth score level).
         /// </summary>
-        static int ColoursFor(LevelPlan plan, Rng rng)
+        public static int ColoursFor(LevelPlan plan, Rng rng)
         {
             var r = plan.Recipe;
             if (r == null || r.Mechanics.Count == 0) return plan.Level % 4 == 0 ? 6 : 5;

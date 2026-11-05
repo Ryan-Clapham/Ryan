@@ -550,9 +550,10 @@ namespace ColourCascade.App
             Line("Ice, chains, moss", b.Obstacles);
             Line("Stones", b.Stones);
             Line("Treasure", b.Treasure);
+            Line("Objectives", b.Objectives);
             Line("Specials at the end", b.Finale);
             if (lines.Count == 0) return;
-            // Compact: 46-unit cells, two to a row (at most four rows for all eight lines). The details of what the
+            // Compact: 46-unit cells, two to a row (at most four rows: a mode has at most eight of these lines). The details of what the
             // specials at the end scored were shown on the board when they went off; here they are one line.
             const float cellHeight = 46f, gap = 6f;
             int rows = (lines.Count + 1) / 2;

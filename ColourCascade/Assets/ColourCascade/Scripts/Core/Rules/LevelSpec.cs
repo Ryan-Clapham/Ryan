@@ -40,6 +40,10 @@ namespace ColourCascade.Core
         public bool IsRegionFinale;
         public string TutorialKey = "";
         public string Note = "";
+        /// <summary>Weekly Rush (update 3.3): points each completed objective (Goals) adds to the score, once.</summary>
+        public int ObjectiveBonus;
+        /// <summary>The board shape's name on challenge boards that have one (update 3.3), for the info popups.</summary>
+        public string BoardName = "";
 
         /// <summary>The goals this level is played with: its own, or a single score goal equal to its target.</summary>
         public GoalSpec[] EffectiveGoals()
