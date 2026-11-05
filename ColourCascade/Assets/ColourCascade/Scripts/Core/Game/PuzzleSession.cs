@@ -633,6 +633,9 @@ namespace ColourCascade.Core
                 }
             Resolve(o, true, false);
             inFinale = false;
+            // A stage reached by the finale's points is recorded (the result shows it), but its wave never arrives: the
+            // run is over.
+            pendingWave = false;
         }
 
         /// <summary>Adds moves (the Out of Moves continues). Revives a campaign level that has just run out of moves.</summary>
@@ -899,7 +902,9 @@ namespace ColourCascade.Core
                     }
                     else Breakdown.Treasure += points;
                     o.ScoreGained += points;
-                    if (Mode == GameMode.Endless && HasMoveLimit && setup.Endless.treasureBonusMoves > 0)
+                    // No bonus moves once the run is ending: the finale is the end of an Endless run (update 3.1). It used to
+                    // pay them, so the run carried on with its finale spent, and specials left later never went off.
+                    if (Mode == GameMode.Endless && HasMoveLimit && setup.Endless.treasureBonusMoves > 0 && !inFinale)
                     {
                         int bonus = o.Treasures.Count * setup.Endless.treasureBonusMoves;
                         MovesLeft += bonus;

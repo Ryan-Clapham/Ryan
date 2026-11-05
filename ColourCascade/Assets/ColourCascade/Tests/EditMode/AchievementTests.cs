@@ -76,7 +76,55 @@ namespace ColourCascade.Tests
             Assert.Greater(Value(defs.First(d => d.id == "level_500")), 50 * Value(defs.First(d => d.id == "level_10")), "level 500 is worth far more than level 10");
             // Within the agreed bands: easy small, very hard large.
             foreach (var d in defs.Where(x => x.tier == AchievementTier.Easy)) Assert.LessOrEqual(Value(d), 100, d.id);
-            foreach (var d in defs.Where(x => x.tier == AchievementTier.VeryHard)) Assert.GreaterOrEqual(Value(d), 800, d.id);
+            foreach (var d in defs.Where(x => x.tier == AchievementTier.VeryHard)) Assert.GreaterOrEqual(Value(d), 350, d.id);
+        }
+
+        [Test]
+        public void TheCatalogPaysTheAuditedTotals()
+        {
+            // Update 3.1 (the coin economy audit): 1,810 coins and 59 power-ups across all 67 achievements.
+            var defs = AchievementCatalog.CreateDefaults();
+            Assert.AreEqual(1810, defs.Sum(d => d.reward.coins));
+            Assert.AreEqual(59, defs.Sum(d => d.reward.powerUps.Sum(g => g.count)));
+            var byKind = defs.SelectMany(d => d.reward.powerUps).GroupBy(g => g.id).ToDictionary(g => g.Key, g => g.Sum(x => x.count));
+            Assert.AreEqual(9, byKind[PowerUpId.Blast]);
+            Assert.AreEqual(8, byKind[PowerUpId.TileBreaker]);
+            Assert.AreEqual(3, byKind[PowerUpId.Swap]);
+            Assert.AreEqual(21, byKind[PowerUpId.ColourShift]);
+            Assert.AreEqual(18, byKind[PowerUpId.ColourBurst]);
+            Assert.AreEqual(11585, defs.Sum(Value));
+            foreach (var d in defs)
+            {
+                switch (d.tier)
+                {
+                    case AchievementTier.Easy:
+                        Assert.IsEmpty(d.reward.powerUps, d.id + ": Easy pays coins");
+                        Assert.That(d.reward.coins, Is.InRange(10, 15), d.id);
+                        break;
+                    case AchievementTier.Medium:
+                        Assert.IsEmpty(d.reward.powerUps, d.id);
+                        Assert.That(d.reward.coins, Is.InRange(25, 50), d.id);
+                        break;
+                    case AchievementTier.Hard:
+                        if (d.id == "pure_50") Assert.AreEqual(250, d.reward.coins, "Purist: won without power-ups, so it pays coins");
+                        else
+                        {
+                            Assert.AreEqual(0, d.reward.coins, d.id + ": Hard pays a power-up, not coins");
+                            Assert.That(d.reward.powerUps.Sum(g => g.count), Is.InRange(1, 2), d.id);
+                        }
+                        break;
+                    default:
+                        Assert.IsTrue(d.reward.powerUps.Any(g => g.id == PowerUpId.ColourBurst), d.id + ": Very hard always includes a Colour Burst");
+                        Assert.LessOrEqual(d.reward.coins, 300, d.id);
+                        break;
+                }
+            }
+            foreach (var id in new[] { "level_500", "stars_1250", "regions_15" })
+            {
+                var d = defs.First(x => x.id == id);
+                Assert.AreEqual(300, d.reward.coins, id + ": a capstone");
+                Assert.AreEqual(5, d.reward.powerUps.Length, id + ": one of each power-up");
+            }
         }
 
         [Test]
@@ -109,15 +157,16 @@ namespace ColourCascade.Tests
             var powerUps = new PowerUpCatalog(PowerUpCatalog.CreateDefaults());
             var c = new AchievementCatalog(AchievementCatalog.CreateDefaults());
             string R(string id) => AchievementText.Reward(c.Get(id).reward, powerUps);
-            Assert.AreEqual("25 coins", R("level_10"));
-            Assert.AreEqual("75 coins + Blast", R("level_50"));
-            Assert.AreEqual("250 coins + Colour Shift + Blast", R("level_150"));
-            Assert.AreEqual("900 coins + Colour Burst ×2 + Colour Shift ×2", R("level_400"));
-            Assert.AreEqual("600 coins + one of each power-up", R("level_300"));
-            Assert.AreEqual("1,500 coins + two of each power-up", R("level_500"));
-            Assert.AreEqual("1,200 coins + one of each power-up + Colour Burst", R("stars_1250"));
-            Assert.AreEqual("Swap + Colour Shift", R("group_18"));
-            Assert.AreEqual("Swap", R("endless_stage_6"));
+            Assert.AreEqual("10 coins", R("level_10"));
+            Assert.AreEqual("25 coins", R("level_50"));
+            Assert.AreEqual("Tile Breaker", R("level_150"));
+            Assert.AreEqual("Blast + Colour Burst", R("level_300"));
+            Assert.AreEqual("Colour Shift + Colour Burst", R("level_400"));
+            Assert.AreEqual("300 coins + one of each power-up", R("level_500"));
+            Assert.AreEqual("300 coins + one of each power-up", R("stars_1250"));
+            Assert.AreEqual("Blast ×2", R("ice_1200"));
+            Assert.AreEqual("Blast + Tile Breaker", R("stones_600"));
+            Assert.AreEqual("250 coins", R("pure_50"));
             foreach (var d in c.All) Assert.IsNotEmpty(R(d.id), d.id);
             var retired = new AchievementReward { coins = 5, powerUps = new[] { new PowerUpGrant { id = PowerUpId.ExtraMoves, count = 3 } } };
             Assert.AreEqual("5 coins", AchievementText.Reward(retired, powerUps), "a retired power-up isn't promised");
@@ -366,21 +415,27 @@ namespace ColourCascade.Tests
         {
             var ctx = TestUtil.Context();
             ctx.Data.Coins = 10;
-            var level50 = ctx.Achievements.Catalog.Get("level_50");
-            Assert.AreEqual(AchievementClaim.NotUnlocked, ctx.Achievements.Claim("level_50"));
+            // Cascade Legend pays both: 300 coins and one of each power-up.
+            var legend = ctx.Achievements.Catalog.Get("level_500");
+            Assert.AreEqual(AchievementClaim.NotUnlocked, ctx.Achievements.Claim("level_500"));
             Assert.AreEqual(AchievementClaim.Unknown, ctx.Achievements.Claim("no_such_thing"));
-            ctx.Data.HighestUnlocked = 50;
+            ctx.Data.HighestUnlocked = 500;
             ctx.Achievements.Evaluate();
-            int blasts = ctx.Inventory.Owned(PowerUpId.Blast);
-            Assert.AreEqual(AchievementClaim.Claimed, ctx.Achievements.Claim("level_50"));
-            Assert.AreEqual(10 + level50.reward.coins, ctx.Wallet.Balance);
-            Assert.AreEqual(blasts + 1, ctx.Inventory.Owned(PowerUpId.Blast));
-            Assert.AreEqual(AchievementState.Claimed, ctx.Achievements.State(level50));
-            Assert.AreEqual(AchievementClaim.AlreadyClaimed, ctx.Achievements.Claim("level_50"));
-            Assert.AreEqual(10 + level50.reward.coins, ctx.Wallet.Balance, "never twice");
-            Assert.AreEqual(blasts + 1, ctx.Inventory.Owned(PowerUpId.Blast));
+            var owned = ctx.PowerUps.All.ToDictionary(p => p.id, p => ctx.Inventory.Owned(p.id));
+            Assert.AreEqual(AchievementClaim.Claimed, ctx.Achievements.Claim("level_500"));
+            Assert.AreEqual(10 + 300, ctx.Wallet.Balance);
+            foreach (var p in ctx.PowerUps.All) Assert.AreEqual(owned[p.id] + 1, ctx.Inventory.Owned(p.id), p.displayName);
+            Assert.AreEqual(AchievementState.Claimed, ctx.Achievements.State(legend));
+            Assert.AreEqual(AchievementClaim.AlreadyClaimed, ctx.Achievements.Claim("level_500"));
+            Assert.AreEqual(10 + 300, ctx.Wallet.Balance, "never twice");
+            foreach (var p in ctx.PowerUps.All) Assert.AreEqual(owned[p.id] + 1, ctx.Inventory.Owned(p.id));
             var entry = ctx.Wallet.Ledger.Last(e => e.Reason.StartsWith("ach.", StringComparison.Ordinal));
-            Assert.AreEqual("ach.level_50", entry.Reason);
+            Assert.AreEqual("ach.level_500", entry.Reason);
+            // A power-up-only reward adds the power-up and no coins.
+            int tileBreakers = ctx.Inventory.Owned(PowerUpId.TileBreaker);
+            Assert.AreEqual(AchievementClaim.Claimed, ctx.Achievements.Claim("level_150"));
+            Assert.AreEqual(10 + 300, ctx.Wallet.Balance);
+            Assert.AreEqual(tileBreakers + 1, ctx.Inventory.Owned(PowerUpId.TileBreaker));
             Assert.AreEqual("Achievement reward", RewardKeys.Describe(entry.Reason));
         }
 
@@ -393,7 +448,7 @@ namespace ColourCascade.Tests
             ctx.Data.Stats.BiggestGroup = 12;
             ctx.Achievements.Evaluate();
             Assert.AreEqual(3, ctx.Achievements.ClaimAll());
-            Assert.AreEqual(25 + 50 + 30, ctx.Wallet.Balance);
+            Assert.AreEqual(10 + 15 + 10, ctx.Wallet.Balance, "First Steps, On Your Way, Big Group");
             Assert.AreEqual(0, ctx.Achievements.ClaimAll());
             Assert.AreEqual(0, ctx.Achievements.Unclaimed);
         }

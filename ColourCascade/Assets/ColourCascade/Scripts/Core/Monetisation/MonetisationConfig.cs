@@ -46,8 +46,13 @@ namespace ColourCascade.Core
         public bool enabled = true;
         /// <summary>What one completed advert gives: moves, or coins (for the shortfall offer, the most it gives).</summary>
         public int reward;
-        /// <summary>Completed adverts allowed per day (UTC, the game's daily reset); 0 = no limit.</summary>
+        /// <summary>
+        /// Completed adverts allowed per day (the player's local calendar day); 0 = no limit. Placements with the same
+        /// dailyLimitGroup share one count, so the day's allowance is spent wherever an advert is watched.
+        /// </summary>
         public int dailyLimit;
+        /// <summary>Placements with the same group share one daily count (update 3.1: both coin adverts, "coins").</summary>
+        public string dailyLimitGroup = "";
         /// <summary>Completed adverts allowed per level attempt (Out of Moves only); 0 = no limit.</summary>
         public int perRunLimit;
         /// <summary>Seconds after a completed advert before this offer is available again; 0 = none.</summary>
@@ -72,10 +77,13 @@ namespace ColourCascade.Core
 
         /// <summary>Out of Moves: watch an advert for this many extra moves.</summary>
         public RewardedPlacementConfig continueMoves = new RewardedPlacementConfig { reward = 10, perRunLimit = 2 };
-        /// <summary>Shop, Coins tab: watch an advert for coins.</summary>
-        public RewardedPlacementConfig shopCoins = new RewardedPlacementConfig { reward = 50, dailyLimit = 5, cooldownSeconds = 30 };
-        /// <summary>Not enough coins for a power-up: an advert pays the shortfall, up to `reward` coins.</summary>
-        public RewardedPlacementConfig coinShortfall = new RewardedPlacementConfig { reward = 50, dailyLimit = 5 };
+        /// <summary>Shop, Coins tab: watch an advert for coins (update 3.1: 20 coins, 3 a day shared with the shortfall advert).</summary>
+        public RewardedPlacementConfig shopCoins = new RewardedPlacementConfig { reward = 20, dailyLimit = 3, cooldownSeconds = 30, dailyLimitGroup = CoinAdvertGroup };
+        /// <summary>Not enough coins for a power-up: an advert pays the shortfall, up to `reward` coins. Shares the Coins
+        /// tab's daily count, so the day's three coin adverts can't be watched twice over.</summary>
+        public RewardedPlacementConfig coinShortfall = new RewardedPlacementConfig { reward = 50, dailyLimit = 3, dailyLimitGroup = CoinAdvertGroup };
+        /// <summary>The shared daily count of the two coin adverts.</summary>
+        public const string CoinAdvertGroup = "coins";
 
         /// <summary>Out of Moves: spend this many coins for continueCoinMoves extra moves.</summary>
         public int continueCoinCost = 100;

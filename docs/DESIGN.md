@@ -285,8 +285,8 @@ slide-inwards square).
   the same moves.
 * **20 moves, no timer, every move is played** (it is a score attack, unlike the campaign). Completing means
   reaching the target. Stars at the target, ★★ and ★★★ thresholds calibrated against a reference bot.
-* First completion each day pays **30 coins**; three stars pays **+10** once. Replays are unlimited and update
-  the best score but never pay twice.
+* First completion each day pays **10 coins**; three stars pays **+5** once (update 3.1; 15 / +5 before it). Replays
+  are unlimited and update the best score but never pay twice.
 * No power-ups and no shop during a run, so the challenge is identical for everyone.
 * **Tile mechanics:** each date has a plan of one mechanic, or a pair known to play fairly (chains only alone). A
   player gets the parts of it they have completed in the campaign, so everyone with the same progress plays the same
@@ -305,7 +305,8 @@ slide-inwards square).
 * A 3-2-1-GO countdown, then the timer runs. Unlimited moves; play stops instantly at zero.
 * **Pausing** (button, Android Back or leaving the app) stops the timer and **hides the board**, so pausing
   can't be used to plan. Animations run about 35% faster than elsewhere so the clock feels fair.
-* Medal tiers: **Bronze 2,500 (+20), Silver 5,000 (+30), Gold 8,000 (+50)**, each paid once per week.
+* Medal tiers: **Bronze 2,500 (+10), Silver 5,000 (+15), Gold 8,000 (+25)**, each paid once per week (unchanged by
+  update 3.1).
   Bots score about 5,000–6,200 in 40 moves and 7,900–9,700 in 60, so Gold rewards fast, good play.
 * No power-ups, no shop during the run.
 * **Tile mechanics:** each week has a theme (frozen, rocket, chain, bomb, treasure, prism or moss week) and up to two
@@ -330,13 +331,13 @@ Out of Moves now offers +10 moves for an advert or +5 for 100 coins, so it was r
   ledger line. Unused free uses lapse.
 * Saves that mention it load as before (`RetiredPowerUps`).
 
-| Power-up | Price | Unlocks | Free uses on its level | How it works |
+| Power-up | Price (three-pack, 3.1) | Unlocks | Free uses on its level | How it works |
 |---|---|---|---|---|
-| Blast | 100 | Level 10 | 2 | Tap any tile: every colour tile in the 3 × 3 area is cleared (clipped at the edges). Stones and holes are not affected (only specials and Tile Breaker break stones). Must clear at least one tile. |
-| Tile Breaker | 125 | Level 20 | 2 | Tap one tile **or one stone** to break it (a stone scores 100). Rockets and bombs break stones too (2.1). Holes can't be broken. |
-| Swap | 75 | Level 30 | 2 | Tap a tile, then a neighbouring tile of a different colour; they swap places. Nothing is cleared, so the board stays valid. |
-| Colour Shift | 150 | Level 40 | 2 | Tap a tile, then pick any other colour in play from the palette. |
-| Colour Burst | 250 | Level 60 | 1 | Tap a tile: every tile of that colour is removed. |
+| Blast | 100 (270) | Level 10 | 2 | Tap any tile: every colour tile in the 3 × 3 area is cleared (clipped at the edges). Stones and holes are not affected (only specials and Tile Breaker break stones). Must clear at least one tile. |
+| Tile Breaker | 125 (340) | Level 20 | 2 | Tap one tile **or one stone** to break it (a stone scores 100). Rockets and bombs break stones too (2.1). Holes can't be broken. |
+| Swap | 75 (200) | Level 30 | 2 | Tap a tile, then a neighbouring tile of a different colour; they swap places. Nothing is cleared, so the board stays valid. |
+| Colour Shift | 150 (400) | Level 40 | 2 | Tap a tile, then pick any other colour in play from the palette. |
+| Colour Burst | 250 (675) | Level 60 | 1 | Tap a tile: every tile of that colour is removed. |
 
 * **Introduction (2.1):** every attempt at a power-up's unlock level (first play, retry or replay, also after
   the game is closed and reopened) shows its card ("New Power-up!", or "Power-up practice" on a replay), points at
@@ -355,35 +356,112 @@ Out of Moves now offers +10 moves for an advert or +5 for 100 coins, so it was r
 
 ## 8. Coins and economy
 
-Coins are earned by playing (below), and since update 3.0 also by watching adverts and buying coin packs
-(docs/MONETISATION.md: 50 coins per advert, 5 a day; packs of 500 / 1,200 / 2,750 / 6,000). Every play reward has a
-one-time **claim key** stored in the save, so repeated taps, reloads and replays can never pay twice; advert rewards
-are granted once per advert the SDK confirms, and purchases once per store transaction.
+Coins are earned by playing (below), by claiming achievements (docs/ACHIEVEMENTS.md), and since update 3.0 by watching
+adverts and buying coin packs (docs/MONETISATION.md: 20 coins per Coins-tab advert, three coin adverts a day in all;
+packs of 500 / 1,200 / 2,750 / 6,000). Every play reward has a one-time **claim key** stored in the save, so repeated
+taps, reloads and replays can never pay twice; advert rewards are granted once per advert the SDK confirms, and
+purchases once per store transaction.
 
-| Source | Coins | Key |
+| Source (update 3.1) | Coins | Key |
 |---|---|---|
-| First clear of a campaign level | 5 (levels 1–10), +1 every 10 levels, max 15 | `c.first.N` |
-| Each star the first time it's earned | 1 | `c.star.N.S` |
+| First clear of a campaign level | 3 (levels 1–25), +1 every 25 levels, max 8 (from level 126) | `c.first.N` |
+| First, second and third star of a level, each the first time it's earned | 2 / 3 / 5 (10 for all three) | `c.star.N.S` |
 | Milestone (every 10th level) / region finale (every 20th) | 20 / 40 | `c.mile.N` |
-| Daily completion / three stars | 15 / +5, once per date | `d.DATE.done` / `d.DATE.3star` |
+| Daily completion / three stars | 10 / +5, once per date | `d.DATE.done` / `d.DATE.3star` |
 | Weekly Rush tiers | 10 / 15 / 25, once per week | `w.WEEK.tN` |
-| Endless milestones | 10 / 15 / 25 / 40 / 60, once ever | `e.mile.SCORE` |
+| Endless milestones (2,500 / 5,000 / 10,000 / 20,000 / 40,000) | 5 / 10 / 15 / 25 / 40, once ever | `e.mile.SCORE` |
+| Achievements (67) | 1,810 coins and 59 power-ups in all | `ach.ID` |
 
-**Retuned after the first playtest (reward tuning version 2).** With the original values (first clear 10–30,
-2 per star, milestones 50/100, Daily 30/+10, Rush 20/30/50, Endless 20–100) the economy simulation
-(`dotnet run --project Sim -c Release -- economy`) showed an active player (5 new levels a day plus the Daily,
-a weekly Rush and some Endless) earning about **230 coins a day**, so every power-up cost less than a day of play
-and the playtester bought three straight away. The prices stayed as specified; income was cut instead:
+**First clear**, exactly: `min(3 + (level − 1) / 25, 8)` with whole-number division (`EconomyConfig.FirstClearReward`),
+so 3 coins for levels 1–25, 4 for 26–50, 5 for 51–75, 6 for 76–100, 7 for 101–125 and 8 from level 126 on. The
+old cap of 15 (and the 10–30 of version 1) is gone; levels 1–500 pay 3,625 in all.
 
-| Measured (30 simulated days, 5 levels a day) | Version 1 | Version 2 |
+**Stars** pay by which star it is (`EconomyConfig.starRewards`): the first star of a level 2, the second 3, the
+third 5. Each is paid once per level, ever: a level first won with one star pays 2, and replaying it for three stars
+later pays the 3 + 5 still owed, never the 2 again. A level with all three stars has paid 10, so stars reward
+playing well where first clears reward progress.
+
+**Region milestones stay at 20 and region finales at 40.** They arrive once every 10 levels, so they are 3 coins a
+level on average; they were already cut in half by version 2, and they are the one reward that marks a
+region's end on the map. Cutting them further would take away the biggest moment of the campaign for very little
+change in the total (they are about a fifth of campaign coins). The cuts were made where the audit found the excess:
+achievement coins (22,265 → 1,810), the Coins-tab advert (50 × 5 → 20 × 3, shared) and late first clears.
+
+**Three-packs (3.1):** each power-up can also be bought three at a time, about 10% cheaper (Swap 200, Blast 270,
+Tile Breaker 340, Colour Shift 400, Colour Burst 675; `PowerUpDefinition.packPrice`, 0 = the built-in price,
+negative = no pack, never more than three singles). The single prices are unchanged. The pack takes its price once
+and adds exactly three; it is refused like a single one when the player can't afford it, before its unlock level
+and during challenges. The ledger line reads "Bought Blast ×3".
+
+**Out of Moves** is unchanged: +5 moves for 100 coins, or +10 for an advert, at the same price every time.
+
+### Reward tuning history
+
+| Version | When | What changed |
 |---|---|---|
-| Average income | 231 coins/day | 100 coins/day (60–70 a day after a first-day welcome of about 130) |
-| Campaign coins by level 10 / 30 / 60 | 218 / 786 / 1,942 | 97 / 329 / 756 |
-| Days of play per Blast (100) / Colour Burst (250) | 0.4 / 1.1 | 1.0 / 2.5 |
+| 1 | Before the first playtest | First clear 10–30, 2 per star, milestones 50 / 100, Daily 30 / +10, Rush 20 / 30 / 50, Endless 20–100. About 230 coins a day. |
+| 2 | After the first playtest | First clear 5–15, 1 per star, milestones 20 / 40, Daily 15 / +5, Rush 10 / 15 / 25, Endless 10–60. About 100 coins a day from play, but achievements (22,265 coins, 3.0) and adverts (up to 250 a day) let balances climb into the thousands. |
+| 3 | Update 3.1 | First clear 3–8, stars 2 / 3 / 5, Daily 10 / +5, Endless 5–40, achievements 1,810 coins + 59 power-ups, Coins-tab advert 20 coins, three coin adverts a day shared, three-packs. |
 
-Levels 1–10 with two stars each now earn just under one Blast; the two free trial uses cover its introduction.
-Existing config assets are moved to the new values automatically when the project opens (`EconomyTuning`);
-values someone edited by hand are kept. Everything stays tunable in the config asset.
+Existing config assets are moved to the new values automatically when the project opens (`EconomyTuning`,
+`AchievementRewardTuning`; the asset's `rewardTuningVersion` records how far it has been moved). A value is moved
+only if it still has an older version's default, so anything someone edited by hand is kept. Everything stays
+tunable in the config asset.
+
+**Existing players (3.1):** nothing in a save is reset or changed by the update. Coin balances, progress, stars,
+achievements, inventory, No Ads, Endless records and purchases load exactly as they were, so a player with 4,000
+coins still has 4,000. Rewards already claimed are never paid again, and nobody is paid the difference between
+old and new values; achievements unlocked but not yet claimed pay the 3.1 reward when claimed. The 3.0.1 Extra
+Moves refund is unaffected (paid once, `pu.retired.N`).
+
+### Simulation (update 3.1)
+
+The game code was run day by day for three player profiles, with the same boards under the old (version 2) and new
+(version 3) rewards, so the only difference is the economy: `Sim -- economy-trace` writes every credit, and
+`tools/economy_model.py` adds spending (owned power-ups first, then buying one, with the not-enough-coins advert when
+it covers the gap) on top. A power-up is wanted on some levels that took three or more tries and on every 10th–20th
+level. Casual: 2 new levels a day, the Daily 4 days a week, Endless once a week, the Mixed bot, no adverts. Engaged:
+4 levels a day, the Daily 5 days, Endless twice a week, the Mixed bot, one Coins-tab advert a day. Dedicated: 10
+levels a day, every Daily, Endless daily, the Planner bot, every advert allowed, three-packs in 3.1.
+
+| Balance after spending | Level 25 | 100 | 200 | 326 | 500 |
+|---|---|---|---|---|---|
+| Casual, before 3.1 | 1,254 | 3,767 | 7,920 | 12,511 | 18,717 |
+| Casual, 3.1 | 694 | 1,254 | 1,924 | 2,503 | 2,556 |
+| Engaged, before 3.1 | 1,195 | 5,478 | 10,560 | 16,421 | 22,587 |
+| Engaged, 3.1 | 638 | 1,505 | 2,382 | 2,413 | 2,305 |
+| Dedicated, before 3.1 | 2,146 | 7,675 | 13,897 | 22,424 | 36,862 |
+| Dedicated, 3.1 | 869 | 1,912 | 3,584 | 6,010 | 9,306 |
+
+| By level 500 | Earned in all | From achievements | From adverts | Play income a day (levels 101–326) | Achievement power-ups |
+|---|---|---|---|---|---|
+| Casual, before / 3.1 | 22,492 / 10,581 | 10,565 / 1,160 | 0 / 0 | 49 / 38 | 62 / 27 |
+| Engaged, before / 3.1 | 27,862 / 12,080 | 10,915 / 1,160 | 6,250 / 2,500 | 89 / 69 | 65 / 28 |
+| Dedicated, before / 3.1 | 37,312 / 13,596 | 13,965 / 1,185 | 12,500 / 3,000 | 223 / 189 | 81 / 37 |
+
+* **Casual and Engaged players** can buy every power-up they want at every point, and their balance levels off at
+  about 2,000–2,500 instead of growing without end: income and spending meet. Every power-up and every pack was
+  affordable on 100% of days after it unlocked.
+* **Dedicated players** still build up coins (about 9,300 by level 500) because a skilled player needs few power-ups.
+  This is where a future coin sink belongs (below), not a further cut to rewards.
+* **Struggling players** (the casual trace, wanting help on every level that took three tries and every 10th
+  level: 156 power-ups in 500 levels) can't pay for all of it from play alone: 41 of 156 (26%) unpaid by level 500,
+  about 5,100 coins short, and a Colour Burst affordable on only 32% of days. One Coins-tab advert a day halves the
+  gap (17 unpaid); three a day closes it; wanting help on every second such level instead leaves 4 of 103 unpaid.
+  Levels can still be won without power-ups (the Mixed bot won 515 of 520 within 12 tries using none).
+  This is the economy's tightest point: watch it in real play (time spent below 100 coins, not-enough-coins offers
+  declined) before changing anything.
+* **Coin packs** are never needed by the Casual, Engaged or Dedicated profiles; only the struggling one without
+  adverts would need about one 1,200-coin pack every two months to buy everything it wanted.
+
+The short repository report (`dotnet run --project Sim -c Release -- economy`) compares 30 days of 5 levels a day
+under versions 1, 2 and 3: about 225, 100 and 80 coins a day of play, so a Blast takes about 1.3 days of play and a
+Colour Burst about 3 (its boards are freshly random each run, so the figures move a little between runs).
+
+**Future task: cosmetics.** Board themes, tile skins or map decorations bought with coins would give skilled players
+something to save for without making power-ups dearer. Not built in 3.1. The economy already supports it: the shop's
+tabs are data (`ShopTab`), every debit goes through `Wallet` with a reason, and a one-time purchase can use a claim
+key like the rewards do. Price them against the dedicated player's surplus (thousands of coins by level 300–500).
 
 Every balance change goes through `Wallet`, the single source of truth, and is written to a 200-entry ledger
 (time, amount, resulting balance, reason) for diagnosing economy bugs. Developer builds can show it in Settings.
@@ -391,10 +469,11 @@ Every balance change goes through `Wallet`, the single source of truth, and is w
 ## 9. Shop
 
 * Reached from the home screen (Shop button and the **+** on the coin counter) and from the in-game bar.
-* **Power-ups tab:** icon, name, description, owned/free count, price. Locked items show their unlock level;
-  an unaffordable one opens the buy screen, which explains the shortfall and offers an advert for the missing
-  coins (at most 50); the player then confirms the purchase themselves (update 3.0).
-* **Coins tab:** balance (updates live), an advert for 50 coins, four coin packs priced by Google Play, then every
+* **Power-ups tab:** icon, name, description, owned/free count, price, and under it the **×3 three-pack** at its own
+  price (update 3.1). Locked items show their unlock level; an unaffordable one opens the buy screen, which explains
+  the shortfall and offers an advert for the missing coins (at most 50); the player then confirms the purchase
+  themselves (update 3.0). An unaffordable pack says how many more coins three would need.
+* **Coins tab:** balance (updates live), an advert for 20 coins, four coin packs priced by Google Play, then every
   way to earn coins by playing, with shortcuts.
 * **Premium tab (3.0):** the permanent No Ads purchase and Restore Purchases.
 * Tabs are data (`ShopTab` subclasses), so cosmetics or more premium items can be added as cards or tabs.

@@ -123,6 +123,8 @@ namespace ColourCascade.App
             {
                 public PowerUpDefinition Def;
                 public CCButton Price;
+                /// <summary>The three-pack (update 3.1), under the single price.</summary>
+                public CCButton Pack;
                 public Text Owned;
                 public RectTransform Root;
             }
@@ -156,11 +158,23 @@ namespace ColourCascade.App
                 desc.rectTransform.Fill(222, 64, 270, 92);
                 row.Owned = UI.FitText(card, "", Theme.FontTiny, Theme.Teal, TextAnchor.MiddleLeft, true, "Owned");
                 row.Owned.rectTransform.BottomStrip(48, 22, 222, 270);
+                // One at the single price, and a three-pack beneath it (about 10 % off).
                 row.Price = UI.Button(card, "", ButtonStyle.Gold, () => Buy(row), null, Theme.FontBody, 40, 10, "Price");
-                ((RectTransform)row.Price.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-26, 0), new Vector2(226, 130));
-                var coin = UI.Sprite(row.Price.FaceRect.Find("Content"), ArtNames.Coin, 48);
-                coin.Layout(preferredWidth: 48);
+                ((RectTransform)row.Price.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-26, 56), new Vector2(226, 104));
+                var coin = UI.Sprite(row.Price.FaceRect.Find("Content"), ArtNames.Coin, 44);
+                coin.Layout(preferredWidth: 44);
                 coin.transform.SetAsFirstSibling();
+                row.Pack = UI.Button(card, "", ButtonStyle.Secondary, () => BuyPack(row), null, Theme.FontSmall, 36, 8, "Pack");
+                ((RectTransform)row.Pack.transform).Place(new Vector2(1, 0.5f), new Vector2(1, 0.5f), new Vector2(-26, -58), new Vector2(226, 92));
+                var packContent = row.Pack.FaceRect.Find("Content");
+                var packCoin = UI.Sprite(packContent, ArtNames.Coin, 36);
+                packCoin.Layout(preferredWidth: 36);
+                packCoin.transform.SetAsFirstSibling();
+                var times = UI.Text(packContent, "\u00d7" + ShopService.PackSize, Theme.FontSmall, Color.white, TextAnchor.MiddleCenter, true, "Count");
+                times.horizontalOverflow = HorizontalWrapMode.Overflow;
+                times.rectTransform.sizeDelta = new Vector2(10, Theme.FontSmall * 1.3f);
+                times.Layout(preferredWidth: 40);
+                times.transform.SetAsFirstSibling();
                 return row;
             }
 
@@ -192,7 +206,41 @@ namespace ColourCascade.App
                     if (locked) r.Owned.text = "Unlocks at level " + r.Def.unlockLevel;
                     else r.Owned.text = "Owned: " + owned + (trials > 0 ? "  (+" + trials + " free)" : "");
                     r.Owned.color = locked ? Theme.TextMuted : Theme.Teal;
+
+                    // The three-pack: shown once the power-up is unlocked, at its own price.
+                    bool pack = !locked && Ctx.Shop.HasPack(r.Def.id);
+                    r.Pack.gameObject.SetActive(pack);
+                    if (!pack) continue;
+                    var packCheck = Ctx.Shop.CheckPack(r.Def.id);
+                    r.Pack.SetLabel(NumberFormat.Thousands(Ctx.Shop.PackPrice(r.Def.id)));
+                    r.Pack.Interactable = packCheck.Allowed;
+                    r.Pack.OnDisabledClick = () =>
+                    {
+                        var c = Ctx.Shop.CheckPack(row.Def.id);
+                        string message = c.Block == PurchaseBlock.InsufficientFunds ? "You need " + NumberFormat.Thousands(c.Shortfall) + " more coins for three" : c.Message;
+                        Toast.Show(message, Icon.Info, Theme.Danger);
+                        Shake(row.Pack.transform as RectTransform);
+                    };
                 }
+            }
+
+            void BuyPack(Row row)
+            {
+                var result = Ctx.Shop.TryBuyPack(row.Def.id);
+                if (!result.Allowed)
+                {
+                    Toast.Show(result.Message, Icon.Info, Theme.Danger);
+                    Refresh();
+                    return;
+                }
+                Ctx.Save();
+                AudioService.Sfx(SfxNames.Purchase);
+                Haptics.Medium();
+                Toast.Show(ShopService.PackSize + " \u00d7 " + row.Def.displayName + " added (" + Ctx.Inventory.Owned(row.Def.id) + " owned)", Icon.Check, Theme.Success);
+                row.Root.localScale = Vector3.one * 1.04f;
+                Tw.Scale(row.Root, 1f, 0.3f, Ease.OutBack);
+                GameApp.Instance.GlobalFx.Sparkle(GameApp.Instance.GlobalFx.ToLocal(row.Pack.transform.position), Theme.Gold, 18, 80f);
+                Refresh();
             }
 
             void Buy(Row row)
@@ -289,7 +337,8 @@ namespace ColourCascade.App
                 Header(list, "WAYS TO EARN COINS");
                 var eco = Ctx.Config.Economy;
                 Earn(list, Icon.Map, Theme.Primary, "Clear new levels",
-                    "+" + eco.FirstClearReward(1) + " to +" + eco.firstClearMax + " coins the first time you clear a level, plus " + eco.coinsPerNewStar + " for each new star.",
+                    "+" + eco.FirstClearReward(1) + " to +" + eco.firstClearMax + " coins the first time you clear a level, and +" + eco.StarReward(1) + ", +" + eco.StarReward(2) +
+                    " and +" + eco.StarReward(3) + " the first time you earn its first, second and third star.",
                     "Play", () => Nav().Show(ScreenId.Game, GameArgs.ForCampaign(Ctx.Campaign.CurrentLevel)));
                 Earn(list, Icon.Trophy, Theme.Gold, "Milestones",
                     "Every " + Ctx.Config.Campaign.milestoneEvery + "th level pays +" + eco.milestoneReward + ", and finishing a region pays +" + eco.regionFinaleReward + ".",

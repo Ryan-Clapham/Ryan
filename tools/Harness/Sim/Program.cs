@@ -5,7 +5,8 @@ using System.Linq;
 using ColourCascade.Core;
 
 // Balance simulation: automated players run the real game rules and report how hard each mode is.
-// Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>|economy [days] [levelsPerDay]|campaign [from] [to] [runs] [csv]]
+// Usage: dotnet run --project Sim -- [balance|art <outDir>|all <outDir>|economy [days] [levelsPerDay]|campaign [from] [to] [runs] [csv]
+//        |economy-trace <name> <levelsPerDay> <dailiesPerWeek> <endlessPerWeek> <bot> <maxLevel> <economyVersion>]
 static class Program
 {
     static int Main(string[] args)
@@ -21,6 +22,9 @@ static class Program
             var rows = CampaignReport.Run(from, to, runs, Console.Out);
             if (args.Length > 4) CampaignReport.WriteCsv(rows, args[4]);
         }
+        if (mode == "economy-trace")
+            EconomyTrace.Run(Console.Out, args[1], int.Parse(args[2]), int.Parse(args[3]), int.Parse(args[4]), (BotKind)Enum.Parse(typeof(BotKind), args[5]),
+                int.Parse(args[6]), int.Parse(args[7]));
         if (mode == "economy")
         {
             int days = args.Length > 1 ? int.Parse(args[1]) : 30, perDay = args.Length > 2 ? int.Parse(args[2]) : 5;
@@ -28,6 +32,10 @@ static class Program
             EconomyTuning.ApplyVersion1(before);
             Console.WriteLine("=== Reward tuning version 1 (before the first playtest)");
             EconomySim.Report(before, days, perDay);
+            var before31 = GameConfigData.CreateDefault();
+            EconomyTuning.ApplyVersion(before31, 2);
+            Console.WriteLine("\n=== Reward tuning version 2 (before update 3.1)");
+            EconomySim.Report(before31, days, perDay);
             Console.WriteLine("\n=== Current reward tuning (version " + EconomyTuning.Current + ")");
             EconomySim.Report(GameConfigData.CreateDefault(), days, perDay);
         }

@@ -92,14 +92,14 @@ namespace ColourCascade.Tests
             rig.Network.Open();
             Assert.AreEqual(120, rig.Ctx.Wallet.Balance);
             rig.Network.Earn();
-            Assert.AreEqual(170, rig.Ctx.Wallet.Balance, "the SDK's reward callback grants exactly 50 coins");
+            Assert.AreEqual(140, rig.Ctx.Wallet.Balance, "the SDK's reward callback grants exactly 20 coins (update 3.1)");
             rig.Network.Close();
             Assert.AreEqual(AdOutcome.Rewarded, outcome);
-            Assert.AreEqual(50, added);
-            Assert.AreEqual(170, rig.Ctx.Wallet.Balance);
+            Assert.AreEqual(20, added);
+            Assert.AreEqual(140, rig.Ctx.Wallet.Balance);
             Assert.AreEqual(1, rig.M.Analytics.Count(MonetisationEvents.RewardGranted));
             Assert.AreEqual("ad.coins", rig.Ctx.Wallet.Ledger[rig.Ctx.Wallet.Ledger.Count - 1].Reason);
-            Assert.AreEqual(170, SaveCodec.Decode(rig.Storage.Main).Coins, "the coins are saved at once");
+            Assert.AreEqual(140, SaveCodec.Decode(rig.Storage.Main).Coins, "the coins are saved at once");
         }
 
         [Test]
@@ -114,9 +114,9 @@ namespace ColourCascade.Tests
             rig.Network.Close();
             rig.Network.Close();
             rig.Network.Earn();
-            Assert.AreEqual(50, rig.Ctx.Wallet.Balance);
+            Assert.AreEqual(20, rig.Ctx.Wallet.Balance);
             Assert.AreEqual(2, rig.M.Analytics.Count(MonetisationEvents.RewardDuplicateIgnored));
-            Assert.AreEqual(1, rig.Ctx.Data.Monetisation.AdsToday[RewardedPlacements.ShopCoins], "one advert counted towards the daily limit");
+            Assert.AreEqual(2, rig.M.Coins.ShopOffer().RemainingToday, "one advert counted towards the daily limit of three");
         }
 
         [Test]
@@ -150,7 +150,7 @@ namespace ColourCascade.Tests
             rig.Wait(0.5);
             rig.Network.Earn();
             Assert.AreEqual(AdOutcome.Rewarded, outcome);
-            Assert.AreEqual(50, rig.Ctx.Wallet.Balance);
+            Assert.AreEqual(20, rig.Ctx.Wallet.Balance);
         }
 
         [Test]
@@ -168,7 +168,7 @@ namespace ColourCascade.Tests
             CollectionAssert.AreEqual(new[] { AdOutcome.ClosedEarly }, outcomes);
             rig.Network.Earn();
             rig.Network.Earn();
-            Assert.AreEqual(50, rig.Ctx.Wallet.Balance, "the SDK confirmed the reward, so the player gets it, once");
+            Assert.AreEqual(20, rig.Ctx.Wallet.Balance, "the SDK confirmed the reward, so the player gets it, once");
             Assert.AreEqual(RewardedPlacements.ShopCoins, late);
             CollectionAssert.AreEqual(new[] { AdOutcome.ClosedEarly }, outcomes, "the advert's ending is reported once");
         }
@@ -275,7 +275,7 @@ namespace ColourCascade.Tests
             Assert.IsNull(outcome);
             rig.Wait(4);
             Assert.AreEqual(AdOutcome.Rewarded, outcome, "the reward was confirmed; the missing close callback doesn't take it away");
-            Assert.AreEqual(50, rig.Ctx.Wallet.Balance);
+            Assert.AreEqual(20, rig.Ctx.Wallet.Balance);
         }
 
         [Test]
@@ -293,19 +293,19 @@ namespace ColourCascade.Tests
             Assert.IsNull(outcome, "35 s in the advert is not a 'didn't open' timeout");
             rig.Network.WatchToTheEnd();
             Assert.AreEqual(AdOutcome.Rewarded, outcome);
-            Assert.AreEqual(50, rig.Ctx.Wallet.Balance);
+            Assert.AreEqual(20, rig.Ctx.Wallet.Balance);
         }
 
         [Test]
         public void TheDailyLimitAndCooldownSurviveARestart()
         {
             var rig = Started();
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 3; i++)
             {
                 Assert.IsTrue(rig.M.Coins.ShopOffer().CanShow, "advert " + (i + 1));
                 rig.M.Coins.WatchForShopCoins(null);
                 rig.Network.WatchToTheEnd();
-                Assert.AreEqual(i < 4 ? OfferStatus.CoolingDown : OfferStatus.LimitReached, rig.M.Coins.ShopOffer().Status);
+                Assert.AreEqual(i < 2 ? OfferStatus.CoolingDown : OfferStatus.LimitReached, rig.M.Coins.ShopOffer().Status);
                 rig.Wait(31);
             }
             var offer = rig.M.Coins.ShopOffer();
@@ -314,14 +314,14 @@ namespace ColourCascade.Tests
             var again = rig.Restart().Start();
             Assert.AreEqual(OfferStatus.LimitReached, again.M.Coins.ShopOffer().Status, "closing the game doesn't reset the limit");
             again.Wait(TimeSpan.FromHours(13).TotalSeconds);
-            Assert.IsTrue(again.M.Coins.ShopOffer().CanShow, "a new day (UTC) brings new adverts");
+            Assert.IsTrue(again.M.Coins.ShopOffer().CanShow, "a new day brings new adverts");
         }
 
         [Test]
         public void WindingTheClockBackDoesNotResetTheDailyLimit()
         {
             var rig = Started(c => c.Monetisation.ads.shopCoins.cooldownSeconds = 0);
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 3; i++)
             {
                 rig.M.Coins.WatchForShopCoins(null);
                 rig.Network.WatchToTheEnd();
@@ -1258,7 +1258,7 @@ namespace ColourCascade.Tests
                 Assert.IsFalse(rig.M.Ads.IsShowing);
                 if (earned) earnedTickets++;
             }
-            Assert.AreEqual(earnedTickets * 50, rig.Ctx.Wallet.Balance, "50 coins for every advert the SDK rewarded, never more");
+            Assert.AreEqual(earnedTickets * 20, rig.Ctx.Wallet.Balance, "20 coins for every advert the SDK rewarded, never more");
             Assert.Greater(earnedTickets, 50);
         }
     }

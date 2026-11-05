@@ -93,6 +93,11 @@ namespace ColourCascade.Core
         /// <summary>Instruction shown while targeting, e.g. "Tap a tile to blast the 3×3 area around it".</summary>
         public string targetingHint = "";
         public int price = 100;
+        /// <summary>
+        /// Price of a three-pack in the shop (update 3.1: about 10 % off three bought one at a time). 0 = the built-in
+        /// default for this power-up (also what older config assets get); negative = no three-pack.
+        /// </summary>
+        public int packPrice;
         public PowerUpTargeting targeting;
         /// <summary>Unlocked once the player reaches this campaign level. 0 = always unlocked.</summary>
         public int unlockLevel;
@@ -143,35 +148,35 @@ namespace ColourCascade.Core
             {
                 new PowerUpDefinition
                 {
-                    id = PowerUpId.Blast, displayName = "Blast", price = 100, unlockLevel = 10, trialUses = 2,
+                    id = PowerUpId.Blast, displayName = "Blast", price = 100, packPrice = 270, unlockLevel = 10, trialUses = 2,
                     targeting = PowerUpTargeting.Cell, accentHex = "#FF6B4A",
                     description = "Clears every tile in a 3×3 area. Stones are not affected.",
                     targetingHint = "Tap a tile to blast the 3×3 area around it",
                 },
                 new PowerUpDefinition
                 {
-                    id = PowerUpId.TileBreaker, displayName = "Tile Breaker", price = 125, unlockLevel = 20, trialUses = 2,
+                    id = PowerUpId.TileBreaker, displayName = "Tile Breaker", price = 125, packPrice = 340, unlockLevel = 20, trialUses = 2,
                     targeting = PowerUpTargeting.Cell, accentHex = "#B0B8D8",
                     description = "Smashes one tile or one stone barrier.",
                     targetingHint = "Tap a tile or a stone to break it",
                 },
                 new PowerUpDefinition
                 {
-                    id = PowerUpId.Swap, displayName = "Swap", price = 75, unlockLevel = 30, trialUses = 2,
+                    id = PowerUpId.Swap, displayName = "Swap", price = 75, packPrice = 200, unlockLevel = 30, trialUses = 2,
                     targeting = PowerUpTargeting.AdjacentPair, accentHex = "#3DD6C4",
                     description = "Swaps two neighbouring tiles of different colours.",
                     targetingHint = "Tap a tile, then a neighbouring tile to swap them",
                 },
                 new PowerUpDefinition
                 {
-                    id = PowerUpId.ColourShift, displayName = "Colour Shift", price = 150, unlockLevel = 40, trialUses = 2,
+                    id = PowerUpId.ColourShift, displayName = "Colour Shift", price = 150, packPrice = 400, unlockLevel = 40, trialUses = 2,
                     targeting = PowerUpTargeting.CellAndColour, accentHex = "#B57BFF",
                     description = "Repaints one tile in a colour of your choice.",
                     targetingHint = "Tap a tile, then pick its new colour",
                 },
                 new PowerUpDefinition
                 {
-                    id = PowerUpId.ColourBurst, displayName = "Colour Burst", price = 250, unlockLevel = 60, trialUses = 1,
+                    id = PowerUpId.ColourBurst, displayName = "Colour Burst", price = 250, packPrice = 675, unlockLevel = 60, trialUses = 1,
                     targeting = PowerUpTargeting.Cell, accentHex = "#FFC93C",
                     description = "Removes every tile of the colour you choose.",
                     targetingHint = "Tap a tile to remove every tile of its colour",

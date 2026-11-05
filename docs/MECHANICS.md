@@ -274,6 +274,14 @@ board. Every combination is checked by simulation (DESIGN.md §3.2).
   the same result.
 * Continuing after a failed finish (Out of Moves) starts a fresh run of moves: specials made from then on go off
   again if those run out too.
+* **Endless (fixed in update 3.1):** a run ends when its moves run out, and the specials still on the board go off
+  first, as above, before anything is recorded. The final score includes their points, and the personal best, the
+  Endless milestones, achievements and the results all use that score. Treasure they collect still scores 500 but
+  no longer adds bonus moves: before 3.1 it could give the finished run more moves, so the results never appeared
+  and the score was left unrecorded. A stage their points reach is shown in the result, but its wave never arrives
+  (the run is over). Leaving the game screen while they are waiting to go off (Quit, or anything else that leaves
+  the run) still sets them off and records the whole score; pausing or minimising the app never does. Each special
+  goes off once, and the end-of-run sequence can't repeat (recording it twice returns the same result).
 
 ## 5. Points
 

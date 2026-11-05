@@ -447,12 +447,7 @@ namespace ColourCascade.Core
             if (rec != null)
             {
                 RollDay(rec);
-                if (p.dailyLimit > 0)
-                {
-                    int used;
-                    rec.AdsToday.TryGetValue(placement, out used);
-                    offer.RemainingToday = Math.Max(0, p.dailyLimit - used);
-                }
+                if (p.dailyLimit > 0) offer.RemainingToday = Math.Max(0, p.dailyLimit - UsedToday(rec, placement));
             }
             if (p.perRunLimit > 0 && runKey != null) offer.RemainingThisRun = Math.Max(0, p.perRunLimit - RunCount(placement, runKey));
             if (offer.RemainingToday == 0 || offer.RemainingThisRun == 0)
@@ -587,9 +582,11 @@ namespace ColourCascade.Core
             if (rec != null)
             {
                 RollDay(rec);
+                // Placements that share a daily allowance (both coin adverts) count against one total.
+                string key = CounterKey(t.Placement);
                 int used;
-                rec.AdsToday.TryGetValue(t.Placement, out used);
-                rec.AdsToday[t.Placement] = used + 1;
+                rec.AdsToday.TryGetValue(key, out used);
+                rec.AdsToday[key] = used + 1;
                 rec.LastAdTicks[t.Placement] = clock.UtcNow.Ticks;
             }
             if (t.RunKey != null)
@@ -685,9 +682,57 @@ namespace ColourCascade.Core
 
         MonetisationRecord Record => data?.Invoke()?.Monetisation;
 
+        /// <summary>
+        /// The player's offset from UTC at a given moment (daylight saving included), for the advert day: daily advert
+        /// allowances reset on the player's own calendar day. Tests set their own.
+        /// </summary>
+        public Func<DateTime, TimeSpan> LocalUtcOffset { get; set; } = utc => TimeZoneInfo.Local.GetUtcOffset(utc);
+
+        /// <summary>Today's date on the player's calendar ("yyyy-MM-dd").</summary>
+        public string LocalDayKey()
+        {
+            var utc = clock.UtcNow;
+            TimeSpan offset;
+            try
+            {
+                offset = LocalUtcOffset != null ? LocalUtcOffset(utc) : TimeSpan.Zero;
+            }
+            catch (Exception)
+            {
+                offset = TimeSpan.Zero;
+            }
+            // A real time zone is at most 14 hours from UTC; anything else is ignored.
+            if (offset.Duration() > TimeSpan.FromHours(14)) offset = TimeSpan.Zero;
+            return new DateTime(utc.Ticks, DateTimeKind.Unspecified).Add(offset).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>The daily count a placement uses: its group's when it shares an allowance, else its own.</summary>
+        string CounterKey(string placement)
+        {
+            var p = Placement(placement);
+            return p != null && !string.IsNullOrEmpty(p.dailyLimitGroup) ? "group:" + p.dailyLimitGroup : placement;
+        }
+
+        /// <summary>Completed adverts counted against this placement's allowance today.</summary>
+        int UsedToday(MonetisationRecord rec, string placement)
+        {
+            int used;
+            string key = CounterKey(placement);
+            rec.AdsToday.TryGetValue(key, out used);
+            if (key == placement) return used;
+            // Adverts counted per placement before update 3.1, on the day of the update, still count against the group.
+            var p = Placement(placement);
+            foreach (var kv in placements)
+            {
+                int old;
+                if (kv.Value != null && kv.Value.dailyLimitGroup == p.dailyLimitGroup && rec.AdsToday.TryGetValue(kv.Key, out old)) used += old;
+            }
+            return used;
+        }
+
         void RollDay(MonetisationRecord rec)
         {
-            string today = ChallengeCalendar.DayKey(clock.UtcNow);
+            string today = LocalDayKey();
             // Only moves forward: winding the clock back can't reset today's limits.
             if (string.IsNullOrEmpty(rec.AdDay) || string.CompareOrdinal(today, rec.AdDay) > 0)
             {

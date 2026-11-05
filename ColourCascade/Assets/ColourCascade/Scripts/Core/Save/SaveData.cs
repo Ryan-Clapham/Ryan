@@ -255,7 +255,7 @@ namespace ColourCascade.Core
         public long LastInterstitialTicks;
         /// <summary>When the last rewarded advert or purchase happened (UTC ticks), for the interstitial quiet period.</summary>
         public long LastQuietTicks;
-        /// <summary>The day (ChallengeCalendar.DayKey) that AdsToday counts.</summary>
+        /// <summary>The day ("yyyy-MM-dd" on the player's own calendar, update 3.1) that AdsToday counts.</summary>
         public string AdDay = "";
         /// <summary>Rewarded adverts completed today, per placement.</summary>
         public Dictionary<string, int> AdsToday = new Dictionary<string, int>();

@@ -173,12 +173,28 @@ namespace ColourCascade.Tests
         [Test]
         public void FirstLevelRewardIsLowerThanTheOld30Coins()
         {
+            // Update 3.1: 3 coins on levels 1-25, +1 every 25 levels, 8 from level 126 and never more.
             var eco = new EconomyConfig();
             Assert.Less(eco.FirstClearReward(1), 30);
-            Assert.AreEqual(5, eco.FirstClearReward(1));
-            Assert.AreEqual(5, eco.FirstClearReward(10));
-            Assert.AreEqual(6, eco.FirstClearReward(11));
-            Assert.AreEqual(15, eco.FirstClearReward(200));
+            Assert.AreEqual(3, eco.FirstClearReward(1));
+            Assert.AreEqual(3, eco.FirstClearReward(25));
+            Assert.AreEqual(4, eco.FirstClearReward(26));
+            Assert.AreEqual(5, eco.FirstClearReward(51));
+            Assert.AreEqual(6, eco.FirstClearReward(76));
+            Assert.AreEqual(7, eco.FirstClearReward(101));
+            Assert.AreEqual(7, eco.FirstClearReward(125));
+            Assert.AreEqual(8, eco.FirstClearReward(126));
+            Assert.AreEqual(8, eco.FirstClearReward(500));
+            Assert.AreEqual(8, eco.FirstClearReward(10000));
+            int previous = 0;
+            for (int level = 1; level <= 600; level++)
+            {
+                int r = eco.FirstClearReward(level);
+                Assert.GreaterOrEqual(r, previous, "never falls");
+                Assert.LessOrEqual(r - previous, level == 1 ? 3 : 1, "rises by at most one coin at a time");
+                Assert.LessOrEqual(r, 8);
+                previous = r;
+            }
         }
 
         [Test]
@@ -187,7 +203,7 @@ namespace ColourCascade.Tests
             var ctx = TestUtil.Context();
             var first = WinCampaign(ctx, 1);
             Assert.IsTrue(first.FirstClear);
-            Assert.AreEqual(5 + 3 * 1, first.Rewards.TotalCoins, "first clear + three new stars");
+            Assert.AreEqual(3 + 2 + 3 + 5, first.Rewards.TotalCoins, "first clear + the three stars (2, 3 and 5)");
             int balance = ctx.Wallet.Balance;
             var replay = WinCampaign(ctx, 1);
             Assert.IsFalse(replay.FirstClear);
@@ -200,12 +216,20 @@ namespace ColourCascade.Tests
         {
             var ctx = TestUtil.Context();
             var spec = ctx.Catalog.Get(1);
+            // Update 3.1: the first star pays 2, the second 3, the third 5, each the first time it is earned.
             var r1 = ctx.Rewards.ForCampaignWin(spec, 1);
-            Assert.AreEqual(5 + 1, r1.TotalCoins);
-            var r2 = ctx.Rewards.ForCampaignWin(spec, 3);
-            Assert.AreEqual(2 * 1, r2.TotalCoins);
+            Assert.AreEqual(3 + 2, r1.TotalCoins, "first clear + the first star");
+            var again = ctx.Rewards.ForCampaignWin(spec, 1);
+            Assert.AreEqual(0, again.TotalCoins, "the same star again pays nothing");
+            var r2 = ctx.Rewards.ForCampaignWin(spec, 2);
+            Assert.AreEqual(3, r2.TotalCoins, "one star to two: only the second star's 3");
             var r3 = ctx.Rewards.ForCampaignWin(spec, 3);
-            Assert.AreEqual(0, r3.TotalCoins);
+            Assert.AreEqual(5, r3.TotalCoins, "two to three: only the third star's 5");
+            Assert.AreEqual(0, ctx.Rewards.ForCampaignWin(spec, 3).TotalCoins);
+            Assert.AreEqual(0, ctx.Rewards.ForCampaignWin(spec, 1).TotalCoins, "a worse result later pays nothing either");
+            var other = ctx.Catalog.Get(2);
+            Assert.AreEqual(3 + 2 + 3 + 5, ctx.Rewards.ForCampaignWin(other, 3).TotalCoins, "three stars at once: 10 for the stars");
+            Assert.AreEqual(1, ctx.Rewards.ForCampaignWin(ctx.Catalog.Get(3), 3).Lines.Count(l => l.Kind == RewardKind.NewStar), "shown as one line");
         }
 
         [Test]
@@ -245,12 +269,12 @@ namespace ColourCascade.Tests
         {
             var ctx = TestUtil.Context();
             ctx.NoteDaySeen("2026-10-25");
-            Assert.AreEqual(15, ctx.Rewards.ForDaily("2026-10-25", true, 1).TotalCoins);
+            Assert.AreEqual(10, ctx.Rewards.ForDaily("2026-10-25", true, 1).TotalCoins, "10 for completing (update 3.1)");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-25", true, 1).TotalCoins, "replaying the same daily pays nothing");
             Assert.AreEqual(5, ctx.Rewards.ForDaily("2026-10-25", true, 3).TotalCoins, "three stars later pays the bonus once");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-25", true, 3).TotalCoins);
             ctx.NoteDaySeen("2026-10-26");
-            Assert.AreEqual(15, ctx.Rewards.ForDaily("2026-10-26", true, 1).TotalCoins, "a new day pays again");
+            Assert.AreEqual(15, ctx.Rewards.ForDaily("2026-10-26", true, 3).TotalCoins, "a new day pays again: at most 15 with three stars");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-24", true, 1).TotalCoins, "winding the clock back pays nothing");
             Assert.AreEqual(0, ctx.Rewards.ForDaily("2026-10-27", false, 0).TotalCoins, "incomplete runs pay nothing");
         }
@@ -270,9 +294,12 @@ namespace ColourCascade.Tests
         public void EndlessMilestonesAreOneTimeOnly()
         {
             var ctx = TestUtil.Context();
-            Assert.AreEqual(10 + 15, ctx.Rewards.ForEndless(7000).TotalCoins);
-            Assert.AreEqual(0, ctx.Rewards.ForEndless(7000).TotalCoins);
-            Assert.AreEqual(25, ctx.Rewards.ForEndless(12000).TotalCoins);
+            // Update 3.1: 5 / 10 / 15 / 25 / 40 for 2,500 / 5,000 / 10,000 / 20,000 / 40,000, each once ever.
+            Assert.AreEqual(5 + 10, ctx.Rewards.ForEndless(7000).TotalCoins);
+            Assert.AreEqual(0, ctx.Rewards.ForEndless(7000).TotalCoins, "a later run with the same score pays nothing");
+            Assert.AreEqual(15, ctx.Rewards.ForEndless(12000).TotalCoins, "only the new milestone");
+            Assert.AreEqual(25 + 40, ctx.Rewards.ForEndless(45000).TotalCoins);
+            Assert.AreEqual(0, ctx.Rewards.ForEndless(60000).TotalCoins, "all five paid: nothing more, ever");
         }
 
         [Test]
@@ -345,14 +372,16 @@ namespace ColourCascade.Tests
         [Test]
         public void EarlyCampaignCoinsKeepTheFirstPowerUpMeaningful()
         {
-            // Playtest feedback: power-ups were too easy to buy. Levels 1-10 with two stars each now earn most of a
-            // Blast (its two free trial uses cover the introduction), so the first purchase comes a little later.
+            // Playtest feedback: power-ups were too easy to buy. Levels 1-10 with two stars each earn about one Blast
+            // (update 3.1: 3 coins a first clear, 2 + 3 for two stars, 20 for the milestone), when the Blast unlocks; its
+            // two free uses cover the introduction, so buying one is a choice rather than a given.
             var ctx = TestUtil.Context();
             int total = 0;
             for (int level = 1; level <= 10; level++) total += ctx.Rewards.ForCampaignWin(ctx.Catalog.Get(level), 2).TotalCoins;
             int blast = ctx.PowerUps.Get(PowerUpId.Blast).price;
-            Assert.Less(total, blast, "the first Blast can't be bought from early campaign coins alone");
-            Assert.GreaterOrEqual(total, blast * 3 / 4, "but it is close");
+            Assert.AreEqual(10 * 3 + 10 * (2 + 3) + 20, total);
+            Assert.LessOrEqual(total, blast, "early campaign coins buy at most one Blast");
+            Assert.GreaterOrEqual(total, blast * 3 / 4, "but about one");
         }
 
         [Test]
@@ -366,26 +395,82 @@ namespace ColourCascade.Tests
 
             var changed = EconomyTuning.Upgrade(old, 0);
             Assert.AreEqual(defaults.Economy.firstClearBase, old.Economy.firstClearBase);
-            Assert.AreEqual(defaults.Economy.coinsPerNewStar, old.Economy.coinsPerNewStar);
+            Assert.AreEqual(defaults.Economy.firstClearMax, old.Economy.firstClearMax);
+            CollectionAssert.AreEqual(new[] { 2, 3, 5 }, old.Economy.starRewards);
             Assert.AreEqual(defaults.Daily.completionReward, old.Daily.completionReward);
             CollectionAssert.AreEqual(defaults.Rush.tierRewards, old.Rush.tierRewards);
             CollectionAssert.AreEqual(defaults.Endless.milestoneRewards, old.Endless.milestoneRewards);
+            Assert.AreEqual(20, old.Monetisation.ads.shopCoins.reward);
+            Assert.AreEqual(3, old.Monetisation.ads.shopCoins.dailyLimit);
+            Assert.AreEqual(3, old.Monetisation.ads.coinShortfall.dailyLimit);
+            Assert.AreEqual(AdConfig.CoinAdvertGroup, old.Monetisation.ads.shopCoins.dailyLimitGroup);
+            Assert.AreEqual(AdConfig.CoinAdvertGroup, old.Monetisation.ads.coinShortfall.dailyLimitGroup);
             Assert.AreEqual(75, old.Economy.milestoneReward);
             CollectionAssert.DoesNotContain(changed, "economy.milestoneReward");
-            Assert.AreEqual(10, changed.Count);
+            CollectionAssert.Contains(changed, "economy.starRewards");
+            CollectionAssert.Contains(changed, "ads.dailyLimitGroup");
 
             Assert.IsEmpty(EconomyTuning.Upgrade(old, EconomyTuning.Current), "an up-to-date config is left alone");
+        }
+
+        [Test]
+        public void AVersion2ConfigMovesToTheVersion3Economy()
+        {
+            // The config asset as saved before update 3.1, with one value edited by hand.
+            var old = GameConfigData.CreateDefault();
+            EconomyTuning.ApplyVersion(old, 2);
+            Assert.AreEqual(15, old.Economy.firstClearMax, "version 2 values");
+            CollectionAssert.AreEqual(new[] { 1, 1, 1 }, old.Economy.starRewards);
+            Assert.AreEqual(50, old.Monetisation.ads.shopCoins.reward);
+            old.Daily.threeStarBonus = 8;
+            var changed = EconomyTuning.Upgrade(old, 2);
+            var e = old.Economy;
+            Assert.AreEqual(3, e.FirstClearReward(1));
+            Assert.AreEqual(8, e.FirstClearReward(126));
+            CollectionAssert.AreEqual(new[] { 2, 3, 5 }, e.starRewards);
+            Assert.AreEqual(20, e.milestoneReward, "unchanged in 3.1");
+            Assert.AreEqual(40, e.regionFinaleReward, "unchanged in 3.1");
+            Assert.AreEqual(10, old.Daily.completionReward);
+            Assert.AreEqual(8, old.Daily.threeStarBonus, "edited by hand: kept");
+            CollectionAssert.AreEqual(new[] { 10, 15, 25 }, old.Rush.tierRewards, "Weekly Rush unchanged");
+            CollectionAssert.AreEqual(new[] { 5, 10, 15, 25, 40 }, old.Endless.milestoneRewards);
+            Assert.AreEqual(20, old.Monetisation.ads.shopCoins.reward);
+            Assert.AreEqual(50, old.Monetisation.ads.coinShortfall.reward, "the shortfall advert still pays up to 50");
+            CollectionAssert.DoesNotContain(changed, "daily.threeStarBonus");
+        }
+
+        [Test]
+        public void AHandEditedStarRewardIsKeptForEveryStar()
+        {
+            var old = GameConfigData.CreateDefault();
+            EconomyTuning.ApplyVersion(old, 2);
+            old.Economy.coinsPerNewStar = 4;
+            old.Economy.starRewards = new[] { 4, 4, 4 };
+            EconomyTuning.Upgrade(old, 2);
+            CollectionAssert.AreEqual(new[] { 4, 4, 4 }, old.Economy.starRewards);
+            Assert.AreEqual(4, old.Economy.StarReward(3));
+            // An asset saved before the field existed loads it with the new default, and keeps it.
+            var fresh = GameConfigData.CreateDefault();
+            fresh.Economy.coinsPerNewStar = 1;
+            EconomyTuning.Upgrade(fresh, 2);
+            CollectionAssert.AreEqual(new[] { 2, 3, 5 }, fresh.Economy.starRewards);
+            fresh.Economy.starRewards = new int[0];
+            Assert.AreEqual(1, fresh.Economy.StarReward(2), "no per-star values: the old single value");
         }
 
         [Test]
         public void CurrentTuningTableMatchesTheCodeDefaults()
         {
             // Upgrading version-1 values must land exactly on the defaults a new config gets.
-            var upgraded = GameConfigData.CreateDefault();
-            EconomyTuning.ApplyVersion1(upgraded);
-            EconomyTuning.Upgrade(upgraded, 1);
             var fresh = GameConfigData.CreateDefault();
-            Assert.AreEqual(Json.Write(Snapshot(fresh)), Json.Write(Snapshot(upgraded)));
+            for (int version = 1; version < EconomyTuning.Current; version++)
+            {
+                var upgraded = GameConfigData.CreateDefault();
+                EconomyTuning.ApplyVersion(upgraded, version);
+                Assert.AreNotEqual(Json.Write(Snapshot(fresh)), Json.Write(Snapshot(upgraded)), "version " + version + " differs");
+                EconomyTuning.Upgrade(upgraded, version);
+                Assert.AreEqual(Json.Write(Snapshot(fresh)), Json.Write(Snapshot(upgraded)), "from version " + version);
+            }
         }
 
         static Dictionary<string, object> Snapshot(GameConfigData c) => new Dictionary<string, object>
@@ -394,6 +479,9 @@ namespace ColourCascade.Tests
             ["d"] = new List<object> { (long)c.Daily.completionReward, (long)c.Daily.threeStarBonus },
             ["w"] = c.Rush.tierRewards.Select(v => (object)(long)v).ToList(),
             ["x"] = c.Endless.milestoneRewards.Select(v => (object)(long)v).ToList(),
+            ["s"] = c.Economy.starRewards.Select(v => (object)(long)v).ToList(),
+            ["a"] = new List<object> { (long)c.Monetisation.ads.shopCoins.reward, (long)c.Monetisation.ads.shopCoins.dailyLimit, (long)c.Monetisation.ads.coinShortfall.reward,
+                (long)c.Monetisation.ads.coinShortfall.dailyLimit, c.Monetisation.ads.shopCoins.dailyLimitGroup, c.Monetisation.ads.coinShortfall.dailyLimitGroup },
         };
     }
 

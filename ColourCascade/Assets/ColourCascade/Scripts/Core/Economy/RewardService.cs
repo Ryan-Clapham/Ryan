@@ -156,7 +156,7 @@ namespace ColourCascade.Core
             Claim(RewardKeys.CampaignFirstClear(n), economy.FirstClearReward(n), RewardKind.FirstClear, "Level complete", summary);
             int newStars = 0;
             for (int s = 1; s <= stars && s <= 3; s++)
-                if (Claim(RewardKeys.CampaignStar(n, s), economy.coinsPerNewStar, RewardKind.NewStar, "Star " + s, summary)) newStars++;
+                if (Claim(RewardKeys.CampaignStar(n, s), economy.StarReward(s), RewardKind.NewStar, "Star " + s, summary)) newStars++;
             if (newStars > 1) MergeStarLines(summary, newStars);
             if (level.IsRegionFinale)
                 Claim(RewardKeys.CampaignMilestone(n), economy.regionFinaleReward, RewardKind.RegionFinale, "Region complete!", summary);

@@ -146,7 +146,10 @@ namespace ColourCascade.Tests
         // never paid a bonus. 3.0 added the monetisation record (here: the interstitial level count); the rest of the
         // save is still exactly the 2.1 save, checked by ExpectedSaveFingerprintBefore3.
         // The achievements update added lifetime counters and the unlocked list (3316499532689436422 before it).
-        const ulong ExpectedSaveFingerprint = 13269928510684773610UL;
+        // Update 3.1 re-recorded it for the new reward values (coins, ledger amounts); with the old values the play still
+        // writes the earlier save exactly (ExpectedSaveFingerprintBefore31, checked in SameRulesSameSave).
+        const ulong ExpectedSaveFingerprint = 14645177115692661380UL;
+        const ulong ExpectedSaveFingerprintBefore31 = 13269928510684773610UL;
         const ulong ExpectedSaveFingerprintBefore3 = 7841276991854770152UL;
 
         static readonly string[] NewStatsKeys = { "stones", "ice", "chains", "moss", "treasures", "mostInMove", "biggestCombo", "powerUpUses", "pureLevels" };
@@ -160,14 +163,48 @@ namespace ColourCascade.Tests
             // and the Endless record and lifetime counts are expected to differ. Everything else must not: which
             // levels are unlocked and completed, plays and wins, first-clear rewards, Daily and Weekly plays, the
             // purchase, inventory, tutorials and settings.
+            // Update 3.1 changed what first clears, milestones and the Daily pay, so the fixture's play is compared under
+            // the reward values it was recorded with (tuning version 2), and must match exactly.
             var store = new MemorySaveStorage();
-            PlayScript(store);
+            PlayScript(store, 2);
             Assert.AreEqual(Progress(SaveBeforeOverhaul), Progress(store.Main));
+            // With today's values the same rewards are paid for the same reasons, at today's amounts.
+            var now = new MemorySaveStorage();
+            var ctx = PlayScript(now);
+            Assert.AreEqual(Reasons(SaveBeforeOverhaul), Reasons(now.Main), "the same one-time rewards, for the same reasons");
+            var eco = ctx.Config.Economy;
+            foreach (var e in ctx.Wallet.Ledger)
+            {
+                var p = e.Reason.Split('.');
+                if (e.Reason.StartsWith("c.first.", System.StringComparison.Ordinal)) Assert.AreEqual(eco.FirstClearReward(int.Parse(p[2])), e.Delta, e.Reason);
+                if (e.Reason.StartsWith("c.star.", System.StringComparison.Ordinal)) Assert.AreEqual(eco.StarReward(int.Parse(p[3])), e.Delta, e.Reason);
+                if (e.Reason.EndsWith(".done", System.StringComparison.Ordinal)) Assert.AreEqual(10, e.Delta, e.Reason);
+            }
+        }
+
+        /// <summary>The reasons of the one-time rewards that don't depend on score, without their amounts.</summary>
+        static string Reasons(string json)
+        {
+            var root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(json);
+            var list = new System.Collections.Generic.List<object>();
+            foreach (System.Collections.Generic.Dictionary<string, object> e in (System.Collections.Generic.List<object>)root["ledger"])
+            {
+                string r = (string)e["r"];
+                if (r.StartsWith("c.first.", System.StringComparison.Ordinal) || r.StartsWith("c.mile.", System.StringComparison.Ordinal) ||
+                    r.StartsWith("shop.", System.StringComparison.Ordinal) || r.StartsWith("d.", System.StringComparison.Ordinal))
+                    list.Add(r);
+            }
+            return Json.Write(list);
         }
 
         [Test]
         public void SameRulesSameSave()
         {
+            // Update 3.1 changed only reward values: with the version 2 values the same play writes exactly the save it
+            // wrote before 3.1 (so the Endless finale fix and the rest of 3.1 changed nothing else in it).
+            var before = new MemorySaveStorage();
+            PlayScript(before, 2);
+            Assert.AreEqual(ExpectedSaveFingerprintBefore31, StableHash.Of(before.Main), "with the old reward values, the old save exactly");
             var store = new MemorySaveStorage();
             PlayScript(store);
             if (System.Environment.GetEnvironmentVariable("PRINT_SAVE_FINGERPRINT") != null) System.Console.WriteLine("save fingerprint " + StableHash.Of(store.Main));
@@ -176,6 +213,8 @@ namespace ColourCascade.Tests
             var m = (System.Collections.Generic.Dictionary<string, object>)root["monetisation"];
             Assert.AreEqual(0L, m["lastInterstitial"], "no advert was involved");
             Assert.AreEqual(false, m["noAds"]);
+            // Without what 3.0 and the achievements update added, the version 2 play is still exactly the 2.1 save.
+            root = (System.Collections.Generic.Dictionary<string, object>)Json.Parse(before.Main);
             root.Remove("monetisation");
             root.Remove("achievements");
             var stats = (System.Collections.Generic.Dictionary<string, object>)root["stats"];
@@ -233,9 +272,12 @@ namespace ColourCascade.Tests
         }
 
         /// <summary>A fixed sequence of real play through GameContext: campaign levels, every challenge mode, a purchase and settings.</summary>
-        internal static GameContext PlayScript(MemorySaveStorage store)
+        internal static GameContext PlayScript(MemorySaveStorage store, int economyVersion = EconomyTuning.Current)
         {
-            var ctx = TestUtil.Context(null, store);
+            var config = GameConfigData.CreateDefault();
+            if (economyVersion != EconomyTuning.Current) EconomyTuning.ApplyVersion(config, economyVersion);
+            var ctx = new GameContext(config, store, new FixedClock(TestUtil.Today));
+            ctx.Load();
             for (int n = 1; n <= 12; n++)
             {
                 for (int attempt = 0; attempt < 3 && ctx.Campaign.HighestUnlocked <= n; attempt++)

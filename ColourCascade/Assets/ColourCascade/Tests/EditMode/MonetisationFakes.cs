@@ -180,6 +180,8 @@ namespace ColourCascade.Tests
         public readonly MemorySaveStorage Storage;
         public readonly FixedClock Clock;
         public double Seconds;
+        /// <summary>The player's time zone for the advert day (UTC by default).</summary>
+        public TimeSpan LocalOffset = TimeSpan.Zero;
         public GameContext Ctx;
         public FakeAdNetwork Network = new FakeAdNetwork();
         public FakeConsent Consent = new FakeConsent { Answer = new ConsentOutcome { CanRequestAds = true } };
@@ -193,6 +195,8 @@ namespace ColourCascade.Tests
             var config = GameConfigData.CreateDefault();
             configure?.Invoke(config);
             Ctx = new GameContext(config, Storage, Clock, () => Seconds);
+            // The advert day is the player's local day: tests run in UTC unless they set LocalOffset.
+            Ctx.Monetisation.Ads.LocalUtcOffset = _ => LocalOffset;
             Ctx.Load();
             Ctx.Monetisation.Purchases.Event += e => PurchaseEvents.Add(e);
         }
@@ -219,6 +223,7 @@ namespace ColourCascade.Tests
             Ctx.Save();
             var next = new MonetisationRig(configure, Storage, Clock);
             next.Seconds = Seconds;
+            next.LocalOffset = LocalOffset;
             return next;
         }
     }

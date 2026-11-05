@@ -61,8 +61,14 @@ IAdNetwork / IConsentProvider / IStoreBackend
 | Placement | Reward | Default limits |
 |---|---|---|
 | `continue_moves` (Out of Moves) | +10 moves | 2 per level attempt, no daily limit |
-| `shop_coins` (Shop, Coins tab) | +50 coins | 5 a day, 30 s apart |
-| `coin_shortfall` (not enough coins for a power-up) | the missing coins, at most 50 | 5 a day |
+| `shop_coins` (Shop, Coins tab) | +20 coins | 3 a day **shared with `coin_shortfall`**, 30 s apart |
+| `coin_shortfall` (not enough coins for a power-up) | the missing coins, at most 50 | 3 a day **shared with `shop_coins`** |
+
+**Update 3.1:** the two coin adverts share one allowance of three a day (`dailyLimitGroup = "coins"`, counted under
+`group:coins`): three Coins-tab adverts leave no not-enough-coins advert that day, and the other way round. The
+Coins-tab advert pays 20 coins (50 before). Out of Moves keeps its own limit. Before 3.1 each placement had 5 a
+day; on the day of the update, coin adverts the player had already completed under the old per-placement counts
+still count towards the three.
 
 **How a reward is granted** (`AdService`):
 
@@ -79,7 +85,10 @@ IAdNetwork / IConsentProvider / IStoreBackend
 6. Watchdogs so the game can never be stuck: no answer at all within 15 s → failed; back in the game for 8 s after
    the advert with no close callback → closed; open for 180 s without the app ever leaving (iOS, editor) → closed.
 7. Limits count only adverts that were **completed** (reward confirmed) and are saved, so closing the app doesn't
-   reset them; days follow the game's daily reset (UTC) and never move backwards with the device clock.
+   reset them. A failed, unavailable or cancelled advert never uses up the allowance. Since 3.1 the advert day is
+   the **player's local calendar day** (`AdService.LocalDayKey`: the device's time zone; it resets at local
+   midnight), and it never moves backwards when the device clock is wound back. (The Daily Challenge itself still
+   follows UTC dates, docs/DESIGN.md §5.)
 8. While an advert is on screen the game's audio is paused, input is blocked, and the level's auto-pause menu is
    suppressed; failed loads retry after 10, 20, 40… seconds, up to 5 minutes.
 
@@ -102,7 +111,7 @@ Endless runs end when the moves do, as before.
 
 ### 2.2 Coins tab
 
-"Watch an advert: +50 coins", with the adverts left today. Coins are added when the advert finishes and the
+"Watch an advert: +20 coins", with the coin adverts left today (shared with §2.3). Coins are added when the advert finishes and the
 balance on the page and in the header updates at once; the coins are saved immediately.
 
 ### 2.3 Not enough coins
@@ -111,7 +120,8 @@ Tapping an unaffordable power-up (shop or in-level bar) opens the buy screen wit
 where N = the shortfall, capped at 50 (`coinShortfall.reward`). Example: Colour Shift costs 150, the player has 100
 → "You need 50 more coins. Watch an advert to earn the 50 coins you're missing." If the shortfall is larger:
 "An advert gives up to 50 coins, so you'd still be 70 short." Nothing is bought automatically: after the advert the
-same screen shows the new balance and the player taps **Buy** themselves; coins are only deducted then.
+same screen shows the new balance and the player taps **Buy** themselves; coins are only deducted then. This advert
+uses the same three-a-day allowance as the Coins tab (3.1).
 
 ### 2.4 Adding opportunities later
 
@@ -360,8 +370,9 @@ To see player behaviour across devices, add an `IAnalyticsSink` that forwards ev
 | ads.androidLive / iosLive | empty | Live ad unit IDs |
 | ads.continueMoves | +10, 2 per attempt | Out of Moves advert |
 | ads.continueCoinCost / continueCoinMoves / continueCoinPerRunLimit | 100 / 5 / no limit | Out of Moves coins |
-| ads.shopCoins | +50, 5 a day, 30 s apart | Coins tab advert |
-| ads.coinShortfall | up to 50, 5 a day | Not-enough-coins advert |
+| ads.shopCoins | +20, 3 a day, 30 s apart, group "coins" | Coins tab advert |
+| ads.coinShortfall | up to 50, 3 a day, group "coins" | Not-enough-coins advert |
+| ads.*.dailyLimitGroup | "coins" for the two coin adverts | Placements with the same group share one daily count; each compares it with its own `dailyLimit` (keep them equal) |
 | ads.rewardGraceSeconds | 2 | Wait for a late reward callback |
 | ads.showTimeoutSeconds / resumeWatchdogSeconds / maxShowSeconds | 15 / 8 / 180 | Watchdogs |
 | ads.retryFirstSeconds / retryMaxSeconds | 10 / 300 | Load retries |
@@ -407,7 +418,9 @@ To see player behaviour across devices, add an `IAnalyticsSink` that forwards ev
    * The second advert in an attempt works; a third is refused.
    * 100 coins: +5 moves; too few coins: the button explains.
    * Give Up: the normal results choices.
-3. **Coins tab:** +50 per advert; 5 a day; 30 s apart. **Not-enough-coins:** an exact shortfall, then a manual Buy.
+3. **Coins tab:** +20 per advert; 30 s apart. **Not-enough-coins:** an exact shortfall, then a manual Buy. The two
+   share three a day: after three Coins-tab adverts the not-enough-coins advert says "That's all the adverts for
+   today"; the next local day brings three again. Cancel one part-way: the count doesn't change.
 4. **Interstitials:**
    * Win 5 levels: one at Next Level or Map, never at Replay or after a loss.
    * Win 5 more within 5 minutes: none until 5 minutes have passed.

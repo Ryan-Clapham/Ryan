@@ -15,7 +15,7 @@ Nothing is generated, so the collection always has an end.
   * a round badge in the tier colour with the category's icon (dimmed while locked);
   * the name, the requirement, and a tier label: **Easy** (green), **Medium** (teal), **Hard** (gold) or
     **Very hard** (pink);
-  * the reward ("*125 coins + Tile Breaker*", "*1,500 coins + two of each power-up*");
+  * the reward ("*25 coins*", "*Tile Breaker*", "*300 coins + one of each power-up*");
   * its state:
     * **Locked:** a progress bar and "*37 / 50*" (or "*Level 37 / 50*", "*Stage 4 / 6*", "*Best: Silver*");
     * **Unlocked:** a gold outline and a **Claim** button;
@@ -71,113 +71,114 @@ coins of power-ups).
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `level_10` | First Steps | Reach level 10. | Easy | 25 coins | 25 |
-| `level_25` | On Your Way | Reach level 25. | Easy | 50 coins | 50 |
-| `level_50` | Halfway to a Hundred | Reach level 50. | Medium | 75 coins + Blast | 175 |
-| `level_100` | Century | Reach level 100. | Medium | 125 coins + Tile Breaker | 250 |
-| `level_150` | Seasoned Cascader | Reach level 150. | Hard | 250 coins + Colour Shift + Blast | 500 |
-| `level_200` | Double Century | Reach level 200. | Hard | 400 coins + Colour Burst + Tile Breaker | 775 |
-| `level_300` | Trailblazer | Reach level 300. | Very hard | 600 coins + one of each power-up | 1,300 |
-| `level_400` | Unstoppable | Reach level 400. | Very hard | 900 coins + Colour Burst ×2 + Colour Shift ×2 | 1,700 |
-| `level_500` | Cascade Legend | Reach level 500. | Very hard | 1,500 coins + two of each power-up | 2,900 |
+| `level_10` | First Steps | Reach level 10. | Easy | 10 coins | 10 |
+| `level_25` | On Your Way | Reach level 25. | Easy | 15 coins | 15 |
+| `level_50` | Halfway to a Hundred | Reach level 50. | Medium | 25 coins | 25 |
+| `level_100` | Century | Reach level 100. | Medium | 40 coins | 40 |
+| `level_150` | Seasoned Cascader | Reach level 150. | Hard | Tile Breaker | 125 |
+| `level_200` | Double Century | Reach level 200. | Hard | Colour Shift | 150 |
+| `level_300` | Trailblazer | Reach level 300. | Very hard | Blast + Colour Burst | 350 |
+| `level_400` | Unstoppable | Reach level 400. | Very hard | Colour Shift + Colour Burst | 400 |
+| `level_500` | Cascade Legend | Reach level 500. | Very hard | 300 coins + one of each power-up | 1,000 |
 
 ### Stars (7)
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `stars_30` | Starry Start | Collect 30 stars in the campaign. | Easy | 30 coins | 30 |
-| `stars_100` | Star Collector | Collect 100 stars in the campaign. | Medium | 60 coins + Swap | 135 |
-| `stars_250` | Shining Bright | Collect 250 stars in the campaign. | Medium | 150 coins + Blast | 250 |
-| `stars_500` | Constellation | Collect 500 stars in the campaign. | Hard | 300 coins + Colour Shift + Tile Breaker | 575 |
-| `stars_750` | Galaxy | Collect 750 stars in the campaign. | Hard | 450 coins + Colour Burst + Blast | 800 |
-| `stars_1000` | A Thousand Stars | Collect 1,000 stars in the campaign. | Very hard | 800 coins + one of each power-up | 1,500 |
-| `stars_1250` | Supernova | Collect 1,250 stars in the campaign. | Very hard | 1,200 coins + one of each power-up + Colour Burst | 2,150 |
+| `stars_30` | Starry Start | Collect 30 stars in the campaign. | Easy | 10 coins | 10 |
+| `stars_100` | Star Collector | Collect 100 stars in the campaign. | Medium | 25 coins | 25 |
+| `stars_250` | Shining Bright | Collect 250 stars in the campaign. | Medium | 40 coins | 40 |
+| `stars_500` | Constellation | Collect 500 stars in the campaign. | Hard | Tile Breaker | 125 |
+| `stars_750` | Galaxy | Collect 750 stars in the campaign. | Hard | Colour Shift | 150 |
+| `stars_1000` | A Thousand Stars | Collect 1,000 stars in the campaign. | Very hard | Blast + Colour Burst | 350 |
+| `stars_1250` | Supernova | Collect 1,250 stars in the campaign. | Very hard | 300 coins + one of each power-up | 1,000 |
 
 ### Perfect regions (5)
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `regions_1` | Perfectionist | Earn three stars on every level of a region. | Medium | 100 coins + Swap | 175 |
-| `regions_3` | Triple Perfect | Perfect 3 regions: three stars on every level. | Hard | 300 coins + Colour Shift + Swap | 525 |
-| `regions_5` | Flawless Five | Perfect 5 regions: three stars on every level. | Hard | 500 coins + Colour Burst + Tile Breaker | 875 |
-| `regions_10` | Perfect Ten | Perfect 10 regions: three stars on every level. | Very hard | 1,000 coins + one of each power-up | 1,700 |
-| `regions_15` | Master of the Map | Perfect 15 regions: three stars on every level. | Very hard | 2,000 coins + two of each power-up | 3,400 |
+| `regions_1` | Perfectionist | Earn three stars on every level of a region. | Medium | 25 coins | 25 |
+| `regions_3` | Triple Perfect | Perfect 3 regions: three stars on every level. | Hard | Colour Shift | 150 |
+| `regions_5` | Flawless Five | Perfect 5 regions: three stars on every level. | Hard | Colour Burst | 250 |
+| `regions_10` | Perfect Ten | Perfect 10 regions: three stars on every level. | Very hard | Colour Shift + Colour Burst | 400 |
+| `regions_15` | Master of the Map | Perfect 15 regions: three stars on every level. | Very hard | 300 coins + one of each power-up | 1,000 |
 
 ### Endless (7)
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `endless_5000` | Endless Explorer | Score 5,000 in one Endless run. | Easy | 40 coins | 40 |
-| `endless_10000` | Going the Distance | Score 10,000 in one Endless run. | Medium | 75 coins + Blast | 175 |
-| `endless_20000` | Long Haul | Score 20,000 in one Endless run. | Hard | 250 coins + Colour Shift | 400 |
-| `endless_35000` | Marathon | Score 35,000 in one Endless run. | Very hard | 500 coins + Colour Burst + Tile Breaker | 875 |
-| `endless_50000` | Infinite Cascade | Score 50,000 in one Endless run. | Very hard | 1,000 coins + one of each power-up | 1,700 |
-| `endless_stage_6` | Rockets Away | Reach stage 6 of an Endless run. | Easy | Swap | 75 |
-| `endless_stage_12` | Deep Run | Reach stage 12 of an Endless run. | Hard | 300 coins + Colour Burst | 550 |
+| `endless_5000` | Endless Explorer | Score 5,000 in one Endless run. | Easy | 10 coins | 10 |
+| `endless_10000` | Going the Distance | Score 10,000 in one Endless run. | Medium | 25 coins | 25 |
+| `endless_20000` | Long Haul | Score 20,000 in one Endless run. | Hard | Tile Breaker | 125 |
+| `endless_35000` | Marathon | Score 35,000 in one Endless run. | Very hard | Blast + Colour Burst | 350 |
+| `endless_50000` | Infinite Cascade | Score 50,000 in one Endless run. | Very hard | Colour Shift + Colour Burst | 400 |
+| `endless_stage_6` | Rockets Away | Reach stage 6 of an Endless run. | Easy | 10 coins | 10 |
+| `endless_stage_12` | Deep Run | Reach stage 12 of an Endless run. | Hard | Colour Shift | 150 |
 
 ### Skill (15)
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `group_12` | Big Group | Clear a group of 12 tiles. | Easy | 30 coins | 30 |
-| `group_18` | Huge Group | Clear a group of 18 tiles. | Medium | Swap + Colour Shift | 225 |
-| `group_25` | Colossal Group | Clear a group of 25 tiles. | Very hard | 600 coins + Colour Shift ×2 + Swap ×2 | 1,050 |
-| `move_30` | Clean Sweep | Clear 30 tiles with a single tap. | Medium | 75 coins + Blast | 175 |
-| `move_45` | Avalanche | Clear 45 tiles with a single tap. | Hard | 250 coins + Colour Burst | 500 |
-| `move_60` | Board Wipe | Clear 60 tiles with a single tap. | Very hard | 600 coins + Colour Burst ×2 | 1,100 |
-| `combo_2` | Double Trouble | Fire two special tiles together. | Easy | 30 coins | 30 |
-| `combo_3` | Triple Threat | Fire three special tiles together in one combination. | Medium | 75 coins + Tile Breaker | 200 |
-| `combo_4` | Chain Reactor | Fire four special tiles together in one combination. | Hard | 300 coins + Blast ×2 | 500 |
-| `combo_5` | Grand Combo | Fire five special tiles together in one combination. | Very hard | 700 coins + one of each power-up | 1,400 |
-| `score_15000` | High Scorer | Finish a campaign level with 15,000 points. | Medium | 100 coins | 100 |
-| `score_30000` | Score Master | Finish a campaign level with 30,000 points. | Hard | 300 coins + Colour Burst | 550 |
-| `score_45000` | Score Legend | Finish a campaign level with 45,000 points. | Very hard | 700 coins + Colour Burst ×2 + Colour Shift | 1,350 |
-| `pure_10` | Pure Skill | Three-star 10 different levels from level 50 on without using a power-up. | Medium | 150 coins | 150 |
-| `pure_50` | Purist | Three-star 50 different levels from level 50 on without using a power-up. | Hard | 450 coins | 450 |
+| `group_12` | Big Group | Clear a group of 12 tiles. | Easy | 10 coins | 10 |
+| `group_18` | Huge Group | Clear a group of 18 tiles. | Medium | 25 coins | 25 |
+| `group_25` | Colossal Group | Clear a group of 25 tiles. | Very hard | Colour Shift + Colour Burst | 400 |
+| `move_30` | Clean Sweep | Clear 30 tiles with a single tap. | Medium | 25 coins | 25 |
+| `move_45` | Avalanche | Clear 45 tiles with a single tap. | Hard | Colour Shift | 150 |
+| `move_60` | Board Wipe | Clear 60 tiles with a single tap. | Very hard | Colour Shift + Colour Burst | 400 |
+| `combo_2` | Double Trouble | Fire two special tiles together. | Easy | 10 coins | 10 |
+| `combo_3` | Triple Threat | Fire three special tiles together in one combination. | Medium | 25 coins | 25 |
+| `combo_4` | Chain Reactor | Fire four special tiles together in one combination. | Hard | Colour Shift | 150 |
+| `combo_5` | Grand Combo | Fire five special tiles together in one combination. | Very hard | Colour Shift + Colour Burst | 400 |
+| `score_15000` | High Scorer | Finish a campaign level with 15,000 points. | Medium | 25 coins | 25 |
+| `score_30000` | Score Master | Finish a campaign level with 30,000 points. | Hard | Colour Shift | 150 |
+| `score_45000` | Score Legend | Finish a campaign level with 45,000 points. | Very hard | Colour Shift + Colour Burst | 400 |
+| `pure_10` | Pure Skill | Three-star 10 different levels from level 50 on without using a power-up. | Medium | 50 coins | 50 |
+| `pure_50` | Purist | Three-star 50 different levels from level 50 on without using a power-up. | Hard | 250 coins | 250 |
 
 ### Board mastery (18)
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `stones_25` | Stone Breaker | Break 25 stones. | Easy | 30 coins | 30 |
-| `stones_200` | Rock Crusher | Break 200 stones. | Medium | Tile Breaker ×2 | 250 |
-| `stones_600` | Quarry Master | Break 600 stones. | Hard | 300 coins + Tile Breaker ×2 | 550 |
-| `ice_50` | Thaw | Remove 50 layers of ice. | Easy | 30 coins | 30 |
-| `ice_400` | Icebreaker | Remove 400 layers of ice. | Medium | 100 coins + Blast | 200 |
-| `ice_1200` | The Big Melt | Remove 1,200 layers of ice. | Hard | 350 coins + Blast ×2 | 550 |
-| `chains_25` | Unchained | Free 25 chained tiles. | Easy | 40 coins | 40 |
-| `chains_150` | Lock Picker | Free 150 chained tiles. | Medium | 50 coins + Colour Shift | 200 |
-| `chains_400` | Escape Artist | Free 400 chained tiles. | Hard | 350 coins + Colour Shift ×2 | 650 |
-| `treasure_5` | Treasure Hunter | Collect 5 treasures. | Easy | 40 coins | 40 |
-| `treasure_40` | Treasure Trove | Collect 40 treasures. | Medium | 100 coins + Tile Breaker | 225 |
-| `treasure_100` | Hoarder | Collect 100 treasures. | Hard | 400 coins + Colour Burst | 650 |
-| `moss_30` | Weeder | Clear 30 mossy tiles. | Easy | 40 coins | 40 |
-| `moss_200` | Moss Buster | Clear 200 mossy tiles. | Medium | 150 coins + Blast | 250 |
-| `tiles_10000` | Ten Thousand | Clear 10,000 tiles. | Easy | 50 coins | 50 |
-| `tiles_100000` | Hundred Thousand | Clear 100,000 tiles. | Very hard | 800 coins + one of each power-up | 1,500 |
-| `powerups_each_1` | Toolkit | Use each of the five power-ups at least once. | Medium | 100 coins | 100 |
-| `powerups_each_10` | Power User | Use each of the five power-ups 10 times. | Hard | 300 coins + one of each power-up | 1,000 |
+| `stones_25` | Stone Breaker | Break 25 stones. | Easy | 10 coins | 10 |
+| `stones_200` | Rock Crusher | Break 200 stones. | Medium | 25 coins | 25 |
+| `stones_600` | Quarry Master | Break 600 stones. | Hard | Blast + Tile Breaker | 225 |
+| `ice_50` | Thaw | Remove 50 layers of ice. | Easy | 10 coins | 10 |
+| `ice_400` | Icebreaker | Remove 400 layers of ice. | Medium | 25 coins | 25 |
+| `ice_1200` | The Big Melt | Remove 1,200 layers of ice. | Hard | Blast ×2 | 200 |
+| `chains_25` | Unchained | Free 25 chained tiles. | Easy | 10 coins | 10 |
+| `chains_150` | Lock Picker | Free 150 chained tiles. | Medium | 25 coins | 25 |
+| `chains_400` | Escape Artist | Free 400 chained tiles. | Hard | Colour Shift | 150 |
+| `treasure_5` | Treasure Hunter | Collect 5 treasures. | Easy | 10 coins | 10 |
+| `treasure_40` | Treasure Trove | Collect 40 treasures. | Medium | 25 coins | 25 |
+| `treasure_100` | Hoarder | Collect 100 treasures. | Hard | Colour Burst | 250 |
+| `moss_30` | Weeder | Clear 30 mossy tiles. | Easy | 10 coins | 10 |
+| `moss_200` | Moss Buster | Clear 200 mossy tiles. | Medium | 25 coins | 25 |
+| `tiles_10000` | Ten Thousand | Clear 10,000 tiles. | Easy | 10 coins | 10 |
+| `tiles_100000` | Hundred Thousand | Clear 100,000 tiles. | Very hard | Colour Shift + Colour Burst | 400 |
+| `powerups_each_1` | Toolkit | Use each of the five power-ups at least once. | Medium | 25 coins | 25 |
+| `powerups_each_10` | Power User | Use each of the five power-ups 10 times. | Hard | Colour Burst | 250 |
 
 ### Challenges (6)
 
 | ID | Name | Requirement | Tier | Reward | Value |
 |---|---|---|---|---|---:|
-| `daily_1` | Daily Dabbler | Complete a Daily Challenge. | Easy | 30 coins | 30 |
-| `daily_7` | Daily Habit | Complete 7 Daily Challenges. | Medium | 75 coins + Blast | 175 |
-| `daily_30` | Daily Devotee | Complete 30 Daily Challenges. | Hard | 300 coins + Colour Burst | 550 |
-| `daily_100` | Daily Legend | Complete 100 Daily Challenges. | Very hard | 1,000 coins + one of each power-up | 1,700 |
-| `weekly_bronze` | Rush Hour | Earn a Bronze medal in the Weekly Rush. | Easy | 40 coins | 40 |
-| `weekly_gold` | Golden Rush | Earn a Gold medal in the Weekly Rush. | Hard | 250 coins + Colour Shift | 400 |
+| `daily_1` | Daily Dabbler | Complete a Daily Challenge. | Easy | 10 coins | 10 |
+| `daily_7` | Daily Habit | Complete 7 Daily Challenges. | Medium | 25 coins | 25 |
+| `daily_30` | Daily Devotee | Complete 30 Daily Challenges. | Hard | Colour Shift | 150 |
+| `daily_100` | Daily Legend | Complete 100 Daily Challenges. | Very hard | Colour Shift + Colour Burst | 400 |
+| `weekly_bronze` | Rush Hour | Earn a Bronze medal in the Weekly Rush. | Easy | 10 coins | 10 |
+| `weekly_gold` | Golden Rush | Earn a Gold medal in the Weekly Rush. | Hard | Tile Breaker | 125 |
 
+**Totals (update 3.1):** 67 achievements; **1,810 coins and 59 power-ups** (9 Blast, 8 Tile Breaker, 3 Swap,
+21 Colour Shift, 18 Colour Burst), about 11,585 coins of value in all. Before 3.1 they paid 22,265 coins and 126
+power-ups (about 40,700 of value): the names, requirements, tiers and targets are unchanged, only the rewards.
 
-**Totals:** 67 achievements; 22,265 coins and 126 power-ups (about 40,700 coins of value in all).
-
-| Tier | Achievements | Value each | Total value |
-|---|---|---|---|
-| Easy | 15 | 25 – 75 | 580 |
-| Medium | 18 | 100 – 250 | 3,410 |
-| Hard | 19 | 400 – 1,000 | 11,350 |
-| Very hard | 15 | 875 – 3,400 | 25,325 |
+| Tier | Achievements | Value each | Total value | Reward type |
+|---|---|---|---|---|
+| Easy | 15 | 10 – 15 | 155 | Coins |
+| Medium | 18 | 25 – 50 | 505 | Coins |
+| Hard | 19 | 125 – 250 | 3,275 | One or two power-ups (Purist: 250 coins) |
+| Very hard | 15 | 350 – 1,000 | 7,650 | Power-ups; the three capstones pay 300 coins + one of each power-up |
 
 | Category | Achievements | Total value |
 |---|---|---|
@@ -225,26 +226,31 @@ program is a one-off (not in the repository); its numbers:
 ## 5. Rewards and the economy
 
 * **No new currency:** only coins and the five existing power-ups.
-* **Scaled by difficulty, and not by one multiplier:**
-  * Easy pays 25–75 in coins.
-  * Medium pays 100–250, usually coins plus one power-up.
-  * Hard pays 400–1,000, with a strong power-up (often Colour Burst).
-  * Very hard pays 875–3,400, often a full set of power-ups.
-  * Within every series each step pays more than the last (tested). Level 500 (2,900) is worth over 100
-    times level 10 (25).
-* **Against income:** play earns roughly 60–100 coins a day; adverts pay 50 coins (up to 5 a day); coin packs
-  are 500 to 6,000. Estimates from the bot data:
-  * an engaged player who has reached about level 100 (around 20 days) could have unlocked about 20 achievements
-    (mostly the first step of each series), worth about 1,900: roughly 1,150 coins and 750 in power-ups;
-  * that is a sizeable one-time boost at the start, which shrinks as the remaining achievements get harder;
-  * over half of the total value (25,325) sits in Very hard achievements that take months.
-* **Not in the economy simulation:** `Sim -- economy` still models income without achievements, and the
-  estimates above are arithmetic from the bot data. Watch real coin balances after release; every amount can
-  be changed in the config asset.
-* **Overlap:** the existing one-time **Endless milestone coins** (2,500 / 5,000 / 10,000 / 20,000 / 40,000 →
-  10 / 15 / 25 / 40 / 60 coins) stay as they were. Reaching 5,000, 10,000 or 20,000 in Endless therefore pays
-  the small milestone at once, and the achievement's reward when it is claimed. They are separate rewards for
-  the same score; the milestones are small (150 coins in all).
+* **Revised in update 3.1** after the coin economy audit: before it, achievements paid 22,265 coins, more than
+  the whole campaign, and were the main reason balances reached thousands (docs/DESIGN.md §8). Now:
+  * Easy pays 10–15 coins and Medium 25–50 coins: small, quick rewards for early milestones.
+  * Hard pays one or two power-ups (worth 125–250), so the reward is something to use, not a pile of coins.
+  * Very hard pays 350–1,000 in power-ups; the three capstones (Cascade Legend, Supernova, Master of the Map)
+    pay 300 coins and one of each power-up.
+  * Within every series each step pays more than the last (tested). Level 500 (1,000) is worth 100
+    times level 10 (10).
+* **Against income (3.1 simulation, docs/DESIGN.md §8):** play earns about 38 coins a day for a casual player
+  (2 levels a day), 69 for an engaged one and 189 for a dedicated one; the Coins-tab advert pays 20 (three coin
+  adverts a day in all); coin packs are 500 to 6,000. By level 500 the simulated players had unlocked 49–56 of the
+  67 achievements and claimed 1,160–1,185 coins and 27–37 power-ups from them: about a tenth of their coins, where
+  before 3.1 it was almost half.
+* **In the simulation:** the long-run simulation (`Sim -- economy-trace` with `tools/economy_model.py`) claims
+  achievements through the real `AchievementService` each evening, so their rewards are measured, not estimated.
+  The 30-day `Sim -- economy` report still leaves them out.
+* **Existing players:** an achievement already claimed is never paid again, and nobody is paid the difference
+  between the old and new reward. One that was unlocked but not yet claimed pays the 3.1 reward when it is
+  claimed, because the reward is read from the catalog at claim time (the save stores only the unlock). Config
+  assets with the pre-3.1 rewards are moved to the new ones when the project opens
+  (`AchievementRewardTuning.Upgrade`); a reward someone edited by hand is kept.
+* **Overlap:** the one-time **Endless milestone coins** (2,500 / 5,000 / 10,000 / 20,000 / 40,000 → 5 / 10 / 15 /
+  25 / 40 coins since 3.1) are separate from the three Endless score achievements. Reaching 5,000, 10,000 or
+  20,000 pays the small milestone at once and the achievement's reward when it is claimed; the milestones are
+  small (95 coins in all).
 
 ## 6. Fair play
 
@@ -320,7 +326,8 @@ be earned again from the start, like the first-clear and milestone rewards.
   * The card list builds all 67 cards at once (Claim buttons only where needed); scrolling smoothness on a
     low-end phone is untested.
 * **Rewards:**
-  * Achievement rewards are not part of `Sim -- economy`; §5's figures are estimates.
+  * Achievement rewards are not part of the 30-day `Sim -- economy` report (they are part of the long-run
+    `Sim -- economy-trace` simulation, §5).
   * The Endless milestones overlap three Endless achievements (§5).
 * **Progress:**
   * The counters in §7's right-hand column start at zero for existing players.

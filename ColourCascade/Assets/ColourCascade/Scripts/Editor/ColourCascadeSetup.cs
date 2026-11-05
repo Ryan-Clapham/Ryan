@@ -176,6 +176,12 @@ namespace ColourCascade.EditorTools
             RemoveRetiredPowerUps(asset);
             if (asset.rewardTuningVersion >= EconomyTuning.Current) return;
             var changed = EconomyTuning.Upgrade(asset.ToData(), asset.rewardTuningVersion);
+            // Update 3.1: achievement rewards still at their pre-3.1 defaults move to the new ones (edited ones stay).
+            if (asset.rewardTuningVersion < 3)
+            {
+                var achievements = AchievementRewardTuning.Upgrade(asset.achievements);
+                if (achievements.Count > 0) changed.Add(achievements.Count + " achievement rewards");
+            }
             asset.rewardTuningVersion = EconomyTuning.Current;
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();

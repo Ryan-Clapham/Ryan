@@ -200,7 +200,7 @@ namespace ColourCascade.Core
         public int treasureBonusMoves = 3;
         /// <summary>One-time coin rewards for reaching these run scores for the first time ever.</summary>
         public int[] milestoneScores = { 2500, 5000, 10000, 20000, 40000 };
-        public int[] milestoneRewards = { 10, 15, 25, 40, 60 };
+        public int[] milestoneRewards = { 5, 10, 15, 25, 40 };
 
         public int BonusMovesFor(int groupSize)
         {
@@ -241,7 +241,7 @@ namespace ColourCascade.Core
         public int targetPermille = 800;
         public int star2Permille = 1050;
         public int star3Permille = 1250;
-        public int completionReward = 15;
+        public int completionReward = 10;
         public int threeStarBonus = 5;
         public int calibrationRuns = 16;
         /// <summary>On days with goals (tile mechanics), the target is this much lower (permille of the reference score).</summary>
@@ -265,11 +265,20 @@ namespace ColourCascade.Core
     public class EconomyConfig
     {
         public int startingCoins = 0;
-        /// <summary>First-clear coins = base + step × floor((level-1)/stepEvery), capped at max.</summary>
-        public int firstClearBase = 5;
+        /// <summary>
+        /// First-clear coins = base + step × floor((level-1)/stepEvery), capped at max. Update 3.1: 3 coins on levels
+        /// 1-25, +1 every 25 levels, 8 from level 126 (3, 4, 5, 6, 7, then 8).
+        /// </summary>
+        public int firstClearBase = 3;
         public int firstClearStep = 1;
-        public int firstClearStepEvery = 10;
-        public int firstClearMax = 15;
+        public int firstClearStepEvery = 25;
+        public int firstClearMax = 8;
+        /// <summary>
+        /// Coins for each star the first time it is earned on a level: the first, second and third star (update 3.1:
+        /// 2, 3 and 5, so 10 for three stars). Each star pays once (claim key c.star.LEVEL.STAR).
+        /// </summary>
+        public int[] starRewards = { 2, 3, 5 };
+        /// <summary>Older configs: one value for every star. Used only when starRewards is empty.</summary>
         public int coinsPerNewStar = 1;
         public int milestoneReward = 20;
         public int regionFinaleReward = 40;
@@ -281,6 +290,14 @@ namespace ColourCascade.Core
             int every = Math.Max(1, firstClearStepEvery);
             int value = firstClearBase + firstClearStep * ((level - 1) / every);
             return Math.Min(value, firstClearMax);
+        }
+
+        /// <summary>Coins for earning star 1, 2 or 3 of a level for the first time.</summary>
+        public int StarReward(int star)
+        {
+            if (star < 1) return 0;
+            if (starRewards != null && starRewards.Length > 0) return Math.Max(0, starRewards[Math.Min(star, starRewards.Length) - 1]);
+            return Math.Max(0, coinsPerNewStar);
         }
     }
 

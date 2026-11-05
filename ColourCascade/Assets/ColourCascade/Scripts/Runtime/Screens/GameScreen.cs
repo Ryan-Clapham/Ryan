@@ -294,13 +294,20 @@ namespace ColourCascade.App
         // ================================================================== Runs
 
         /// <summary>Ends the current run's bookkeeping exactly once: an unfinished run is abandoned (counted as an
-        /// attempt) and the activity tracker is released so the shop reopens.</summary>
+        /// attempt) and the activity tracker is released so the shop reopens. A run whose moves are gone is finished,
+        /// not abandoned, even if the player leaves before its result appears: the specials left on the board go off
+        /// and the score is recorded (FinishRun does both, once).</summary>
         void CloseRun()
         {
             if (runClosed || session == null) return;
             runClosed = true;
-            if (!session.IsOver) Ctx.AbandonRun(session);
-            else Ctx.Activity.EndRun();
+            if (session.FinalePending) session.RunFinale(new MoveOutcome());
+            if (session.IsOver)
+            {
+                Ctx.FinishRun(session);
+                Ctx.Activity.EndRun();
+            }
+            else Ctx.AbandonRun(session);
             Ctx.PowerUpUse.ClearRunLoans();
         }
 
@@ -843,6 +850,8 @@ namespace ColourCascade.App
                     RefreshFinishButton();
                     float hold = ShowFinaleSummary(before, d * 0.7f);
                     if (outcome.Ended) ScheduleEnd(d * 0.7f + hold + 0.2f);
+                    // The finale always ends the run; should it ever not, the board must not stay locked.
+                    else if (session.State == SessionState.Playing) board.InputEnabled = true;
                 }, this);
             }, this);
         }
@@ -1397,6 +1406,7 @@ namespace ColourCascade.App
                 endScheduled = false;
                 board.InputEnabled = true;
             }
+            if (outcome.FinalePending) PlayFinale(duration + 0.3f);
             if (outcome.Ended) ScheduleEnd(duration + 0.35f);
         }
 

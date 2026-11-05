@@ -58,17 +58,18 @@ Endless/Daily/Rush rules, coin rewards and power-up prices and unlock levels.
 
 ## Run the tests
 
-* **In Unity:** Window → General → Test Runner → EditMode → Run All (480 tests).
+* **In Unity:** Window → General → Test Runner → EditMode → Run All (514 tests).
 * **Without Unity (CI or a terminal with .NET 8):**
   ```
   cd tools/Harness
-  dotnet test Tests/Tests.csproj            # the same 480 tests
+  dotnet test Tests/Tests.csproj            # the same 514 tests
   ./fetch-unity-refs.sh                     # once: downloads Unity reference assemblies from NuGet
   dotnet build UnityCheck/UnityCheck.csproj # compile-checks every Unity script (also -p:UnityPlatform=Android)
   dotnet build EditorCheck/EditorCheck.csproj
   dotnet run --project UnityLint            # Unity message signatures, unsaveable fields, audio listener, missing font characters
   dotnet run --project Sim -c Release -- balance x 60   # bots play levels 1-60, Endless, Rush and Daily
   dotnet run --project Sim -c Release -- economy        # coins a simulated player earns over 30 days
+  # long-run economy (3.1): Sim -- economy-trace ... then python3 tools/economy_model.py (usage in that file)
   dotnet run --project Sim -c Release -- art ./preview  # exports every generated sprite as PNG
   ```
 
@@ -103,6 +104,7 @@ ColourCascade/                 Unity project (open this folder)
 docs/                          Design, architecture and testing documents
 tools/Harness/                 .NET projects: tests, Unity compile checks, balance simulator, art preview
 tools/unity_meta.py            Creates .meta files for new assets
+tools/economy_model.py         Long-run economy model on top of Sim's economy traces (DESIGN.md §8)
 ```
 
 Read **docs/DESIGN.md** for the rules, modes, economy and design decisions, **docs/ARCHITECTURE.md** for how

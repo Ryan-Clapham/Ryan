@@ -58,7 +58,46 @@ namespace ColourCascade.Core
 
         public event Action<PowerUpId, int> Purchased;
 
-        public PurchaseCheck Check(PowerUpId id, int quantity = 1)
+        /// <summary>How many a three-pack holds.</summary>
+        public const int PackSize = 3;
+
+        /// <summary>
+        /// The three-pack's price (update 3.1), or 0 if this power-up has none. A config without one (0) gets the
+        /// built-in price; a negative price switches the pack off. Never more than three bought singly.
+        /// </summary>
+        public int PackPrice(PowerUpId id)
+        {
+            var def = catalog.Get(id);
+            if (def == null || def.packPrice < 0) return 0;
+            int price = def.packPrice;
+            if (price == 0)
+                foreach (var d in PowerUpCatalog.CreateDefaults())
+                    if (d.id == id) price = d.packPrice;
+            if (price <= 0) return 0;
+            return Math.Min(price, def.price * PackSize);
+        }
+
+        public bool HasPack(PowerUpId id) => PackPrice(id) > 0;
+
+        /// <summary>Whether the three-pack can be bought now (same rules as a single one, at the pack's price).</summary>
+        public PurchaseCheck CheckPack(PowerUpId id)
+        {
+            int price = PackPrice(id);
+            if (price <= 0) return new PurchaseCheck { Block = PurchaseBlock.UnknownItem };
+            return Check(id, PackSize, price);
+        }
+
+        /// <summary>Buys a three-pack: the pack price is taken once and exactly three uses are added.</summary>
+        public PurchaseCheck TryBuyPack(PowerUpId id)
+        {
+            var check = CheckPack(id);
+            if (!check.Allowed) return check;
+            return Buy(id, PackSize, check);
+        }
+
+        public PurchaseCheck Check(PowerUpId id, int quantity = 1) => Check(id, quantity, -1);
+
+        PurchaseCheck Check(PowerUpId id, int quantity, int totalPrice)
         {
             var check = new PurchaseCheck();
             var def = catalog.Get(id);
@@ -67,7 +106,7 @@ namespace ColourCascade.Core
                 check.Block = PurchaseBlock.UnknownItem;
                 return check;
             }
-            check.Price = def.price * Math.Max(1, quantity);
+            check.Price = totalPrice >= 0 ? totalPrice : def.price * Math.Max(1, quantity);
             check.UnlockLevel = def.unlockLevel;
             if (quantity < 1 || quantity > 99) check.Block = PurchaseBlock.InvalidQuantity;
             else if (!ActionPolicy.ShopPurchasesAllowed(activity)) check.Block = PurchaseBlock.ChallengeInProgress;
@@ -84,6 +123,11 @@ namespace ColourCascade.Core
         {
             var check = Check(id, quantity);
             if (!check.Allowed) return check;
+            return Buy(id, quantity, check);
+        }
+
+        PurchaseCheck Buy(PowerUpId id, int quantity, PurchaseCheck check)
+        {
             if (!wallet.TryDebit(check.Price, "shop." + id + ".x" + quantity))
             {
                 check.Block = PurchaseBlock.InsufficientFunds;
